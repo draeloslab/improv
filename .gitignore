@@ -131,3 +131,6 @@ arrow
 
 *.code-workspace
 improv/_version.py
+
+/output
+.npy

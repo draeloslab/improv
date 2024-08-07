@@ -3,7 +3,7 @@ import logging
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
 from improv.nexus import Nexus
 
-loadFile = './live_demo.yaml'
+loadFile = './live_photo_demo.yaml'
 
 nexus = Nexus('Nexus')
 nexus.createNexus(file=loadFile)

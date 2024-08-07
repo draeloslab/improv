@@ -1,53 +1,47 @@
-import time
 import os
+import time
 import h5py
-import struct
 import numpy as np
-import random
-import ipaddress
 import zmq
 import json
+import pathlib
 from pathlib import Path
-from skimage.external.tifffile import imread
-from improv.actor import Actor, Spike, RunManager
-from queue import Empty
+from improv.actor import Actor, RunManager
+from ast import literal_eval as make_tuple
+import matplotlib.pyplot as plt
 
-import logging
-
-logger = logging.getLogger(__name__)
+import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-
 class ZMQAcquirer(Actor):
-    def __init__(self, *args, ip=None, ports=None, **kwargs):
+
+    def __init__(self, *args, ip=None, ports=None, output=None, red_chan_image=None, init_filename=None, init_frame=60, **kwargs):
         super().__init__(*args, **kwargs)
+        print("init")
         self.ip = ip
         self.ports = ports
         self.frame_num = 0
-
-        # Sanity check
-        # ipaddress.ip_address(self.ip)  # Check if IP is valid.
-        # if not 0 <= port <= 65535:
-        #     raise ValueError(f'Port {self.port} invalid.')
-
-        # self.context = zmq.Context()
-        # self.socket = self.context.socket(zmq.SUB)
-        # self.socket.connect(f"tcp://{self.ip}:{self.port}")
-        # self.socket.setsockopt_string(zmq.SUBSCRIBE, self.topicfilter)
+        self.stim_count = 0
+        self.initial_frame_num = init_frame     # Number of frames for initialization
+        self.init_filename = init_filename 
+        self.red_chan_image = red_chan_image
+        
+        self.output_folder = str(output)
+        pathlib.Path(output).mkdir(exist_ok=True) 
+        pathlib.Path(output+'timing/').mkdir(exist_ok=True)
 
     def setup(self):
-        context = zmq.Context()
-        self.socket = context.socket(zmq.SUB)
+        self.context = zmq.Context()
+        self.socket = self.context.socket(zmq.SUB)
         for port in self.ports:
-            self.socket.connect("tcp://" + str(self.ip) + ":" + str(port))
-        self.socket.setsockopt(zmq.SUBSCRIBE, b"")
+            self.socket.connect("tcp://"+str(self.ip)+":"+str(port))
+            logger.info('Connected to '+str(self.ip)+':'+str(port))
+        self.socket.setsockopt(zmq.SUBSCRIBE, b'')
 
         self.saveArray = []
-
-        ## TODO: save initial set of frames to data/init_stream.h5
-
-    def run(self):
-        """Triggered at Run"""
+        self.saveArrayRedChan = []
+        self.save_ind = 0
+        self.fullStimmsg = []
         self.total_times = []
         self.timestamp = []
         self.stimmed = []
@@ -56,159 +50,254 @@ class ZMQAcquirer(Actor):
         self.stimsendtimes = []
         self.tailsendtimes = []
         self.tails = []
+        self.photostims = []
 
-        with RunManager(
-            self.name, self.runAcquirer, self.setup, self.q_sig, self.q_comm
-        ) as rm:
-            print(rm)
-        print("-------------------------------------------- HERE")
+        self.tailF = False
+        self.stimF = False
+        self.frameF = False
+        self.align_flag = True
 
+        if not os.path.exists(self.init_filename):
+
+            ## Save initial set of frames to output/initialization.h5
+            self.kill_flag = False
+            while self.frame_num < self.initial_frame_num:
+                self.runStep()
+
+            self.imgs = np.array(self.saveArray)
+            f = h5py.File(self.init_filename, 'w', libver='earliest')
+            f.create_dataset("default", data=self.imgs)
+            f.close()
+
+        # if not os.path.exists(self.red_chan_image):
+        #     if len(self.saveArrayRedChan) > 1:
+        #         mean_red = np.mean(np.array(self.saveArrayRedChan), axis=0)
+        #         np.save(self.red_chan_image, mean_red)
+
+        self.frame_num = 0
+
+        self.kill_flag = True
+
+        # ## reconnect socket
+        # self.socket.close()
+        # self.socket = context.socket(zmq.SUB)
+        # for port in self.ports:
+        #     self.socket.connect("tcp://"+str(self.ip)+":"+str(port))
+        #     print('RE-Connected to '+str(self.ip)+':'+str(port))
+        # self.socket.setsockopt(zmq.SUBSCRIBE, b'')
+
+
+    def stop(self):
         self.imgs = np.array(self.saveArray)
-        f = h5py.File("output/sample_stream.h5", "w", libver="latest")
+        f = h5py.File('output/sample_stream_end.h5', 'w', libver='earliest')
         f.create_dataset("default", data=self.imgs)
         f.close()
 
-        np.savetxt("output/stimmed.txt", np.array(self.stimmed))
-        np.savetxt("output/tails.txt", np.array(self.tails))
-        np.savetxt("output/timing/frametimes.txt", np.array(self.frametimes))
-        np.savetxt(
-            "output/timing/framesendtimes.txt", np.array(self.framesendtimes), fmt="%s"
-        )
-        np.savetxt(
-            "output/timing/stimsendtimes.txt", np.array(self.stimsendtimes), fmt="%s"
-        )
-        np.savetxt(
-            "output/timing/tailsendtimes.txt", np.array(self.tailsendtimes), fmt="%s"
-        )
+        np.savetxt('output/stimmed.txt', np.array(self.stimmed))
+        np.savetxt('output/photostimmed_msgs.txt', np.array(self.photostims))
+        np.save('output/tails.npy', np.array(self.tails))
+        np.savetxt('output/timing/frametimes.txt', np.array(self.frametimes))
+        np.savetxt('output/timing/framesendtimes.txt', np.array(self.framesendtimes), fmt="%s")
+        np.savetxt('output/timing/stimsendtimes.txt', np.array(self.stimsendtimes), fmt="%s")
+        np.savetxt('output/timing/tailsendtimes.txt', np.array(self.tailsendtimes), fmt="%s")
+        np.savetxt('output/timing/acquire_frame_time.txt', self.total_times)
+        np.savetxt('output/timing/acquire_timestamp.txt', self.timestamp)
+        np.save('output/fullstim.npy', self.fullStimmsg)
 
-        print("Acquisition complete, avg time per frame: ", np.mean(self.total_times))
-        print("Acquire got through ", self.frame_num, " frames")
-        np.savetxt("output/timing/acquire_frame_time.txt", self.total_times)
-        np.savetxt("output/timing/acquire_timestamp.txt", self.timestamp)
+        print('Acquisition complete, avg time per frame: ', np.mean(self.total_times))
+        print('Acquire got through ', self.frame_num, ' frames')
 
-    def runAcquirer(self):
-        """Main loop. If there're new files, read and put into store."""
-        t = time.time()
-        # TODO: use poller instead to prevent blocking, include a timeout
+    def runStep(self):
+
+        # if self.kill_flag:
+        #     self.socket.close()
+        #     self.context = zmq.Context()
+        #     self.socket = self.context.socket(zmq.SUB)
+        #     for port in self.ports:
+        #         self.socket.connect("tcp://"+str(self.ip)+":"+str(port))
+        #         print('RE-Connected to '+str(self.ip)+':'+str(port))
+        #     self.socket.setsockopt(zmq.SUBSCRIBE, b'')
+
+        #     timer = time.time()
+        #     while True:
+        #         msg = self.socket.recv_multipart()
+        #         if time.time()-timer > 0.02:
+        #             self.kill_flag = False
+        #             logger.error('Resuming run') 
+        #             break
+        #         logger.info(str(time.time()-timer))
+        #         timer = time.time()
+
+        #     self.kill_flag = False
+
         try:
-            msg = self.socket.recv(flags=zmq.NOBLOCK)
-            msg_parts = [part.strip() for part in msg.split(b": ", 1)]
-            # logger.info(msg_parts[0].split(b' ')[:4])
-            tag = msg_parts[0].split(b" ")[0]
-            # sendtime = msg_parts[0].split(b' ')[1].decode()
-
-            if tag == b"stimid":
-                msg_parts = [part.strip() for part in msg.split(b" ")]
-                # print(msg_parts)
-                sendtime = msg_parts[2].decode()
-                angle = int(msg_parts[7].decode()[:-1])
-                vel = float(msg_parts[9].decode()[:-1])
-                # print('stim sendtime ', sendtime)
-                # print('stimulus id: {}, {}'.format(angle, vel))
-
-                # output example: stimulus id: b'background_stim'
-
-                # calibration check:
-                angle = 270 + angle
-                if angle > 360:
-                    angle -= 360
-
-                stim = 0
-                # stimonOff = 20
-                if np.abs(vel) > 0:
-                    stimonOff = 20
-                else:
-                    stimonOff = 0
-
-                # if msg_parts[1] == b'Left':
-                #     stim = 4
-                # elif msg_parts[1] == b'Right':
-                #     stim = 3
-                # elif msg_parts[1] == b'forward':
-                #     stim = 9
-                # elif msg_parts[1] == b'backward':
-                #     stim = 13
-                # elif msg_parts[1] == b'background_stim':
-                #     stimonOff = 0
-                #     print('Stim off')
-                # elif msg_parts[1] == b'Left_Backward':
-                #     stim = 14
-                # elif msg_parts[1] == b'Right_Backward':
-                #     stim = 12
-                # elif msg_parts[1] == b'Left_Forward':
-                #     stim = 16
-                # elif msg_parts[1] == b'Right_Forward':
-                #     stim = 10
-
-                if angle == 0:
-                    stim = 9
-                elif angle == 90:
-                    stim = 3
-                elif angle == 180:
-                    stim = 13
-                elif angle == 270:
-                    stim = 4
-                elif angle == 45:
-                    stim = 10
-                elif angle == 135:
-                    stim = 12
-                elif angle == 225:
-                    stim = 14
-                elif angle == 315:
-                    stim = 16
-                else:
-                    logger.error("Stimulus unrecognized")
-
-                logger.info("Stimulus: {}".format(stim))
-
-                self.links["stim_queue"].put({self.frame_num: [stim, stimonOff]})
-                self.stimmed.append([self.frame_num, stim, time.time()])
-                self.stimsendtimes.append([sendtime])
-
-            elif tag == b"frame":
-                t0 = time.time()
-                sendtime = msg_parts[0].split(b" ")[2].decode()
-                # print(sendtime)
-                array = np.array(
-                    json.loads(msg_parts[1])
-                )  # assuming the following message structure: 'tag: message'
-                # print('frame ', self.frame_num)
-                # print('{}'.format(msg_parts[0])) # messsage length: {}. Element sum: {}; time to process: {}'.format(msg_parts[0], len(msg),
-                # array.sum(), time.time() - t0))
-                # output example: b'frame ch0 10:02:01.115 AM 10/11/2019' messsage length: 1049637. Element sum: 48891125; time to process: 0.04192757606506348
-
-                obj_id = self.client.put(array, "acq_raw" + str(self.frame_num))
-                self.q_out.put([{str(self.frame_num): obj_id}])
-
-                self.saveArray.append(array)
-                self.frametimes.append([self.frame_num, time.time()])
-                self.framesendtimes.append([sendtime])
-
-                self.frame_num += 1
-                self.total_times.append(time.time() - t0)
-
-            elif tag == b"tail":
-                t0 = time.time()
-                sendtime = msg_parts[0].split(b" ")[1].decode()
-                msg = msg_parts[0].split(b" ")[4:]
-                # print(msg)
-                vlist = []
-                for i, m in enumerate(msg):
-                    try:
-                        v = int(m.decode())
-                    except ValueError:
-                        v = int(m.decode()[:-1])
-                    vlist.append(v)
-                self.tails.append(np.array(vlist))
-                self.tailsendtimes.append([sendtime])
-
-            else:
-                if len(msg) < 100:
-                    print(msg)
-                else:
-                    print("msg length: {}".format(len(msg)))
-
-        except zmq.Again as e:
-            pass  # no messages available
+            self.get_message()
+        except zmq.Again:
+            # No messages available
+            pass 
         except Exception as e:
-            print("error: {}".format(e))
+            print('error: {}'.format(e))
+
+    def get_message(self, timeout=0.001):
+        msg = self.socket.recv_pyobj() #(flags=zmq.NOBLOCK)
+        # logger.info('RECIEVING IMAGES ---------')
+        # logger.info('image message received (raw): {}'.format(msg))
+        # logger.info('msg type: {}'.format(type(msg)))
+        try:
+            #NOTE: brucker_2pcontrol sends msg as dict, so no need to use msg_unpacker for this
+            msg_dict = msg
+            # msg_dict = self._msg_unpacker(msg)
+            # logger.info('inside try block - msg_dict')
+            tag = msg_dict['type'] 
+        except Exception as e:
+            logger.error('Weird format message {}'.format(e))
+        
+        # trying to visualize data
+        message_data = msg_dict['data']
+        finalthing = np.array((np.array(message_data) - 0) / 1 * 255, np.uint8)
+        # logger.info('finalthang: {}'.format(finalthing))
+        plt.imshow("Microscope Image", finalthing)
+
+        if 'stim' in tag: 
+            if not self.stimF:
+                logger.info('Receiving stimulus information')
+                self.stimF = True
+            self.fullStimmsg.append(msg)
+            self._collect_stimulus(msg_dict)
+
+        elif 'frame' in tag: 
+            t0 = time.time()
+            self._collect_frame(msg_dict)
+            self.frame_num += 1
+            self.total_times.append(time.time() - t0)
+
+        elif str(tag) in 'tail':
+            if not self.tailF:
+                logger.info('Receiving tail information')
+                self.tailF = True
+            self._collect_tail(msg_dict)
+
+        elif 'scan' in tag:
+            if 'scanner2' in msg_dict['source']:
+                logger.info('Photostim happened at frame {}'.format(self.frame_num))
+                self.photostims.append(self.frame_num)
+
+        else:
+            logger.info('Had an error in tag: {}'.format(tag))
+            logger.info('{}'.format(msg))
+
+
+    def _collect_frame(self, msg_dict):
+        array = np.array(json.loads(msg_dict['data']))
+        if not self.frameF:
+            logger.info('Receiving frame information')
+            self.frameF = True
+            logger.info('Image frame(s) size is {}'.format(array.shape))
+            if array.shape[0] == 2:
+                logger.info('Acquiring also in the red channel')
+        self.saveArray.append(array[0])
+        if array.shape[0] == 2:
+            self.saveArrayRedChan.append(array[1])
+        
+        if not self.align_flag:
+            array = None
+        obj_id = self.client.put(array[0], 'acq_raw' + str(self.frame_num))
+        self.q_out.put([{str(self.frame_num): obj_id}])
+
+        sendtime =  msg_dict['timestamp'] 
+
+        self.frametimes.append([self.frame_num, time.time()])
+        self.framesendtimes.append([sendtime])
+
+        if len(self.saveArray) >= 1000:
+            self.imgs = np.array(self.saveArray)
+            f = h5py.File(self.output_folder+'/sample_stream'+str(self.save_ind)+'.h5', 'w', libver='earliest')
+            f.create_dataset("default", data=self.imgs)
+            f.close()
+            self.save_ind += 1
+            del self.saveArray
+            self.saveArray = []
+
+    def _collect_stimulus(self, msg_dict):
+        sendtime = msg_dict['time']
+
+        category = str(msg_dict['raw_msg']) #'motionOn' 
+        if 'alignment' in category:
+            ## Currently not using
+            s = msg_dict[5]
+            status = str(s.decode('utf8').encode('ascii', errors='ignore'))
+            if 'start' in status:
+                self.align_flag = False
+                logger.info('Starting alignment...')
+            elif 'completed' in status:
+                self.align_flag = True
+                print(msg_dict)
+                logger.info('Alignment done, continuing')
+        elif 'move' in category:
+            pass 
+            # print(msg)  
+        elif 'motionOn' in category:
+            self.stim_count += 1
+            
+            ## visual stim with Matt
+            # angle2 = None
+            # angle, angle2 = make_tuple(msg_dict['angle'])
+            # if angle>=360:
+            #     angle-=360
+            # stim = self._realign_angle(angle)
+            # self.links['stim_queue'].put({self.frame_num:[stim, float(angle), float(angle2)]})
+            # self.stimmed.append([self.frame_num, stim, angle, angle2, time.time()])
+            # logger.info('Stimulus: {}, angle: {},{}, frame {}'.format(stim, angle, angle2, self.frame_num))
+
+            ## spots stim with Karina
+            size = float(msg_dict['circle_radius'])
+            vel = float(msg_dict['velocity'])
+            self.links['stim_queue'].put({self.frame_num:[size, vel]})
+            self.stimmed.append([self.frame_num, size, vel])
+            logger.info('Stimulus: Circle radius {} with velocity {} at frame {}'.format(size, vel, self.frame_num))
+
+            logger.info('Number of stimuli: {}'.format(self.stim_count))
+            self.stimsendtimes.append([sendtime])
+
+    def _collect_tail(self, msg_dict):
+        sendtime = msg_dict['timestamp']
+        tails = np.array(msg_dict['tail_points']) 
+        self.tails.append(tails) 
+        self.tailsendtimes.append([sendtime])
+
+    def _msg_unpacker(self, msg):
+        # logger.info('keys: {}'.format(msg[::2]))
+        # logger.info('vals: {}'.format(msg[1::2]))
+        keys = msg[::2]
+        vals = msg[1::2]
+        
+        msg_dict = {}
+        for k, v in zip(keys, vals):
+            msg_dict[k.decode()] = v.decode()
+        
+        logger.info('msg_dict inside msg_unpacker: {}'.format(msg_dict))
+        return msg_dict
+
+    def _realign_angle(self, angle):
+        if 23 > angle >=0:
+            stim = 9
+        elif 360 > angle >= 338:
+            stim = 9
+        elif 113 > angle >= 68:
+            stim = 3
+        elif 203 > angle >= 158:
+            stim = 13
+        elif 293 > angle >= 248:
+            stim = 4
+        elif 68 > angle >= 23:
+            stim = 10
+        elif 158 > angle >= 113:
+            stim = 12
+        elif 248 > angle >= 203:
+            stim = 14
+        elif 338 > angle >= 293:
+            stim = 16
+        else:
+            logger.error('Stimulus angle unrecognized')
+            stim = 0
+        return stim

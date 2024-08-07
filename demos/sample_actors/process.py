@@ -28,9 +28,7 @@ class CaimanProcessor(Actor):
     Uses code from caiman/source_extraction/cnmf/online_cnmf.py
     """
 
-    def __init__(
-        self, *args, init_filename="data/Tolias_mesoscope_2.hdf5", config_file=None
-    ):
+    def __init__(self, *args, init_filename, config_file):
         super().__init__(*args)
         logger.info("initfile {}, config file {}".format(init_filename, config_file))
         self.param_file = config_file
@@ -41,7 +39,7 @@ class CaimanProcessor(Actor):
         """Create OnACID object and initialize it
         (runs initialize online)
         """
-        logger.info("Running setup for " + self.name)
+        logger.info("Running setup for " + self.name + " using sample CaimanProcessor ")
         self.done = False
         self.dropped_frames = []
         self.coords = None
@@ -92,7 +90,7 @@ class CaimanProcessor(Actor):
 
         if self.onAc.estimates.OASISinstances is not None:
             try:
-                init = self.params["init_batch"]
+                init = self.params['online']["init_batch"]
                 S = np.stack([osi.s[init:] for osi in self.onAc.estimates.OASISinstances])
                 np.savetxt("output/end_spikes.txt", S)
             except Exception as e:
@@ -116,7 +114,7 @@ class CaimanProcessor(Actor):
         # should implement in Config (?) or getting too complicated for users..
 
         # proc_params = self.client.get('params_dict')
-        init = self.params["init_batch"]
+        init = self.params['online']["init_batch"]
         frame = self._checkFrames()
 
         if frame is not None:
@@ -163,33 +161,7 @@ class CaimanProcessor(Actor):
             except Exception as e:
                 logger.exception("File cannot be loaded. {0}".format(e))
         else:
-            # defaults from demo scripts; CNMFParams does not set
-            # each parameter needed by default (TODO change that?)
-            # TODO add parameter validation inside Config
-            params_dict = {
-                "fnames": [cwd + self.init_filename],
-                "fr": 2,
-                "decay_time": 0.8,
-                "gSig": (3, 3),
-                "p": 1,
-                "min_SNR": 1.5,
-                "rval_thr": 1,
-                "ds_factor": 1,
-                "nb": 2,
-                "motion_correct": True,
-                "init_batch": 100,
-                "init_method": "bare",
-                "normalize": True,
-                "sniper_mode": True,
-                "K": 10,
-                "epochs": 1,
-                "max_shifts_online": 10,
-                "pw_rigid": False,
-                "dist_shape_update": True,
-                "show_movie": False,
-                "minibatch_shape": 100,
-            }
-        self.client.put(params_dict, "params_dict")
+            logger.exception("Caiman needs a parameters file")
 
         return params_dict
 
@@ -207,7 +179,7 @@ class CaimanProcessor(Actor):
         t = time.time()
         nb = self.onAc.params.get("init", "nb")
         A = self.onAc.estimates.Ab[:, nb:]
-        before = self.params["init_batch"]  
+        before = self.params['online']["init_batch"]  
         # self.frame_number-500 if self.frame_number > 500 else 0
         C = self.onAc.estimates.C_on[nb : self.onAc.M, before : self.frame_number + before]  # .get_ordered()
         t2 = time.time()
@@ -229,8 +201,6 @@ class CaimanProcessor(Actor):
         t6 = time.time()
 
         self.q_out.put(ids)
-
-        # self.q_comm.put([self.frame_number])
 
         self.putAnalysis_time.append([time.time() - t, t2 - t, t3 - t2, t4 - t3, t5 - t4, t6 - t5])
 
@@ -283,12 +253,13 @@ class CaimanProcessor(Actor):
             # background = self.onAc.estimates.Ab[:,:mn].dot(self.onAc.estimates.C_on[:mn,(self.frame_number-1)%self.onAc.window]).reshape(self.onAc.dims, order='F')
             components = (self.onAc.estimates.Ab[:, mn:]
                 .dot(self.onAc.estimates.C_on[mn : self.onAc.M, (self.frame_number - 1)])
-                .reshape(self.onAc.dims, order="F"))
+                .reshape(self.onAc.estimates.dims, order="F"))
             background = (self.onAc.estimates.Ab[:, :mn]
                 .dot(self.onAc.estimates.C_on[:mn, (self.frame_number - 1)])
-                .reshape(self.onAc.dims, order="F"))
+                .reshape(self.onAc.estimates.dims, order="F"))
             image = ((components + background) - self.onAc.bnd_Y[0]) / np.diff(self.onAc.bnd_Y)
             image = np.minimum((image * 255.0), 255).astype("u1")
+            # logger.error('image mean {}'.format(np.mean(image)))
         except ValueError as ve:
             logger.info("ValueError: {0}".format(ve))
 
