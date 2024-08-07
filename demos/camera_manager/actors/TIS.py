@@ -4,6 +4,8 @@ import re
 import numpy
 from enum import Enum
 from collections import namedtuple
+import threading
+import multiprocessing
 
 import gi
 gi.require_version("Gst", "1.0")
@@ -28,7 +30,7 @@ class SinkFormats(Enum):
 class TIS:
     'The Imaging Source Camera'
 
-    def __init__(self):
+    def __init__(self, queue, barrier):
         try:
             if not Gst.is_initialized():
                 Gst.init(())  # Usually better to call in the main function.
@@ -37,11 +39,13 @@ class TIS:
             # already be initialized to call Gst.is_initialized
             Gst.init(())
 
+        self.stop_program = False
+
         # Gst.debug_set_default_threshold(Gst.DebugLevel.WARNING)
         self.serialnumber = ""
         self.height = 0
         self.width = 0
-        self.framerate = "60/1"
+        self.framerate = ""
         self.sinkformat = SinkFormats.BGRA
         self.img_mat = None
         self.ImageCallback = None
@@ -53,12 +57,15 @@ class TIS:
         self.image_data = []
         self.image_caps = None
 
-        self.start_time = None
-        self.frame_count = 0
-        self.total_time = 0
+        # buffer processing management
+        self.buffer_queue = multiprocessing.Queue() # internal buffer queue
+        self.process_buffer_thread = threading.Thread(target=self.process_buffer) # internal thread for processing the buffer
+        self.reader_queue = queue # external queue for the reader
+        self.reader_barrier = barrier # external barrier for the reader
 
     def open_device(self, serial,
                     width, height,
+                    framerate,
                     sinkformat: SinkFormats,
                     showvideo: bool,
                     conversion: str = ""):
@@ -66,17 +73,19 @@ class TIS:
         :param serial: Serial number of the camera to be used.
         :param width: Width of the wanted video format
         :param height: Height of the wanted video format
+        :param framerate: Frame rate of the wanted video format
         :param sinkformat: Color format to use for the sink
         :param showvideo: Whether to always open a live video preview
         :param conversion: Optional pipeline string to add a conversion before the appsink
         :return: none
         '''
         if serial is None:
-            serial = self.__get_serial_by_index(0)
+            raise RuntimeError("No serial number given on device initialization")
 
         self.serialnumber = serial
-        self.height = height
         self.width = width
+        self.height = height
+        self.framerate = framerate
         self.sinkformat = sinkformat
         self._create_pipeline(conversion, showvideo)
         self.source.set_property("serial", self.serialnumber)
@@ -114,31 +123,6 @@ class TIS:
         appsink.connect('new-sample', self.__on_new_buffer)
         self.appsink = appsink
 
-        self.start_time = time.time()
-
-    def __on_new_buffer(self, appsink):
-        sample = appsink.get_property('last-sample')
-
-        if sample is not None:
-            buf = sample.get_buffer()
-
-            self.frame_count += 1
-
-            if self.frame_count % 35 == 0:
-                current_time = time.time()
-                total_time = current_time - self.start_time
-
-                print(f"Total time: {total_time:1f} - FPS: {round(self.frame_count / total_time)}")
-
-                img = self.__convert_to_numpy(buf.extract_dup(0, buf.get_size()), sample.get_caps())
-
-                print(f"{img.shape} - size on memory: {img.nbytes/(1024**2)}MB")
-
-                self.frame_count = 0
-                self.start_time = current_time
-        
-        return Gst.FlowReturn.OK
-
     def set_sink_format(self, sf: SinkFormats):
         self.sinkformat = sf
 
@@ -155,27 +139,49 @@ class TIS:
         capsfilter.set_property("caps", caps)
 
     def start_pipeline(self):
-        """
-        Start the pipeline, so the video runs
-        """
+        """ Start the pipeline, so the video start running """
+        # start the processing buffer thread
+        self.process_buffer_thread.start()
 
         self.image_data = []
         self.image_caps = None
 
         self._setcaps()
         self.pipeline.set_state(Gst.State.PLAYING)
-        error = self.pipeline.get_state(5000000000)
-        if error[1] != Gst.State.PLAYING:
+
+        cam_state = self.pipeline.get_state(5000000000)
+
+        if cam_state[1] != Gst.State.PLAYING:
             print("Error starting pipeline. {0}".format(""))
             return False
+        
         return True
+    
+    def __on_new_buffer(self, appsink):
+        sample = appsink.get_property('last-sample')
+
+        if sample is not None:
+            buf = sample.get_buffer()
+            img = self.__convert_to_numpy(buf.extract_dup(0, buf.get_size()), sample.get_caps())
+
+            self.buffer_queue.put(img)
+        
+        return Gst.FlowReturn.OK
+
+    def process_buffer(self):
+        """ Process the buffer image and send to the camera reader queue """
+        while not self.stop_program:
+            img = self.buffer_queue.get()
+
+            if img is not None:
+                self.reader_queue.put(img)
+                self.reader_barrier.wait()
 
     def __convert_to_numpy(self, data, caps):
         ''' Convert a GStreamer sample to a numpy array
             Sample code from https://gist.github.com/cbenhagen/76b24573fa63e7492fb6#file-gst-appsink-opencv-py-L34
 
             The result is in self.img_mat.
-        :return:
         '''
 
         s = caps.get_structure(0)
@@ -228,6 +234,9 @@ class TIS:
     def stop_pipeline(self):
         self.pipeline.set_state(Gst.State.PAUSED)
         self.pipeline.set_state(Gst.State.READY)
+        self.process_buffer_thread.join()
+        self.stop_program = True
+        self.buffer_queue.put(None) # send a None to the buffer queue to stop the internal thread
 
     def get_source(self):
         '''
@@ -288,61 +297,6 @@ class TIS:
             baseproperty.set_command()
         except Exception as error:
             raise RuntimeError(f"Failed to execute '{property_name}'") from error
-
-    def set_image_callback(self, function, *data):
-        self.ImageCallback = function
-        self.ImageCallbackData = data
-
-    def __get_serial_by_index(self, index: int):
-        ' Return the serial number of the camera enumerated at given index'
-        monitor = Gst.DeviceMonitor.new()
-        monitor.add_filter("Video/Source/tcam")
-        devices = monitor.get_devices()
-        if (index < 0) or (index > len(devices)-1):
-            raise RuntimeError("Index out of bounds")
-        device = devices[index]
-        return device.get_properties().get_string("serial")
-
-    def select_format(self):
-        formats = self.create_formats()
-        i = 0
-        f = []
-        for key, value in formats.items():
-            f.append(key)
-            i = i + 1
-            print("{}: {}".format(i, key))
-
-        i = int(input("Select : "))
-        if i == 0:
-            return False
-
-        formatindex = f[i-1]
-        i = 0
-        for res in formats[formatindex].res_list:
-            i = i + 1
-            print("{}:  {}x{}".format(i, res.width, res.height))
-
-        i = int(input("Select : "))
-        if i == 0:
-            return False
-
-        width = formats[formatindex].res_list[i-1].width
-        height = formats[formatindex].res_list[i-1].height
-        o = 0
-        for rate in formats[formatindex].res_list[i-1].fps:
-            o += 1
-            print("{}:  {}".format(o, rate))
-
-        if self.framerate is None:
-            o = int(input("Select : "))
-
-            if o == 0:
-                return False
-
-            self.framerate = formats[formatindex].res_list[i-1].fps[o-1]
-        # print(format,width,height,framerate )
-        self.open_device(self.serialnumber, width, height, SinkFormats.BGRA, self.show_video)
-        return True
 
     def create_formats(self):
         source = Gst.ElementFactory.make("tcambin")
@@ -439,19 +393,12 @@ class FmtDesc:
             return self.fmt
 
     def get_resolution_list(self):
-
         res_list = []
 
         for entry in self.res_list:
             res_list.append(entry.resolution)
 
         return res_list
-
-    def get_fps_list(self, resolution: str):
-
-        for entry in self.res_list:
-            if entry.resolution == resolution:
-                return entry.fps
 
     def generate_caps_string(self, resolution: str, fps: str):
         if self.name == "image/jpeg":

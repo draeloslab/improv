@@ -1,26 +1,16 @@
 camera_params:
   resolution:
-    width: 640
-    height: 480
+    width: 960
+    height: 720
   fps: "100/1"
 active_cameras:
   - camera:
       name: "top"
-      serial: "123456"
+      serial_id: "45324224-aravis"
 inactive_cameras:
   - camera:
       name: "left"
-      serial: "123456"
-      resolution:
-        width: 640
-        height: 480
-      fps: "100/1"
-      format: "BGRx"      
+      serial_id: "45324225-aravis"   
   - camera:
       name: "right"
-      serial: "123456"
-      resolution:
-        width: 640
-        height: 480
-      fps: "100/1"
-      format: "BGRx"
+      serial_id: "45324230-aravis"
