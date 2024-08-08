@@ -44,7 +44,7 @@ class Nexus:
         self,
         file=None,
         use_watcher=None,
-        store_size=10_000_000,
+        store_size=100_000_000, # 100 MB
         control_port=0,
         output_port=0,
     ):
@@ -377,15 +377,7 @@ class Nexus:
                 logger.warning(
                     "StoreInterface file {} is already deleted".format(self.store_loc)
                 )
-            logger.warning("Delete the store at location {0}".format(self.store_loc))
-
-        if hasattr(self, "out_socket"):
-            self.out_socket.close(linger=0)
-        if hasattr(self, "in_socket"):
-            self.in_socket.close(linger=0)
-        if hasattr(self, "zmq_context"):
-            self.zmq_context.destroy(linger=0)
-
+            logger.warning("Delete the store at location {0}".fbytes)
     async def pollQueues(self):
         """
         Listens to links and processes their signals.

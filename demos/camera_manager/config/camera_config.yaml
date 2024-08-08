@@ -1,0 +1,16 @@
+camera_params:
+  resolution:
+    width: 960
+    height: 720
+  fps: "100/1"
+active_cameras:
+  - camera:
+      name: "top"
+      serial_id: "45324224-aravis"
+inactive_cameras:
+  - camera:
+      name: "left"
+      serial_id: "45324225-aravis"   
+  - camera:
+      name: "right"
+      serial_id: "45324230-aravis"
