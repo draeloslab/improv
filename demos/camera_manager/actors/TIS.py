@@ -22,7 +22,7 @@ class SinkFormats(Enum):
     RGB = "RGBx64"
 
 class TIS:
-    def __init__(self, zmq_port=5555, shared_frame=None):
+    def __init__(self, zmq_port=5555):
         try:
             if not Gst.is_initialized():
                 Gst.init(())  # Usually better to call in the main function.
@@ -55,9 +55,8 @@ class TIS:
         self.zmq_socket = zmq_context.socket(zmq.PUSH)
         self.zmq_socket.bind(f"tcp://*:{zmq_port}")
 
-        self.shared_frame = shared_frame
-
     def open_device(self, serial,
+                    shared_frame,
                     width, height,
                     framerate,
                     sinkformat: SinkFormats,
@@ -82,7 +81,7 @@ class TIS:
         self.framerate = framerate
         self.sinkformat = sinkformat
 
-        self.dest_frame = np.frombuffer(self.shared_frame).reshape((self.height, self.width, 4))
+        self.dest_frame = np.frombuffer(shared_frame, dtype=np.uint8).reshape((self.height, self.width, 4))
 
         if self.sinkformat == SinkFormats.GRAY8:
             self.bpp = 1

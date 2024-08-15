@@ -10,7 +10,6 @@ active_cameras:
       name: "top"
       serial_id: "45324225-aravis"
       zmq_port: 5555
-inactive_cameras:
   - camera:
       name: "left"
       serial_id: "45324224-aravis"
@@ -19,3 +18,4 @@ inactive_cameras:
       name: "right"
       serial_id: "45324230-aravis"
       zmq_port: 5557
+inactive_cameras:

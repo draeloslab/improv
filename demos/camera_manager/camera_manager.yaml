@@ -13,4 +13,4 @@ connections:
   CameraReader.q_out: [CameraRecorder.q_in]
 
 redis_config:
-  port: 6380
+  port: 6382
