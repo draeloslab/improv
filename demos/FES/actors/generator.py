@@ -60,21 +60,11 @@ class Generator(Actor):
                 return
             logger.info(f'Frame : {(self.frame.shape)}')
             logger.info(f'Client: {self.client}')
-            if self.store_loc:
-                data_id = self.client.put(
-                    self.frame[self.frame_num], str(f"Gen_raw: {self.frame_num}")
-                    )
-            else:
-                data_id = self.client.put(self.frame[self.frame_num])
+
+            data_id = self.client.put(self.frame)
             logger.info('Put data in store')
-            logger.info(f'Here is the data: {data_id}')
             try:
-                logger.info(f'store loc: {self.store_loc}')
-                logger.info(f'q_out: {self.q_out}')
-                if self.store_loc:
-                    self.q_out.put([[data_id, str(self.frame_num)]])
-                else:
-                    self.q_out.put(data_id)
+                self.q_out.put(data_id)
                 logger.info("Sent message on")
 
             except Exception as e:

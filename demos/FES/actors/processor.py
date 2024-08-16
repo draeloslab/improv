@@ -50,11 +50,11 @@ class Processor(Actor):
 
     def runStep(self):
 
-
         
         frame = None
         try:
             frame = self.q_in.get(timeout=0.001)
+            logger.info(f"Frame Key received: {frame}")
 
         except Exception as e:
             logger.error(f"Could not get frame! {e}")
@@ -62,12 +62,9 @@ class Processor(Actor):
 
         if frame is not None and self.frame_num is not None:
             self.done = False
-            if self.store_loc:
-                self.frame = self.client.getID(frame[0][0])
-            else:
-                self.frame = self.client.get(frame)
+            self.frame = self.client.get(frame)
 
-            logger.info(f"Frame number: {self.frame_num}")
+            logger.info(f"Got frame: {self.frame.shape}")
 
             self.frame_num += 1
 
