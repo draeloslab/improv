@@ -20,7 +20,8 @@ actors:
 connections:
   # CameraReader.frame_out: [CameraRecorder.frame_in]
   # CameraReader.frame_out: [Processor.frame_in]
-  Generator.frame_out: [Processor.frame_in]
+  # Generator.frame_out: [Processor.frame_in]
+  Generator.q_out: [Processor.q_in]
 
 
 redis_config:

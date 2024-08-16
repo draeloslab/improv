@@ -33,9 +33,8 @@ class Processor(Actor):
         with open(f'{source_folder}/config.yaml', 'r') as file:
             config = yaml.safe_load(file)
 
-        params = config['camera_params']
 
-        self.model_path = params['model_path']
+        self.model_path = config['model_path']
 
         self.name = "Processor"
         self.frame = None
@@ -51,27 +50,30 @@ class Processor(Actor):
 
     def runStep(self):
 
-        try:
-            frame = self.frame_in.get(timeout=0.001) #NOTE: might need to change timeout
 
-        except Exception:
-            logger.error("Could not get frame!")
+        
+        frame = None
+        try:
+            frame = self.q_in.get(timeout=0.001)
+
+        except Exception as e:
+            logger.error(f"Could not get frame! {e}")
             pass
 
         if frame is not None and self.frame_num is not None:
             self.done = False
-            self.dlc_live.init_inference(frame) 
-            prediction = self.dlc_live.get_pose(frame)
-            # if self.store_loc:
-            #     self.frame = self.client.getID(frame[0][0])
-            # else:
-            #     self.frame = self.client.get(frame)
-            # avg = np.mean(self.frame[0])
+            if self.store_loc:
+                self.frame = self.client.getID(frame[0][0])
+            else:
+                self.frame = self.client.get(frame)
 
-            # logger.info(f"Average: {avg}")
-            self.predictions.append(prediction)
-            # logger.info(f"Overall Average: {np.mean(self.avg_list)}")
             logger.info(f"Frame number: {self.frame_num}")
-            logger.info(f"Prediction: {prediction}")
 
             self.frame_num += 1
+
+            # Perform inference
+            self.dlc_live.init_inference(self.frame)
+            prediction = self.dlc_live.get_pose(self.frame)
+
+            self.predictions.append(prediction)
+            logger.info(f"Prediction: {prediction}")

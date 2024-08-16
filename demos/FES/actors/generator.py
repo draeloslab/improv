@@ -30,11 +30,10 @@ class Generator(Actor):
         with open(f'{source_folder}/config.yaml', 'r') as file:
             config = yaml.safe_load(file)
 
-        params = config['camera_params']
 
-        self.video_path = params['video_path']
+        self.video_path = config['video_path']
         self.cap = None
-        self.frame_interval = 1.0 / params['fps']
+        self.frame_interval = 1.0 / config['fps']
         self.name = "Generator"
         self.frame_num = 1
 
@@ -45,7 +44,6 @@ class Generator(Actor):
         logger.info("Completed setup for Generator")
 
     def stop(self):
-        """Save current randint vector to a file."""
 
         logger.info("Generator stopping")
         if self.cap:
@@ -55,27 +53,33 @@ class Generator(Actor):
     def runStep(self):
 
         if self.cap and self.cap.isOpened():
-            ret, frame = self.cap.read()
+            ret, self.frame = self.cap.read()
             if not ret:
                 logger.info("End of video")
                 self.stop()
                 return
-
+            logger.info(f'Frame : {(self.frame.shape)}')
+            logger.info(f'Client: {self.client}')
+            if self.store_loc:
+                data_id = self.client.put(
+                    self.frame[self.frame_num], str(f"Gen_raw: {self.frame_num}")
+                    )
+            else:
+                data_id = self.client.put(self.frame[self.frame_num])
+            logger.info('Put data in store')
+            logger.info(f'Here is the data: {data_id}')
             try:
+                logger.info(f'store loc: {self.store_loc}')
+                logger.info(f'q_out: {self.q_out}')
                 if self.store_loc:
-                    data_id = self.client.put(frame, str(f"Frame: {self.frame_num}"))
                     self.q_out.put([[data_id, str(self.frame_num)]])
                 else:
-                    data_id = self.client.put(frame)
                     self.q_out.put(data_id)
-
-                self.frame_num += 1
+                logger.info("Sent message on")
 
             except Exception as e:
                 logger.error(f"--------------------------------Generator Exception: {e}")
+            self.frame_num += 1
 
             time.sleep(self.frame_interval)
-
-        else:
-            logger.error("Video capture not opened")
 
