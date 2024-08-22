@@ -4,6 +4,7 @@ import threading
 import yaml
 import cv2
 from pathlib import Path
+import subprocess
 
 import logging
 logger = logging.getLogger(__name__)
@@ -38,13 +39,13 @@ class VideoSaver(ManagedActor):
                     frame = self.client.get(frame_id)
 
                     frame_num += 1
-
-                    self.video_out.write(frame)
+                    
+                    self.video_proc.stdin.write(frame.tobytes())
 
                     self.total_frames += 1
                     self.frame_count += 1
 
-                    if self.frame_count % 120 == 0:
+                    if self.frame_count % 300 == 0:
                         time_end = time.perf_counter()
                         total_time = time_end - self.time_start
 
@@ -77,11 +78,18 @@ class VideoSaver(ManagedActor):
         # exctract from the string "60/1" the fps value
         fps = int(camera_params['fps'].split('/')[0])
 
-        # video saving parameters
-        video_codec = cv2.VideoWriter_fourcc(*'XVID')
-        out_file_name = f"camera_video_{self.camera_num+1}.avi"
-        self.video_out = cv2.VideoWriter(f'/home/matteo/camera_video/{out_file_name}', video_codec, fps, (frame_w, frame_h), True)
-        
+        out_file_name = f"/home/matteo/camera_video/camera_video_{self.camera_num+1}.mp4"
+
+        # video saving using ffmpeg
+        video_save_command = [
+            'ffmpeg', '-y', '-f', 'rawvideo', '-vcodec', 'rawvideo',
+            '-s', f'{frame_w}x{frame_h}', '-pix_fmt', 'rgb24', '-r', str(fps),
+            '-i', '-', '-an', '-vcodec', 'mpeg4', '-pix_fmt', 'yuv420p', out_file_name,
+            '-loglevel', 'error'  # Suppress all output except for errors
+        ]
+
+        self.video_proc = subprocess.Popen(video_save_command, stdin=subprocess.PIPE)
+
         # control variables
         self.stop_program = False
         self.total_frames = 0
@@ -110,5 +118,8 @@ class VideoSaver(ManagedActor):
         self.store_frame_proc.join()            
 
         logger.info(f"[Camera {self.camera_name}] total frames received: {self.total_frames}")
+
+        self.video_proc.stdin.close()
+        self.video_proc.wait()
 
         self.start_program = False

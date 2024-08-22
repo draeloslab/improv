@@ -33,8 +33,8 @@ from gi.repository import GLib, Gst, Tcam
 class SinkFormats(Enum):
     GRAY8 = "GRAY8"
     GRAY16_LE = "GRAY16_LE"
-    BGR = "BGRx"
-    RGB = "RGBx64"
+    BGRx = "BGRx"
+    RGB = "RGB"
 
 class TIS:
     def __init__(self, camera_name, client, q_out):
@@ -101,7 +101,9 @@ class TIS:
 
         if self.sinkformat == SinkFormats.GRAY8:
             self.bpp = 1
-        elif self.sinkformat == SinkFormats.BGR:
+        elif self.sinkformat == SinkFormats.RGB:
+            self.bpp = 3
+        elif self.sinkformat == SinkFormats.BGRx:
             self.bpp = 4
 
         self.num_bytes = self.height * self.width * (self.bpp - 1)
@@ -114,7 +116,7 @@ class TIS:
     def _create_pipeline(self, conversion: str, showvideo: bool):
         if conversion and not conversion.strip().endswith("!"):
             conversion += " !"
-        p = 'tcambin name=source ! capsfilter name=caps'
+        p = 'tcambin name=source ! videoconvert ! capsfilter name=caps'
         
         if showvideo:
             p += " ! tee name=t"
@@ -209,11 +211,11 @@ class TIS:
             self.frame_count += 1
             self.total_frame_count += 1
 
-            if self.frame_count % 120 == 0:               
+            if self.frame_count % 240 == 0:               
                 total_time = time.perf_counter() - self.start_time
 
                 logger.info(f"[Camera {self.camera_name}] reader FPS: {round(self.frame_count / total_time,2)} - avg delay: {self.total_delay/self.frame_count:.4f} - max delay: {self.max_delay:.4f}")                
-                # logger.info(f"{img.shape} - size on memory: {round(img.nbytes/(1024**2),2)}MB")
+                # logger.info(f"{frame.shape} - size on memory: {round(frame.nbytes/(1024**2),2)}MB")
 
                 self.total_delay = 0
                 self.max_delay = 0
@@ -238,8 +240,8 @@ class TIS:
         # logger.log(f'frame shape: {shape}')
 
         # TODO: figuring out a way to get the RGB without a memory copy
-        # return np.frombuffer(data, dtype=np.uint8).reshape((s.get_value('height'), s.get_value('width'), self.bpp))[:,:,:3]
-        return np.ndarray((s.get_value('height'), s.get_value('width'),self.bpp), buffer=data, dtype=np.uint8)[:,:,:3]
+        # return np.frombuffer(data, dtype=np.uint8).reshape((s.get_value('height'), s.get_value('width'), self.bpp))
+        return np.ndarray((s.get_value('height'), s.get_value('width'),self.bpp), buffer=data, dtype=np.uint8)
     
     def stop_pipeline(self):
         stop_time = time.perf_counter()

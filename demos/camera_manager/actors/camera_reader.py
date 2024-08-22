@@ -66,7 +66,7 @@ class CameraReader(ManagedActor):
         logger.info(f'Opening device: {camera_config}')
 
         self.camera_interface = TIS(self.camera_name, self.client, self.q_out)
-        self.camera_interface.open_device(camera_config['serial_id'], shared_frame, self.frame_w, self.frame_h, self.fps, SinkFormats.BGR, showvideo=False)
+        self.camera_interface.open_device(camera_config['serial_id'], shared_frame, self.frame_w, self.frame_h, self.fps, SinkFormats.RGB, showvideo=False)
         
         logger.info(f'Device {self.camera_name} opened')
 
@@ -88,5 +88,3 @@ class CameraReader(ManagedActor):
 
         self.stop_program.value = True
         self.camera_interface.stop_pipeline()
-        # self.read_thread.join()
-        self.rcv_socket.close() 

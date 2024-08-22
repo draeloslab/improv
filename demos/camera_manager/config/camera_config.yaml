@@ -1,18 +1,18 @@
 camera_params:
   resolution:
-    width: 1024 #1024
-    height: 768 #768
+    width: 1920 #1024
+    height: 1080 #768
   fps: "60/1"
 zmq_config:
   ip: "localhost"
 active_cameras:
   - camera:
       name: "top"
-      serial_id: "45324225-v42l"
+      serial_id: "45324225-aravis"
   - camera:
       name: "left"
-      serial_id: "45324224-v42l"
+      serial_id: "45324224-aravis"
   - camera:
       name: "right"
-      serial_id: "45324230-v42l"
+      serial_id: "45324230-aravis"
 inactive_cameras:

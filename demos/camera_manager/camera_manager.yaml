@@ -33,30 +33,10 @@ actors:
     class: VideoSaver
     camera_num: 2
 
-  # camera savers (saving the frames to disk)
-  # CameraSaver1:
-  #   package: actors.camera_saver
-  #   class: CameraSaver
-  #   camera_num: 0
-
-  # CameraSaver2:
-  #   package: actors.camera_saver
-  #   class: CameraSaver
-  #   camera_num: 1
-
-  # CameraSaver3:
-  #   package: actors.camera_saver
-  #   class: CameraSaver
-  #   camera_num: 2
-
 connections:
-  # CameraReader1.q_out: [CameraSaver1.q_in]
-  # CameraReader2.q_out: [CameraSaver2.q_in]
-  # CameraReader3.q_out: [CameraSaver3.q_in]
   CameraReader1.q_out: [VideoSaver1.q_in]
   CameraReader2.q_out: [VideoSaver2.q_in]
   CameraReader3.q_out: [VideoSaver3.q_in]
 
 redis_config:
   port: 6381
-  # redis_saving_enabled: False 

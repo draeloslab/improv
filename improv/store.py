@@ -115,7 +115,7 @@ class RedisStoreInterface(StoreInterface):
             # TODO key twice every time. we still need a better solution for
             # TODO this, but it will work now singlethreaded most of the time.
 
-            self.client.set(object_key, pickle.dumps(object, protocol=5), nx=True)
+            self.client.set(object_key, pickle.dumps(object, protocol=5), nx=True, ex=30)
         except Exception:
             logger.error("Could not store object {}".format(object_key))
             logger.error(traceback.format_exc())
@@ -141,7 +141,7 @@ class RedisStoreInterface(StoreInterface):
             return pickle.loads(object_value)
 
         logger.warning("Object {} cannot be found.".format(object_key))
-        raise ObjectNotFoundError
+        raise ObjectNotFoundError(object_key)
 
     def subscribe(self, topic=REDIS_GLOBAL_TOPIC):
         p = self.client.pubsub()
@@ -397,6 +397,7 @@ class PlasmaStoreInterface(StoreInterface):
 
 
 StoreInterface = RedisStoreInterface
+
 
 
 class ObjectNotFoundError(Exception):
