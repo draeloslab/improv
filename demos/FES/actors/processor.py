@@ -4,6 +4,7 @@ import logging
 from dlclive import DLCLive
 from pathlib import Path
 import yaml
+import time
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -38,14 +39,19 @@ class Processor(Actor):
 
         self.name = "Processor"
         self.frame = None
-        self.dlc_live = DLCLive(self.model_path)
+        self.dlc_live = DLCLive(self.model_path, dynamic = (True, 0.6, 10))
+        frame = np.random.rand(1080, 1920, 3)
+        self.dlc_live.init_inference(frame)  #putting in a random frame to initialize the model
         self.predictions = []
+        self.latencies = []
         self.frame_num = 1
         logger.info("Completed setup for Processor")
 
     def stop(self):
         """Trivial stop function for testing purposes."""
         self.done=True
+        np.save("latencies.npy", self.latencies)
+        np.save("predictions.npy", self.predictions)
         logger.info("Processor stopping")
 
     def runStep(self):
@@ -53,7 +59,9 @@ class Processor(Actor):
         
         frame = None
         try:
-            frame = self.q_in.get(timeout=0.001)
+            start_time = time.perf_counter()
+
+            frame = self.q_in.get(timeout=.01)
             logger.info(f"Frame Key received: {frame}")
 
         except Exception as e:
@@ -62,6 +70,7 @@ class Processor(Actor):
 
         if frame is not None and self.frame_num is not None:
             self.done = False
+            # start_time = time.perf_counter() #NOTE might want to put this where I get the key instead of here
             self.frame = self.client.get(frame)
 
             logger.info(f"Got frame: {self.frame.shape}")
@@ -69,8 +78,12 @@ class Processor(Actor):
             self.frame_num += 1
 
             # Perform inference
-            self.dlc_live.init_inference(self.frame)
+            # self.dlc_live.init_inference(self.frame)
+            # start_time = time.perf_counter()
             prediction = self.dlc_live.get_pose(self.frame)
-
+            self.latencies.append( time.perf_counter() - start_time)
             self.predictions.append(prediction)
             logger.info(f"Prediction: {prediction}")
+            logger.info(f"Frame number: {self.frame_num}")  
+            # logger.info(f"Latency: {latency:.4f} seconds")
+            logger.info(f"Overall Average FPS: {1/np.mean(self.latencies)}")

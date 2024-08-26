@@ -1,3 +1,4 @@
-fps: 1
+fps: 60
 model_path: '/home/jakejoseph/Desktop/AllAngles-Jake-2024-07-30/exported-models/DLC_AllAngles_mobilenet_v2_1.0_iteration-0_shuffle-1'
 video_path: '/home/jakejoseph/Desktop/ExtensorsSuperCut.mp4'
+resize: 0.25

@@ -44,7 +44,7 @@ class Nexus:
         self,
         file=None,
         use_watcher=None,
-        store_size=100_000_000, # 100 MB
+        store_size=80_000_000_000, # 100 MB
         control_port=0,
         output_port=0,
     ):

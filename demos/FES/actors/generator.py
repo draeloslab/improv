@@ -34,6 +34,7 @@ class Generator(Actor):
         self.video_path = config['video_path']
         self.cap = None
         self.frame_interval = 1.0 / config['fps']
+        self.resize = config['resize']
         self.name = "Generator"
         self.frame_num = 1
 
@@ -41,6 +42,8 @@ class Generator(Actor):
         if not self.cap.isOpened():
             logger.error("Error opening video file")
             return 
+        total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        logger.info(f'Total frames: {total_frames}')
         logger.info("Completed setup for Generator")
 
     def stop(self):
@@ -58,6 +61,9 @@ class Generator(Actor):
                 logger.info("End of video")
                 self.stop()
                 return
+            def resize_frame(frame, resize):
+                return cv2.resize(frame, (int(frame.shape[1] * resize), int(frame.shape[0] * resize)))
+            self.frame = resize_frame(self.frame, self.resize)
             logger.info(f'Frame : {(self.frame.shape)}')
             logger.info(f'Client: {self.client}')
 
