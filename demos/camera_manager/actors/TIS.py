@@ -1,12 +1,27 @@
 import time
 import numpy as np
-import zmq
 from enum import Enum
 from collections import namedtuple
 
 import gi
 gi.require_version("Gst", "1.0")
 gi.require_version("Tcam", "1.0")
+
+import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# Create a file handler
+log_file = "camera_reader.log"
+file_handler = logging.FileHandler(log_file)
+file_handler.setLevel(logging.INFO)
+
+# Create a formatter and set it for the handler
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+
+# Add the handler to the logger
+logger.addHandler(file_handler)
 
 from gi.repository import GLib, Gst, Tcam
 
@@ -18,11 +33,11 @@ from gi.repository import GLib, Gst, Tcam
 class SinkFormats(Enum):
     GRAY8 = "GRAY8"
     GRAY16_LE = "GRAY16_LE"
-    BGR = "BGRx"
-    RGB = "RGBx64"
+    BGRx = "BGRx"
+    RGB = "RGB"
 
 class TIS:
-    def __init__(self, zmq_port=5555):
+    def __init__(self, camera_name, client, q_out):
         try:
             if not Gst.is_initialized():
                 Gst.init(())  # Usually better to call in the main function.
@@ -30,6 +45,8 @@ class TIS:
             # Older gst-python overrides seem to have a bug where Gst needs to
             # already be initialized to call Gst.is_initialized
             Gst.init(())
+
+        self.camera_name = camera_name
 
         self.sharing_on = False
         self.stop_program = False
@@ -51,9 +68,8 @@ class TIS:
         self.image_caps = None
 
         # buffer processing management
-        zmq_context = zmq.Context()
-        self.zmq_socket = zmq_context.socket(zmq.PUSH)
-        self.zmq_socket.bind(f"tcp://*:{zmq_port}")
+        self.client = client
+        self.q_out = q_out
 
     def open_device(self, serial,
                     shared_frame,
@@ -85,8 +101,12 @@ class TIS:
 
         if self.sinkformat == SinkFormats.GRAY8:
             self.bpp = 1
-        elif self.sinkformat == SinkFormats.BGR:
+        elif self.sinkformat == SinkFormats.RGB:
+            self.bpp = 3
+        elif self.sinkformat == SinkFormats.BGRx:
             self.bpp = 4
+
+        self.num_bytes = self.height * self.width * (self.bpp - 1)
 
         self._create_pipeline(conversion, showvideo)
         self.source.set_property("serial", self.serialnumber)
@@ -96,7 +116,7 @@ class TIS:
     def _create_pipeline(self, conversion: str, showvideo: bool):
         if conversion and not conversion.strip().endswith("!"):
             conversion += " !"
-        p = 'tcambin name=source ! capsfilter name=caps'
+        p = 'tcambin name=source ! videoconvert ! capsfilter name=caps'
         
         if showvideo:
             p += " ! tee name=t"
@@ -139,7 +159,10 @@ class TIS:
     def start_pipeline(self):
         """ Start the pipeline, so the video start running """
         self.start_time = time.perf_counter()
+        self.total_frame_count = 0
         self.frame_count = 0
+        self.total_delay = 0
+        self.max_delay = 0
 
         self.image_data = []
         self.image_caps = None
@@ -158,30 +181,46 @@ class TIS:
     # starting sharing the frames received from the camera
     def start_sharing(self):
         self.sharing_on = True
+
+        self.total_start_time = time.perf_counter()
     
     # @profile
     def __on_new_buffer(self, appsink):
-        current_time = time.perf_counter()
+        frame_time = time.perf_counter()
         sample = appsink.get_property('last-sample')
 
-        if sample is not None:
+        if sample is not None and self.sharing_on:
             buf = sample.get_buffer()
 
-            self.__convert_to_numpy(buf.extract_dup(0, buf.get_size()), sample.get_caps())
+            #buf.get_size() - 6220800
+            frame = self.__convert_to_numpy(buf.extract_dup(0, buf.get_size()), sample.get_caps())
 
-            if self.sharing_on:
-                self.zmq_socket.send_pyobj(current_time)
+            try:
+                data_id = self.client.put(frame)
+                self.q_out.put(data_id)
+
+                delay = time.perf_counter() - frame_time
+
+                if delay > self.max_delay:
+                    self.max_delay = delay
+
+                self.total_delay += delay
+            except Exception as e:
+                pass
 
             self.frame_count += 1
+            self.total_frame_count += 1
 
-            # if self.frame_count % 120 == 0:               
-            #     total_time = current_time - self.start_time
+            if self.frame_count % 240 == 0:               
+                total_time = time.perf_counter() - self.start_time
 
-            #     # print(f"Local FPS: {round(self.frame_count / total_time,2)}")                
-            #     # print(f"{img.shape} - size on memory: {round(img.nbytes/(1024**2),2)}MB")
+                logger.info(f"[Camera {self.camera_name}] reader FPS: {round(self.frame_count / total_time,2)} - avg delay: {self.total_delay/self.frame_count:.4f} - max delay: {self.max_delay:.4f}")                
+                # logger.info(f"{frame.shape} - size on memory: {round(frame.nbytes/(1024**2),2)}MB")
 
-            #     self.frame_count = 0
-            #     self.start_time = time.perf_counter()
+                self.total_delay = 0
+                self.max_delay = 0
+                self.frame_count = 0
+                self.start_time = time.perf_counter()
         
         return Gst.FlowReturn.OK
 
@@ -189,20 +228,33 @@ class TIS:
     def __convert_to_numpy(self, data, caps):
         ''' Convert a GStreamer sample to a numpy array
             Sample code from https://gist.github.com/cbenhagen/76b24573fa63e7492fb6#file-gst-appsink-opencv-py-L34
-
-            The result is in self.img_mat.
         '''
         s = caps.get_structure(0)
 
         # save in the shared memory
-        self.dest_frame[:] = np.frombuffer(data, dtype=np.uint8).reshape((s.get_value('height'), s.get_value('width'), self.bpp))
+        # self.dest_frame[:] = np.frombuffer(data, dtype=np.uint8).reshape((s.get_value('height'), s.get_value('width'), self.bpp))
+        
+        # return the array
+        # num_bytes = s.get_value('height') * s.get_value('width') * (self.bpp - 1)
+        # shape = np.frombuffer(data, dtype=np.uint8).shape
+        # logger.log(f'frame shape: {shape}')
+
+        # TODO: figuring out a way to get the RGB without a memory copy
+        # return np.frombuffer(data, dtype=np.uint8).reshape((s.get_value('height'), s.get_value('width'), self.bpp))
+        return np.ndarray((s.get_value('height'), s.get_value('width'),self.bpp), buffer=data, dtype=np.uint8)
     
     def stop_pipeline(self):
-        self.stop_program = True
+        stop_time = time.perf_counter()
+
         self.sharing_on = False
+        self.stop_program = True
         
         self.pipeline.set_state(Gst.State.PAUSED)
         self.pipeline.set_state(Gst.State.READY)
+
+        recording_duration = stop_time - self.total_start_time
+
+        logger.info(f"[Camera {self.camera_name}] reader stopped. Total frames: {self.total_frame_count} - Recording duration: {recording_duration:.2f}s ({round(recording_duration/60,1)} min)")
 
     def get_source(self):
         '''
