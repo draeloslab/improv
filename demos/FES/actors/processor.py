@@ -34,8 +34,7 @@ class Processor(Actor):
         with open(f'{source_folder}/config.yaml', 'r') as file:
             config = yaml.safe_load(file)
 
-
-        self.model_path = config['model_path']
+        self.model_path = f'{source_folder}/DLCLive/' + config['model_path']
 
         self.name = "Processor"
         self.frame = None
