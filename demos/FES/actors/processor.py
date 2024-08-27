@@ -39,7 +39,7 @@ class Processor(Actor):
 
         self.name = "Processor"
         self.frame = None
-        self.dlc_live = DLCLive(self.model_path, dynamic = (True, 0.6, 10))
+        self.dlc_live = DLCLive(self.model_path, dynamic = (True, 0.9, 30))
         frame = np.random.rand(1080, 1920, 3)
         self.dlc_live.init_inference(frame)  #putting in a random frame to initialize the model
         self.predictions = []
@@ -61,7 +61,7 @@ class Processor(Actor):
         try:
             start_time = time.perf_counter()
 
-            frame = self.q_in.get(timeout=.01)
+            frame = self.q_in.get()
             logger.info(f"Frame Key received: {frame}")
 
         except Exception as e:
