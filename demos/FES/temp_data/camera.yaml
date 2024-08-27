@@ -25,4 +25,4 @@ connections:
 
 
 redis_config:
-  port: 6380
+  port: 6381
