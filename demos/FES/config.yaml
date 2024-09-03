@@ -1,4 +1,4 @@
 fps: 60
 model_path: 'DLC_HumanHand_resnet_50_iteration-1_shuffle-1'
-# video_path: 'FESFatigue-Jake-2024-05-31/videos/napierecrbfatigue_05_31_3_1.mp4'
+video_path: '/home/jakejoseph/Desktop/AllAngles-Jake-2024-07-30/videos/napierecrbfatigue_05_31_3_1.mp4'
 resize: 0.25
