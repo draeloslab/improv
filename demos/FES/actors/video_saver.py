@@ -78,7 +78,7 @@ class VideoSaver(ManagedActor):
         # exctract from the string "60/1" the fps value
         fps = int(camera_params['fps'].split('/')[0])
 
-        out_file_name = f"/home/matteo/camera_video/camera_video_{self.camera_num+1}.mp4"
+        out_file_name = f"{source_folder}/camera_video_{self.camera_num+1}.mp4"
 
         # video saving using ffmpeg
         video_save_command = [
