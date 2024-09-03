@@ -97,8 +97,6 @@ class TIS:
         self.framerate = framerate
         self.sinkformat = sinkformat
 
-        self.dest_frame = np.frombuffer(shared_frame, dtype=np.uint8).reshape((self.height, self.width, 4))
-
         if self.sinkformat == SinkFormats.GRAY8:
             self.bpp = 1
         elif self.sinkformat == SinkFormats.RGB:
@@ -138,7 +136,7 @@ class TIS:
 
         # Query a pointer to the appsink, so we can assign the callback function.
         appsink = self.pipeline.get_by_name("sink")
-        appsink.set_property("max-buffers", 4)
+        appsink.set_property("max-buffers", 60)
         appsink.set_property("drop", True)
         appsink.set_property("emit-signals", True)
         appsink.set_property("enable-last-sample", True)
@@ -192,7 +190,6 @@ class TIS:
         if sample is not None and self.sharing_on:
             buf = sample.get_buffer()
 
-            #buf.get_size() - 6220800
             frame = self.__convert_to_numpy(buf.extract_dup(0, buf.get_size()), sample.get_caps())
 
             try:
@@ -211,7 +208,7 @@ class TIS:
             self.frame_count += 1
             self.total_frame_count += 1
 
-            if self.frame_count % 240 == 0:               
+            if self.frame_count % 600 == 0:               
                 total_time = time.perf_counter() - self.start_time
 
                 logger.info(f"[Camera {self.camera_name}] reader FPS: {round(self.frame_count / total_time,2)} - avg delay: {self.total_delay/self.frame_count:.4f} - max delay: {self.max_delay:.4f}")                
@@ -231,16 +228,6 @@ class TIS:
         '''
         s = caps.get_structure(0)
 
-        # save in the shared memory
-        # self.dest_frame[:] = np.frombuffer(data, dtype=np.uint8).reshape((s.get_value('height'), s.get_value('width'), self.bpp))
-        
-        # return the array
-        # num_bytes = s.get_value('height') * s.get_value('width') * (self.bpp - 1)
-        # shape = np.frombuffer(data, dtype=np.uint8).shape
-        # logger.log(f'frame shape: {shape}')
-
-        # TODO: figuring out a way to get the RGB without a memory copy
-        # return np.frombuffer(data, dtype=np.uint8).reshape((s.get_value('height'), s.get_value('width'), self.bpp))
         return np.ndarray((s.get_value('height'), s.get_value('width'),self.bpp), buffer=data, dtype=np.uint8)
     
     def stop_pipeline(self):

@@ -35,10 +35,10 @@ class Processor(Actor):
             config = yaml.safe_load(file)
 
         self.model_path = f'{source_folder}/DLCLive/' + config['model_path']
-
+        self.resize = config['resize']
         self.name = "Processor"
         self.frame = None
-        self.dlc_live = DLCLive(self.model_path, dynamic = (True, 0.9, 30))
+        self.dlc_live = DLCLive(self.model_path, resize = self.resize, dynamic = (True, 0.9, 30))
         frame = np.random.rand(1080, 1920, 3)
         self.dlc_live.init_inference(frame)  #putting in a random frame to initialize the model
         self.predictions = []

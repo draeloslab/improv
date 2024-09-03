@@ -38,7 +38,7 @@ class CameraReader(ManagedActor):
         # load the configuration file
         source_folder = Path(__file__).resolve().parent.parent
 
-        with open(f'{source_folder}/camera_config.yaml', 'r') as file:
+        with open(f'{source_folder}/config/camera_config.yaml', 'r') as file:
             config = yaml.safe_load(file)
 
         camera_params = config['camera_params']
