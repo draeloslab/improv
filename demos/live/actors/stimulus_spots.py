@@ -177,7 +177,7 @@ class VisualStimulus(Actor):
         try:
             ids = self.q_in.get(timeout=0.0001)
 
-            X, Y, stim, _ = self.client.getList(ids)
+            X, Y, stim, _ = self.client.get(ids)
             tmpX = np.squeeze(np.array(X)).T
             # logger.info(f'{tmpX.shape}, {len(Y)}----------------------------------------------------')
             sh = len(tmpX.shape)
@@ -274,8 +274,8 @@ class VisualStimulus(Actor):
                     # print('--------------- nID', self.nID)
                     # ids.append(self.client.put(self.nID, 'nID'))
                     ids.append(self.nID)
-                    ids.append(self.client.put(curr_est, 'est'))
-                    ids.append(self.client.put(curr_unc, 'unc'))
+                    ids.append(self.client.put(curr_est)) #, 'est'))
+                    ids.append(self.client.put(curr_unc)) #, 'unc'))
                     # ids.append(self.client.put(self.conf, 'conf'))
                     self.q_out.put(ids)
                 
@@ -309,8 +309,8 @@ class VisualStimulus(Actor):
                 # print('--------------- nID', self.nID)
                 # ids.append(self.client.put(self.nID, 'nID'))
                 ids.append(self.nID)
-                ids.append(self.client.put(curr_est, 'est'))
-                ids.append(self.client.put(curr_unc, 'unc'))
+                ids.append(self.client.put(curr_est)) #, 'est'))
+                ids.append(self.client.put(curr_unc)) #, 'unc'))
                 # ids.append(self.client.put(self.conf, 'conf'))
                 self.q_out.put(ids)
 

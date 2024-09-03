@@ -78,7 +78,8 @@ class CaimanVisualStim(Actor):
         try:
             id = self.links['raw_frame_queue'].get(timeout=0.0001)
             self.raw_frame_number = list(id[0].keys())[0]
-            self.raw = self.client.getID(id[0][self.raw_frame_number])
+            # self.raw = self.client.getID(id[0][self.raw_frame_number])
+            self.raw = self.client.get(id[0][self.raw_frame_number])
         except Empty as e:
             pass
         except Exception as e:
@@ -92,7 +93,15 @@ class CaimanVisualStim(Actor):
                 raise Empty
             self.frame_num = ids[-1]
             if self.draw:
-                (self.Cx, self.C, self.Cpop, self.tune, self.color, self.coords, self.allStims, self.tc_list) = self.client.getList(ids[:-1])
+                # (self.Cx, self.C, self.Cpop, self.tune, self.color, self.coords, self.allStims, self.tc_list) = self.client.get(ids[:-1])
+                self.Cx = self.client.get(ids[0])
+                self.C = self.client.get(ids[1])
+                self.Cpop = self.client.get(ids[2])
+                self.tune = self.client.get(ids[3])
+                self.color = self.client.get(ids[4])
+                self.coords = self.client.get(ids[5])
+                self.allStims = self.client.get(ids[6])
+                self.tc_list = self.client.get(ids[7])
                 self.total_times.append([time.time(), time.time()-t])
             self.timestamp.append([time.time(), self.frame_num])
         except Empty as e:

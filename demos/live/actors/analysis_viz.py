@@ -139,8 +139,14 @@ class VizStimAnalysis(Actor):
                 self.q_out.put([1])
                 raise Empty
             # t = time.time()
+            # logger.info('id: {}'.format(ids[:-1]))
             self.frame = ids[-1]
-            (self.coordDict, self.image, self.S) = self.client.getList(ids[:-1])
+            # TODO: do 3 lines of code self.coordDict = , self.image = , self.S = , 
+            # (self.coordDict, self.image, self.S) = self.client.get(ids[:-1])
+            self.coordDict = self.client.get(ids[0])
+            self.image = self.client.get(ids[1])
+            self.S = self.client.get(ids[2])
+
             self.C = self.S
 
             # why are there nans in C?
@@ -277,17 +283,17 @@ class VizStimAnalysis(Actor):
         # stim = [self.lastOnOff, self.currStim]
         # self.stimText = None
         # logger.info('Cx: {}'.format(self.Cx))
-        ids.append(self.client.put(self.Cx, 'Cx'+str(self.frame)))
-        ids.append(self.client.put(self.Call, 'Call'+str(self.frame)))
-        ids.append(self.client.put(self.Cpop, 'Cpop'+str(self.frame)))
-        ids.append(self.client.put(self.tune, 'tune'+str(self.frame)))
-        ids.append(self.client.put(self.color, 'color'+str(self.frame)))
-        ids.append(self.client.put(self.coordDict, 'analys_coords'+str(self.frame)))
-        ids.append(self.client.put(self.allStims, 'stim'+str(self.frame)))
+        ids.append(self.client.put(self.Cx))    #, 'Cx'+str(self.frame)))
+        ids.append(self.client.put(self.Call))  #, 'Call'+str(self.frame)))
+        ids.append(self.client.put(self.Cpop))  #, 'Cpop'+str(self.frame)))
+        ids.append(self.client.put(self.tune))  #, 'tune'+str(self.frame)))
+        ids.append(self.client.put(self.color)) #, 'color'+str(self.frame)))
+        ids.append(self.client.put(self.coordDict)) #, 'analys_coords'+str(self.frame)))
+        ids.append(self.client.put(self.allStims))  #, 'stim'+str(self.frame)))
         # ids.append(self.client.put(self.y_results, 'yres'+str(self.frame)))
         # ids.append(self.client.put(self.stimText, 'yres'+str(self.frame)))
         # ids.append(self.client.put(self.all_y, 'all_y'))
-        ids.append(self.client.put(self.tc_list, 'tc_list'))
+        ids.append(self.client.put(self.tc_list)) #, 'tc_list'))
         ids.append(self.frame)
         
         # logger.info('ids: {}'.format(ids))
@@ -299,10 +305,10 @@ class VizStimAnalysis(Actor):
         logger.info('stimX: {}'.format(self.stimX))
         logger.info('stimY: {}'.format(self.stimY))
         ids = []
-        ids.append(self.client.put(self.stimX, 'stimX'+str(self.frame)))
-        ids.append(self.client.put(self.stimY, 'stimY'+str(self.frame)))
-        ids.append(self.client.put(self.testNum, 'stim_testNum'+str(self.frame)))
-        ids.append(self.client.put(self.nID, 'stim_nID'+str(self.frame)))
+        ids.append(self.client.put(self.stimX))   #, 'stimX'+str(self.frame)))
+        ids.append(self.client.put(self.stimY))   #, 'stimY'+str(self.frame)))
+        ids.append(self.client.put(self.testNum)) #, 'stim_testNum'+str(self.frame)))
+        ids.append(self.client.put(self.nID))     #, 'stim_nID'+str(self.frame)))
         self.links['stim_out'].put(ids)
 
     def stimAvg_start(self):

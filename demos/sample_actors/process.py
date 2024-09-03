@@ -90,7 +90,7 @@ class CaimanProcessor(Actor):
 
         if self.onAc.estimates.OASISinstances is not None:
             try:
-                init = self.params['online']["init_batch"]
+                init = self.params['online']['init_batch']
                 S = np.stack([osi.s[init:] for osi in self.onAc.estimates.OASISinstances])
                 np.savetxt("output/end_spikes.txt", S)
             except Exception as e:
@@ -114,14 +114,15 @@ class CaimanProcessor(Actor):
         # should implement in Config (?) or getting too complicated for users..
 
         # proc_params = self.client.get('params_dict')
-        init = self.params['online']["init_batch"]
+        init = self.params['online']['init_batch']
         frame = self._checkFrames()
 
         if frame is not None:
             t = time.time()
             self.done = False
             try:
-                self.frame = self.client.getID(frame[0][str(self.frame_number)])
+                # self.frame = self.client.getID(frame[0][str(self.frame_number)])
+                self.frame = self.client.get(frame[0][str(self.frame_number)])
                 t2 = time.time()
                 self._fitFrame(self.frame_number + init, self.frame.reshape(-1, order="F"))
                 self.fitframe_time.append([time.time() - t2])
@@ -179,7 +180,7 @@ class CaimanProcessor(Actor):
         t = time.time()
         nb = self.onAc.params.get("init", "nb")
         A = self.onAc.estimates.Ab[:, nb:]
-        before = self.params['online']["init_batch"]  
+        before = self.params['online']['init_batch']  
         # self.frame_number-500 if self.frame_number > 500 else 0
         C = self.onAc.estimates.C_on[nb : self.onAc.M, before : self.frame_number + before]  # .get_ordered()
         t2 = time.time()
@@ -194,9 +195,9 @@ class CaimanProcessor(Actor):
         t5 = time.time()
 
         ids = []
-        ids.append(self.client.put(self.coords, "coords" + str(self.frame_number)))
-        ids.append(self.client.put(image, "proc_image" + str(self.frame_number)))
-        ids.append(self.client.put(C, "S" + str(self.frame_number)))
+        ids.append(self.client.put(self.coords)) #, "coords" + str(self.frame_number)))
+        ids.append(self.client.put(image)) #, "proc_image" + str(self.frame_number)))
+        ids.append(self.client.put(C)) #, "S" + str(self.frame_number)))
         ids.append(self.frame_number)
         t6 = time.time()
 

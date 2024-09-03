@@ -92,10 +92,7 @@ class FileAcquirer(Actor):
         #         os.makedirs("output")
         #     except:
         #         pass
-        # if not os._exists("output/timing"):
-        #     try:
-        #         os.makedirs("output/timing")
-        #     except:
+        # if not os._exists("output/timing"):frame:
         #         pass
         np.savetxt("output/timing/acquire_frame_time.txt", np.array(self.total_times))
         np.savetxt("output/timing/acquire_timestamp.txt", np.array(self.timestamp))
@@ -114,7 +111,9 @@ class FileAcquirer(Actor):
             # if self.frame_num > 1500 and self.frame_num < 1800:
             #     frame = None
             t = time.time()
-            id = self.client.put(frame, "acq_raw" + str(self.frame_num))
+            logger.info('this is so weird --')
+            # id = self.client.put(frame, "acq_raw" + str(self.frame_num))
+            id = self.client.put(frame)           
             t1 = time.time()
             self.timestamp.append([time.time(), self.frame_num])
             try:
@@ -363,9 +362,10 @@ class TiffAcquirer(Actor):
 
     def runStep(self):
         t0 = time.time()
-        id_store = self.client.put(
-            self.imgs[self.n_frame], "acq_raw" + str(self.n_frame)
-        )
+        # id_store = self.client.put(
+        #     self.imgs[self.n_frame], "acq_raw" + str(self.n_frame)
+        # )
+        id_store = self.client.put(self.imgs[self.n_frame])
         self.q_out.put([[id_store, str(self.n_frame)]])
         self.n_frame += 1
 

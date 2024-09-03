@@ -61,4 +61,4 @@ connections:
   Stimulus.q_out: [Visual.optim_in]
 
 redis_config:
-  port: 6000
+  port: 6379

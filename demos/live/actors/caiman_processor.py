@@ -78,7 +78,7 @@ class LiveTwoP(CaimanProcessor):
         except:
             pass
 
-        before = self.params['online']["init_batch"]
+        before = self.params['online']['init_batch']
         nb = self.onAc.params.get("init", "nb")
         np.savetxt("output/raw_C.txt",
             np.array(self.onAc.estimates.C_on[nb : self.onAc.M, 
@@ -106,14 +106,16 @@ class LiveTwoP(CaimanProcessor):
         # should implement in Config (?) or getting too complicated for users..
 
         # proc_params = self.client.get('params_dict')
-        init = self.params['online']["init_batch"]
+        init = self.params['online']['init_batch']
         frame = self._checkFrames()
 
         if frame is not None:
             t = time.time()
             self.done = False
             try:
-                self.frame = self.client.getID(frame[0][str(self.frame_number)])
+                # self.frame = self.client.getID(frame[0][str(self.frame_number)])
+                # logger.info('self.frame: {}'.format(self.client.get(frame[0][str(self.frame_number)])))
+                self.frame = self.client.get(frame[0][str(self.frame_number)])
                 self.frame = self._processFrame(self.frame, self.frame_number + init)
                 t2 = time.time()
                 self._fitFrame(self.frame_number + init, self.frame.reshape(-1, order="F"))
