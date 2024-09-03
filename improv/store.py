@@ -115,7 +115,7 @@ class RedisStoreInterface(StoreInterface):
             # TODO key twice every time. we still need a better solution for
             # TODO this, but it will work now singlethreaded most of the time.
 
-            self.client.set(object_key, pickle.dumps(object, protocol=5), nx=True, ex=30)
+            self.client.set(object_key, pickle.dumps(object, protocol=5), nx=True) # ex=60 # expire in 60 seconds
         except Exception:
             logger.error("Could not store object {}".format(object_key))
             logger.error(traceback.format_exc())
@@ -135,13 +135,31 @@ class RedisStoreInterface(StoreInterface):
         Raises:
             ObjectNotFoundError: If the key is not found
         """
-        object_value = self.client.get(object_key)
+
+        try:
+            object_value = self.client.get(object_key)
+        except Exception as e:
+            logger.error(f"Could not get object {object_key} - error: {e}")
+
         if object_value:
             # buffers would also go here to force out-of-band deserialization
             return pickle.loads(object_value)
 
         logger.warning("Object {} cannot be found.".format(object_key))
         raise ObjectNotFoundError(object_key)
+    
+    def expire(self, object_key, time):
+        """
+        Set the expiration time for the object
+
+        Args:
+            object_key: the key of the object
+            time: the time in seconds
+        """
+        try:
+            self.client.expire(object_key, time)
+        except Exception as e:
+            logger.error(f"Could not expire object {object_key} - error: {e}")
 
     def subscribe(self, topic=REDIS_GLOBAL_TOPIC):
         p = self.client.pubsub()

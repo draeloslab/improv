@@ -1,1 +1,3 @@
-pip install deeplabcut-live
+deeplabcut-live
+pycairo
+PyGObject
