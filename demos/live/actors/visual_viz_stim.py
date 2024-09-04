@@ -110,6 +110,7 @@ class CaimanVisualStim(Actor):
             logger.error('Object not found, continuing anyway...')
         except Exception as e:
             logger.error('Visual: Exception in get data: {}'.format(e))
+        logger.info('visual_viz_stim time: {}'.format(self.total_times))
         try:
             stim_in = self.links['optim_in'].get(timeout=0.0001)
             self.selected_neuron = stim_in
