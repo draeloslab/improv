@@ -111,7 +111,6 @@ class FileAcquirer(Actor):
             # if self.frame_num > 1500 and self.frame_num < 1800:
             #     frame = None
             t = time.time()
-            logger.info('this is so weird --')
             # id = self.client.put(frame, "acq_raw" + str(self.frame_num))
             id = self.client.put(frame)           
             t1 = time.time()
@@ -184,12 +183,20 @@ class FileAcquirer(Actor):
         elif 'motionOn' in category:
             self.stim_count += 1
 
+            if msg_dict['stimulus']['stim_name'] == 'moving_gray':
+                angle = float(msg_dict['stimulus']['angle'])
+                vel = float(msg_dict['stimulus']['velocity'])
+                self.links['stim_queue'].put({self.frame_num:[angle, vel]})
+                self.stimmed.append([self.frame_num, angle, vel])
+                logger.info('Stimulus: Moving gratings angle {} with velocity {} at frame {}'.format(angle, vel, self.frame_num))
+
+            elif msg_dict['stimulus']['stim_name'] == 'circle_radius':
             ## spots stim with Karina
-            size = float(msg_dict['texture']['circle_radius'])
-            vel = float(msg_dict['stimulus']['velocity'])
-            self.links['stim_queue'].put({self.frame_num:[size, vel]})
-            self.stimmed.append([self.frame_num, size, vel])
-            logger.info('Stimulus: Circle radius {} with velocity {} at frame {}'.format(size, vel, self.frame_num))
+                size = float(msg_dict['texture']['circle_radius'])
+                vel = float(msg_dict['stimulus']['velocity'])
+                self.links['stim_queue'].put({self.frame_num:[size, vel]})
+                self.stimmed.append([self.frame_num, size, vel])
+                logger.info('Stimulus: Circle radius {} with velocity {} at frame {}'.format(size, vel, self.frame_num))
 
             logger.info('Number of stimuli: {}'.format(self.stim_count))
             # self.stimsendtimes.append([sendtime])
