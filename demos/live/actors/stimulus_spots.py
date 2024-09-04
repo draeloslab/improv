@@ -93,7 +93,7 @@ class VisualStimulus(Actor):
         self.maxT = 20
 
         ## random sampling for initialization
-        self.initial_length = 4 #16*2 #16*3
+        self.initial_length = 10 #16*2 #16*3
 
         self.optimized_n = []
 

@@ -56,8 +56,10 @@ class VisualStimulus(Actor):
         self.grid_choice = np.reshape(self.grid_choice, (snum,)) #snum))
         self.grid_ind = np.arange(snum) #**2)
 
-        self.initial_angles = np.arange(0,331,30) #np.array([5,10,8,4,3,9,2,1]) # np.linspace(0,360,endpoint=False, num=8)
+        self.initial_angles = np.linspace(0,330,num=12) #np.array([5,10,8,4,3,9,2,1]) # np.linspace(0,360,endpoint=False, num=8)
+        self.initial_vel = np.array([0.02, 0.04, 0.06, 0.08, 0.10, 0.12])
         random.shuffle(self.initial_angles)
+        random.shuffle(self.initial_vel)
         self.which_angle = 0
         self.all_angles = self.stim_sets[0]
         random.shuffle(self.all_angles)
@@ -386,10 +388,10 @@ class VisualStimulus(Actor):
         stim = self.create_frame(angle) #, angle2)
         return stim
 
-    def create_frame(self, angle):
+    def create_frame(self, angle, vel):
         ### Static or common stimulus params are set here
         # angle = 270
-        vel = 0.05
+        # vel = 0.05
         freq = 33
 
         # self.circ_size = circle_size
@@ -413,7 +415,9 @@ class VisualStimulus(Actor):
     def initial_frame(self):
         if self.which_angle%8 == 0:
             random.shuffle(self.initial_angles)
+            random.shuffle(self.initial_vel)
         angle = self.initial_angles[self.which_angle%8] #self.stim_sets[0][self.which_angle%len(self.stim_sets[0])]
+        vel = self.initial_vel[self.which_angle%6]
         
         self.which_angle += 1
         if self.which_angle >= self.initial_length: 
@@ -423,7 +427,7 @@ class VisualStimulus(Actor):
             self.which_angle = 0
             logger.info('Done with initial frames, starting random set')
         
-        stim = self.create_frame(angle) #, 0.14)
+        stim = self.create_frame(angle, vel) #, 0.14)
         self.timer = time.time()
         self.circ_size = angle
         return stim
