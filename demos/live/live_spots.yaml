@@ -28,7 +28,7 @@ actors:
     framerate: 7.5
     
   Stimulus:
-    package: actors.stimulus_spots
+    package: actors.stimulus_gratings
     class: VisualStimulus
     ip: '*'
     port: 5006 
