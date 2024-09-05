@@ -361,11 +361,21 @@ class VisualStimulus(Actor):
         #             }
 
         if stim is not None:
+
+            # For 'sin_gray' or 'grating_gray':
             text = {'texture_size': 1024,
-                    'texture_name': 'grating_gray',
+                    'texture_name': 'sin_gray',
                     'bg_intensity': 255,
                     'fg_intensity': 0,
                     }
+
+            # For 'sin_rgb' or 'grating_rgb' :
+            # text = {'texture_size': 1024,
+            #         'texture_name': 'grating_rgb',
+            #         'bg_intensity': 255,
+            #         'fg_intensity': 0,
+            #         'color': (255, 0, 0),
+            #         }
             
             stimulus = {'stimulus': stim, 'texture': text}
             self._socket.send_string(self.stimulus_topic, zmq.SNDMORE)
