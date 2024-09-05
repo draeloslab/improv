@@ -302,8 +302,8 @@ class VizStimAnalysis(Actor):
 
     def putStimulus(self):
         # pass
-        logger.info('stimX: {}'.format(self.stimX))
-        logger.info('stimY: {}'.format(self.stimY))
+        # logger.info('stimX: {}'.format(self.stimX))
+        # logger.info('stimY: {}'.format(self.stimY))
         ids = []
         ids.append(self.client.put(self.stimX))   #, 'stimX'+str(self.frame)))
         ids.append(self.client.put(self.stimY))   #, 'stimY'+str(self.frame)))
@@ -330,7 +330,7 @@ class VizStimAnalysis(Actor):
 
         # self.before_amount = 5
         # self.after_amount = 20
-        logger.info('currentStim is: {}'.format(self.currentStim))
+        # logger.info('currentStim is: {}'.format(self.currentStim))
         if self.currentStim is not None:
             # print('Computing for ', self.currentStim, ' starting at ', self.stimStart, ' but current  ', self.frame)
 

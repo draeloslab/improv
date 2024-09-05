@@ -36,6 +36,8 @@ class ZMQAcquirer(Actor):
         for port in self.ports:
             self.socket.connect("tcp://"+str(self.ip)+":"+str(port))
             logger.info('Connected to '+str(self.ip)+':'+str(port))
+        self.socket.connect("tcp://localhost:5010")
+        # logger.info('Connected to '+str(self.ip)+':'+str(port))
         self.socket.setsockopt(zmq.SUBSCRIBE, b'')
 
         self.saveArray = []
@@ -88,10 +90,15 @@ class ZMQAcquirer(Actor):
 
 
     def stop(self):
+        logger.info('Acquire ZMQ stopping procedure --')
         self.imgs = np.array(self.saveArray)
+        logger.info('Trying to save 1')
         f = h5py.File('output/sample_stream_end.h5', 'w', libver='earliest')
+        logger.info('Trying to save 2')
         f.create_dataset("default", data=self.imgs)
+        logger.info('Trying to save 3')
         f.close()
+        logger.info('Trying to save 4')
 
         np.savetxt('output/stimmed.txt', np.array(self.stimmed))
         np.savetxt('output/photostimmed_msgs.txt', np.array(self.photostims))
@@ -104,8 +111,8 @@ class ZMQAcquirer(Actor):
         np.savetxt('output/timing/acquire_timestamp.txt', self.timestamp)
         np.save('output/fullstim.npy', self.fullStimmsg)
 
-        print('Acquisition complete, avg time per frame: ', np.mean(self.total_times))
-        print('Acquire got through ', self.frame_num, ' frames')
+        logger.info('Acquisition complete, avg time per frame: {}'.format(np.mean(self.total_times)))
+        logger.info('Acquire got through {} frames'.format(self.frame_num))
 
     def runStep(self):
 
@@ -139,24 +146,29 @@ class ZMQAcquirer(Actor):
             print('error: {}'.format(e))
 
     def get_message(self, timeout=0.001):
-        msg = self.socket.recv_pyobj() #(flags=zmq.NOBLOCK)
+        msg = self.socket.recv_pyobj(flags=zmq.NOBLOCK)
         # logger.info('RECIEVING IMAGES ---------')
         # logger.info('image message received (raw): {}'.format(msg))
         # logger.info('msg type: {}'.format(type(msg)))
         try:
             #NOTE: brucker_2pcontrol sends msg as dict, so no need to use msg_unpacker for this
-            msg_dict = msg
-            # msg_dict = self._msg_unpacker(msg)
+            
+            msg_dict = self._msg_unpacker(msg)
             # logger.info('inside try block - msg_dict')
             tag = msg_dict['type'] 
         except Exception as e:
+            msg_dict = msg
             logger.error('Weird format message {}'.format(e))
+        tag = msg_dict['type'] 
+
         
         # trying to visualize data
         message_data = msg_dict['data']
-        finalthing = np.array((np.array(message_data) - 0) / 1 * 255, np.uint8)
-        # logger.info('finalthang: {}'.format(finalthing))
-        plt.imshow("Microscope Image", finalthing)
+        finalthing = np.array(message_data) #np.array((np.array(message_data) - 0) / 1 * 255, np.uint8)
+        # logger.info('finalthing shape {}'.format(finalthing.shape))
+        # logger.info('finalthing: {}'.format(finalthing))
+        # plt.imshow("Microscope Image", finalthing)
+        # plt.show()
 
         if 'stim' in tag: 
             if not self.stimF:
@@ -166,50 +178,51 @@ class ZMQAcquirer(Actor):
             self._collect_stimulus(msg_dict)
             self.total_times.append(time.time() - t0)
 
-        elif 'frame' in tag: 
+        # elif 'frame' in tag: 
+        else:
             t0 = time.time()
-            self._collect_frame(msg_dict)
+            self._collect_frame(finalthing)
             self.frame_num += 1
             self.total_times.append(time.time() - t0)
 
-        elif str(tag) in 'tail':
-            if not self.tailF:
-                logger.info('Receiving tail information')
-                self.tailF = True
-            self._collect_tail(msg_dict)
+        # elif str(tag) in 'tail':
+        #     if not self.tailF:
+        #         logger.info('Receiving tail information')
+        #         self.tailF = True
+        #     self._collect_tail(msg_dict)
 
-        elif 'scan' in tag:
-            if 'scanner2' in msg_dict['source']:
-                logger.info('Photostim happened at frame {}'.format(self.frame_num))
-                self.photostims.append(self.frame_num)
+        # elif 'scan' in tag:
+        #     if 'scanner2' in msg_dict['source']:
+        #         logger.info('Photostim happened at frame {}'.format(self.frame_num))
+        #         self.photostims.append(self.frame_num)
 
-        else:
-            logger.info('Had an error in tag: {}'.format(tag))
-            logger.info('{}'.format(msg))
+        # else:
+        #     logger.info('Had an error in tag: {}'.format(tag))
+        #     logger.info('{}'.format(msg))
 
 
-    def _collect_frame(self, msg_dict):
-        array = np.array(json.loads(msg_dict['data']))
+    def _collect_frame(self, array):
+        # array = np.array(json.loads(msg_dict['data']))
         if not self.frameF:
             logger.info('Receiving frame information')
             self.frameF = True
             logger.info('Image frame(s) size is {}'.format(array.shape))
             if array.shape[0] == 2:
                 logger.info('Acquiring also in the red channel')
-        self.saveArray.append(array[0])
+        self.saveArray.append(array)
         if array.shape[0] == 2:
             self.saveArrayRedChan.append(array[1])
         
         if not self.align_flag:
             array = None
-        obj_id = self.client.put(array[0], 'acq_raw' + str(self.frame_num))
+        obj_id = self.client.put(array)
         self.q_out.put([{str(self.frame_num): obj_id}])
 
-        sendtime =  msg_dict['timestamp'] 
+        # sendtime =  array['timestamp'] 
 
         self.frametimes.append([self.frame_num, time.time()])
-        self.framesendtimes.append([sendtime])
-
+        # self.framesendtimes.append([sendtime])
+        # logger.info('sent a frame on')
         if len(self.saveArray) >= 1000:
             self.imgs = np.array(self.saveArray)
             f = h5py.File(self.output_folder+'/sample_stream'+str(self.save_ind)+'.h5', 'w', libver='earliest')
@@ -218,6 +231,8 @@ class ZMQAcquirer(Actor):
             self.save_ind += 1
             del self.saveArray
             self.saveArray = []
+            logger.info('after saving internal')
+        
 
     def _collect_stimulus(self, msg_dict):
         sendtime = msg_dict['time']

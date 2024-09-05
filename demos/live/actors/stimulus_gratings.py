@@ -93,7 +93,7 @@ class VisualStimulus(Actor):
         self.maxT = 20
 
         ## random sampling for initialization
-        self.initial_length = 20 #16*2 #16*3
+        self.initial_length = 2000 #16*2 #16*3
 
         self.optimized_n = []
 
@@ -169,7 +169,10 @@ class VisualStimulus(Actor):
         try:
             ids = self.q_in.get(timeout=0.0001)
 
-            X, Y, stim, _ = self.client.getList(ids)
+            # X, Y, stim, _ = self.client.getList(ids)
+            X = self.client.get(ids[0])
+            Y = self.client.get(ids[1])
+            stim = self.client.get(ids[2])
             # logger.info('Y is receiving: {}'.format(Y))
             tmpX = np.squeeze(np.array(X)).T
             # logger.info(f'{tmpX.shape}----------------------------------------------------')
@@ -181,20 +184,21 @@ class VisualStimulus(Actor):
                 # print('self.X DIRECT from analysis is ', X, 'and self.X is ', self.X[:,-1])
             # print(self.X)
 
-            # try:
-            b = np.zeros([len(Y),len(max(Y,key = lambda x: len(x)))])
-            for i,j in enumerate(Y):
-                b[i][:len(j)] = j
-            self.y0 = b.T
-            # logger.info('X, Y shapes: {}, {}'.format(self.X.shape, self.y0.shape))
-            # except:
-            #     pass
+            try:
+                b = np.zeros([len(Y),len(max(Y,key = lambda x: len(x)))])
+                for i,j in enumerate(Y):
+                    b[i][:len(j)] = j
+                self.y0 = b.T
+                logger.info('X, Y shapes: {}, {}'.format(self.X.shape, self.y0.shape))
+            except:
+                logger.info('X, Y shapes: {}, {}'.format(self.X.shape, self.y0.shape))
+                pass
             
 
         except Empty as e:
             pass
         except Exception as e:
-            print('Error in stimulus_spots get: {}'.format(e))
+            print('Error in stimulus_gratings get: {}'.format(e))
 
 
 

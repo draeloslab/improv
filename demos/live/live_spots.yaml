@@ -4,28 +4,28 @@ actors:
     class: DisplayVisual
     visual: Visual
 
-  # Acquirer:
-  #   package: actors.acquire_zmq
-  #   class: ZMQAcquirer
-  #   ip: 10.65.98.69 #10.122.170.21
-  #   ports: [50154, 5000,5008,5009,5010,5011,4701,4703,5865,5005,5017,5018] #[4701,4702,4703]
-  #   output: output/
-  #   red_chan_image: output/red_channel_image.npy
-  #   init_filename: output/initialization.h5
-  #   init_frame: 60
-
   Acquirer:
-    package: demos.sample_actors.acquire
-    class: FileAcquirer
-    ip: 127.0.0.1
-    ports: [5010]
-    # pstim_connection: [127.0.0.1, 5010]
-    # image_connection: [IP, 5011]
+    package: actors.acquire_zmq
+    class: ZMQAcquirer
+    ip: 10.65.110.3 #10.122.170.21
+    ports: [50154, 5000,5008,5009,5010,5011,4701,4703,5865,5005,5017,5018] #[4701,4702,4703]
     output: output/
+    red_chan_image: output/red_channel_image.npy
     init_filename: output/initialization.h5
-    filename: data/TSeries-10052023-2009_WFD_MovingSpot-011_dataset.h5
     init_frame: 60
-    framerate: 7.5
+
+  # Acquirer:
+  #   package: demos.sample_actors.acquire
+  #   class: FileAcquirer
+  #   ip: 127.0.0.1
+  #   ports: [5010]
+  #   # pstim_connection: [127.0.0.1, 5010]
+  #   # image_connection: [IP, 5011]
+  #   output: output/
+  #   init_filename: output/initialization.h5
+  #   filename: data/TSeries-10052023-2009_WFD_MovingSpot-011_dataset.h5
+  #   init_frame: 60
+  #   framerate: 7.5
     
   Stimulus:
     package: actors.stimulus_gratings
