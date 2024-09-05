@@ -363,8 +363,8 @@ class VisualStimulus(Actor):
                     'circle_center': (35,35),
                     'circle_radius': circ_size,
                     'texture_name':'gray_circle',
-                    'bg_intensity': 255,#0,
-                    'fg_intensity': 0,#255,
+                    'bg_intensity': 200, #255,#0,
+                    'fg_intensity': 50, #0,#255,
                     }
 
             stimulus = {'stimulus': stim, 'texture': text}
