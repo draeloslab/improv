@@ -164,6 +164,7 @@ class ZMQAcquirer(Actor):
                 self.stimF = True
             self.fullStimmsg.append(msg)
             self._collect_stimulus(msg_dict)
+            self.total_times.append(time.time() - t0)
 
         elif 'frame' in tag: 
             t0 = time.time()
@@ -248,13 +249,20 @@ class ZMQAcquirer(Actor):
             # self.links['stim_queue'].put({self.frame_num:[stim, float(angle), float(angle2)]})
             # self.stimmed.append([self.frame_num, stim, angle, angle2, time.time()])
             # logger.info('Stimulus: {}, angle: {},{}, frame {}'.format(stim, angle, angle2, self.frame_num))
+            if msg_dict['texture']['texture_name'] in ('sin_gray', 'sin_rgb', 'grating_gray', 'grating_rgb'):
+                angle = float(msg_dict['stimulus']['angle'])
+                vel = float(msg_dict['stimulus']['velocity'])
+                self.links['stim_queue'].put({self.frame_num:[angle, vel]})
+                self.stimmed.append([self.frame_num, angle, vel])
+                logger.info('Stimulus: Moving gratings angle {} with velocity {} at frame {}'.format(angle, vel, self.frame_num))
 
             ## spots stim with Karina
-            size = float(msg_dict['circle_radius'])
-            vel = float(msg_dict['velocity'])
-            self.links['stim_queue'].put({self.frame_num:[size, vel]})
-            self.stimmed.append([self.frame_num, size, vel])
-            logger.info('Stimulus: Circle radius {} with velocity {} at frame {}'.format(size, vel, self.frame_num))
+            if msg_dict['texture']['texture_name'] == 'gray_circle':
+                size = float(msg_dict['circle_radius'])
+                vel = float(msg_dict['velocity'])
+                self.links['stim_queue'].put({self.frame_num:[size, vel]})
+                self.stimmed.append([self.frame_num, size, vel])
+                logger.info('Stimulus: Circle radius {} with velocity {} at frame {}'.format(size, vel, self.frame_num))
 
             logger.info('Number of stimuli: {}'.format(self.stim_count))
             self.stimsendtimes.append([sendtime])

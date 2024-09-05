@@ -183,14 +183,14 @@ class FileAcquirer(Actor):
         elif 'motionOn' in category:
             self.stim_count += 1
 
-            if msg_dict['stimulus']['stim_name'] == 'moving_gray':
+            if msg_dict['texture']['texture_name'] in ('sin_gray', 'sin_rgb', 'grating_gray', 'grating_rgb'):
                 angle = float(msg_dict['stimulus']['angle'])
                 vel = float(msg_dict['stimulus']['velocity'])
                 self.links['stim_queue'].put({self.frame_num:[angle, vel]})
                 self.stimmed.append([self.frame_num, angle, vel])
                 logger.info('Stimulus: Moving gratings angle {} with velocity {} at frame {}'.format(angle, vel, self.frame_num))
 
-            elif msg_dict['stimulus']['stim_name'] == 'circle_radius':
+            elif msg_dict['texture']['texture_name'] == 'gray_circle':
             ## spots stim with Karina
                 size = float(msg_dict['texture']['circle_radius'])
                 vel = float(msg_dict['stimulus']['velocity'])
