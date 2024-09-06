@@ -9,6 +9,9 @@ from pathlib import Path
 from improv.actor import Actor, RunManager
 from ast import literal_eval as make_tuple
 import matplotlib.pyplot as plt
+import pickle 
+import re
+import ast
 
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -146,25 +149,44 @@ class ZMQAcquirer(Actor):
             print('error: {}'.format(e))
 
     def get_message(self, timeout=0.001):
-        msg = self.socket.recv_pyobj(flags=zmq.NOBLOCK)
+
+        #  try receiving microscope message: 
+        try:
+            msg = self.socket.recv_pyobj(flags=zmq.NOBLOCK)
+            msg_dict = msg
+
+            message_data = msg_dict['data']
+            finalthing = np.array(message_data)
+            tag = msg_dict['type'] 
+            # logger.info('Receiving microscope image--')
+        except:
+            pass
+
+        # try receiving pandastim message:
+        try:
+            msg = self.socket.recv_multipart()
+            msg_dict, category = self._msg_unpacker(msg)
+            tag = 'stim'
+            # logger.info('Receiving stimuli information--')
+        except:
+            pass
         # logger.info('RECIEVING IMAGES ---------')
         # logger.info('image message received (raw): {}'.format(msg))
         # logger.info('msg type: {}'.format(type(msg)))
-        try:
-            #NOTE: brucker_2pcontrol sends msg as dict, so no need to use msg_unpacker for this
+        # try:
+        #     #NOTE: brucker_2pcontrol sends msg as dict, so no need to use msg_unpacker for this
             
-            msg_dict = self._msg_unpacker(msg)
-            # logger.info('inside try block - msg_dict')
-            tag = msg_dict['type'] 
-        except Exception as e:
-            msg_dict = msg
-            logger.error('Weird format message {}'.format(e))
-        tag = msg_dict['type'] 
-
+        #     msg_dict = self._msg_unpacker(msg)
+        #     # logger.info('inside try block - msg_dict')
+        #     tag = msg_dict['type'] 
+        # except Exception as e:
+        #     msg_dict = msg
+        #     logger.error('Weird format message {}'.format(e))
+        
+        # logger.info('tag: {}'.format(tag))
         
         # trying to visualize data
-        message_data = msg_dict['data']
-        finalthing = np.array(message_data) #np.array((np.array(message_data) - 0) / 1 * 255, np.uint8)
+         #np.array((np.array(message_data) - 0) / 1 * 255, np.uint8)
         # logger.info('finalthing shape {}'.format(finalthing.shape))
         # logger.info('finalthing: {}'.format(finalthing))
         # plt.imshow("Microscope Image", finalthing)
@@ -175,7 +197,7 @@ class ZMQAcquirer(Actor):
                 logger.info('Receiving stimulus information')
                 self.stimF = True
             self.fullStimmsg.append(msg)
-            self._collect_stimulus(msg_dict)
+            self._collect_stimulus(msg_dict, category)
             self.total_times.append(time.time() - t0)
 
         # elif 'frame' in tag: 
@@ -234,10 +256,10 @@ class ZMQAcquirer(Actor):
             logger.info('after saving internal')
         
 
-    def _collect_stimulus(self, msg_dict):
-        sendtime = msg_dict['time']
+    def _collect_stimulus(self, msg_dict, category):
+        # sendtime = msg_dict['time']
 
-        category = str(msg_dict['raw_msg']) #'motionOn' 
+        # category = str(msg_dict['raw_msg']) #'motionOn' 
         if 'alignment' in category:
             ## Currently not using
             s = msg_dict[5]
@@ -280,7 +302,7 @@ class ZMQAcquirer(Actor):
                 logger.info('Stimulus: Circle radius {} with velocity {} at frame {}'.format(size, vel, self.frame_num))
 
             logger.info('Number of stimuli: {}'.format(self.stim_count))
-            self.stimsendtimes.append([sendtime])
+            # self.stimsendtimes.append([sendtime])
 
     def _collect_tail(self, msg_dict):
         sendtime = msg_dict['timestamp']
@@ -291,15 +313,46 @@ class ZMQAcquirer(Actor):
     def _msg_unpacker(self, msg):
         # logger.info('keys: {}'.format(msg[::2]))
         # logger.info('vals: {}'.format(msg[1::2]))
-        keys = msg[::2]
-        vals = msg[1::2]
+        # keys = msg[::2]
+        # vals = msg[1::2]
         
-        msg_dict = {}
-        for k, v in zip(keys, vals):
-            msg_dict[k.decode()] = v.decode()
+        # msg_dict = {}
+        # for k, v in zip(keys, vals):
+        #     msg_dict[k.decode()] = v.decode()
         
-        logger.info('msg_dict inside msg_unpacker: {}'.format(msg_dict))
-        return msg_dict
+        # logger.info('msg_dict inside msg_unpacker: {}'.format(msg_dict))
+
+        msg_unpacked = pickle.loads(msg[0])
+        # logger.info('unpacked message: {}'.format(msg_unpacked))
+
+        category = None
+        if 'motionOn' in msg_unpacked:
+            category = 'motionOn'
+        elif 'queueAddition' in msg_unpacked:
+            category = 'queueAddition'
+        elif 'None' in msg_unpacked:
+            category = 'noStimChange'
+        else:
+            category = 'stimChange'
+        # logger.info('CATEGORY: {}'.format(category))
+
+        if category == 'noStimChange':
+            msg_dict = {}
+            logger.info('No stim change')
+        else:
+            start_idx = msg_unpacked.find("{")
+            end_idx = msg_unpacked.find("}}")+2
+            msg_str= msg_unpacked[start_idx:end_idx]
+            msg_str = re.sub(r"np\.float64\(([^)]+)\)", r"\1", msg_str)
+
+            # logger.info('formatted message type: {}'.format(msg_str))
+        #     try:
+            msg_dict = ast.literal_eval(msg_str)
+        #     except Esxception as e:
+        #         logger.error('ERROR: {}'.format(e))
+
+        # logger.info('msg_dict: {}'.format(msg_dict))
+        return msg_dict, category
 
     def _realign_angle(self, angle):
         if 23 > angle >=0:
