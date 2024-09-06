@@ -116,12 +116,17 @@ class LiveTwoP(CaimanProcessor):
                 # self.frame = self.client.getID(frame[0][str(self.frame_number)])
                 # logger.info('self.frame: {}'.format(self.client.get(frame[0][str(self.frame_number)])))
                 self.frame = self.client.get(frame[0][str(self.frame_number)])
+                # logger.info('caiman gets frame')
                 self.frame = self._processFrame(self.frame, self.frame_number + init)
+                # logger.info('caiman processes frame')
                 t2 = time.time()
                 self._fitFrame(self.frame_number + init, self.frame.reshape(-1, order="F"))
+                # logger.info('caiman fits frame')
                 self.fitframe_time.append([time.time() - t2])
                 self.putEstimates()
+                # logger.info('caiman puts estimates')
                 self.timestamp.append([time.time(), self.frame_number])
+                # logger.info('Done with frame {}'.format(self.frame_number))
             except ObjectNotFoundError:
                 logger.error("Processor: Frame {} unavailable from store, droppping"
                              .format(self.frame_number))

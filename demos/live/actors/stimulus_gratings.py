@@ -93,7 +93,7 @@ class VisualStimulus(Actor):
         self.maxT = 20
 
         ## random sampling for initialization
-        self.initial_length = 2000 #16*2 #16*3
+        self.initial_length = 6 #16*2 #16*3
 
         self.optimized_n = []
 
@@ -189,7 +189,7 @@ class VisualStimulus(Actor):
                 for i,j in enumerate(Y):
                     b[i][:len(j)] = j
                 self.y0 = b.T
-                logger.info('X, Y shapes: {}, {}'.format(self.X.shape, self.y0.shape))
+                # logger.info('X, Y shapes: {}, {}'.format(self.X.shape, self.y0.shape))
             except:
                 logger.info('X, Y shapes: {}, {}'.format(self.X.shape, self.y0.shape))
                 pass
@@ -262,8 +262,8 @@ class VisualStimulus(Actor):
                     self.newN = False
                     self.stopping = np.zeros(self.maxT)
 
-                    curr_unc = np.diagonal(self.optim.sigma.reshape((60,60))).reshape((10,6))
-                    curr_est = self.optim.f.reshape((10,6))
+                    curr_unc = np.diagonal(self.optim.sigma.reshape((72,72))).reshape((12,6))
+                    curr_est = self.optim.f.reshape((12,6))
                     self.saved_GP_unc.append(curr_unc)
                     self.saved_GP_est.append(curr_est)
 
@@ -271,8 +271,8 @@ class VisualStimulus(Actor):
                     # print('--------------- nID', self.nID)
                     # ids.append(self.client.put(self.nID, 'nID'))
                     ids.append(self.nID)
-                    ids.append(self.client.put(curr_est, 'est'))
-                    ids.append(self.client.put(curr_unc, 'unc'))
+                    ids.append(self.client.put(curr_est)) #, 'est'))
+                    ids.append(self.client.put(curr_unc)) # 'unc'))
                     # ids.append(self.client.put(self.conf, 'conf'))
                     self.q_out.put(ids)
                 
@@ -296,8 +296,8 @@ class VisualStimulus(Actor):
                 logger.info('optim {} , update GP with {}, {}'.format( self.nID, X, self.y0[self.nID, -1]))
                 self.optim.update_GP(np.squeeze(X), self.y0[self.nID,-1])
 
-                curr_unc = np.diagonal(self.optim.sigma.reshape((60,60))).reshape((10,6))
-                curr_est = self.optim.f.reshape((10,6))
+                curr_unc = np.diagonal(self.optim.sigma.reshape((72,72))).reshape((12,6))
+                curr_est = self.optim.f.reshape((12,6))
                 self.saved_GP_unc.append(curr_unc)
                 self.saved_GP_est.append(curr_est)
                 # except:
@@ -306,8 +306,8 @@ class VisualStimulus(Actor):
                 # print('--------------- nID', self.nID)
                 # ids.append(self.client.put(self.nID, 'nID'))
                 ids.append(self.nID)
-                ids.append(self.client.put(curr_est, 'est'))
-                ids.append(self.client.put(curr_unc, 'unc'))
+                ids.append(self.client.put(curr_est)) #, 'est'))
+                ids.append(self.client.put(curr_unc)) #, 'unc'))
                 # ids.append(self.client.put(self.conf, 'conf'))
                 self.q_out.put(ids)
 
@@ -398,8 +398,8 @@ class VisualStimulus(Actor):
     def create_chosen_stim(self, ind):
         xt = self.stim_star[ind]
         angle = xt[0]
-        # angle2 = xt[1]
-        stim = self.create_frame(angle) #, angle2)
+        angle2 = xt[1]
+        stim = self.create_frame(angle, angle2)
         return stim
 
     def create_frame(self, angle, vel):

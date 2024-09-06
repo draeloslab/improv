@@ -409,8 +409,8 @@ class VizStimAnalysis(Actor):
                     # self.counters['freq'][self.xf, 0] += 1
                     # self.y_contrast[:,self.xc,0] = (self.counters['contrast'][self.xc,0]*self.y_contrast[:,self.xc,0] + val)/(self.counters['contrast'][self.xc,0]+1)
                     # self.counters['contrast'][self.xc, 0] += 1
-            logger.info('frame_number: {}'.format(self.frame))
-            logger.info('stimStart + self.after_amount: {}'.format((self.stimStart, self.after_amount)))
+            # logger.info('frame_number: {}'.format(self.frame))
+            # logger.info('stimStart + self.after_amount: {}'.format((self.stimStart, self.after_amount)))
             if self.frame == self.stimStart + self.after_amount:
                 logger.info('appending to X: {}'.format(list(self.xs.values())))
                 self.stimX.append(list(self.xs.values()))

@@ -80,6 +80,7 @@ class ZMQAcquirer(Actor):
         #         np.save(self.red_chan_image, mean_red)
 
         self.frame_num = 0
+        self.track = 0
 
         self.kill_flag = True
 
@@ -152,15 +153,15 @@ class ZMQAcquirer(Actor):
 
         #  try receiving microscope message: 
         try:
-            msg = self.socket.recv_pyobj(flags=zmq.NOBLOCK)
+            msg = self.socket.recv_pyobj(flags=0)
             msg_dict = msg
 
             message_data = msg_dict['data']
             finalthing = np.array(message_data)
             tag = msg_dict['type'] 
             # logger.info('Receiving microscope image--')
-        except:
-            pass
+        except Exception as e:
+            logger.info('error: {}'.format(e))
 
         # try receiving pandastim message:
         try:
@@ -203,9 +204,11 @@ class ZMQAcquirer(Actor):
         # elif 'frame' in tag: 
         else:
             t0 = time.time()
-            self._collect_frame(finalthing)
-            self.frame_num += 1
+            if self.track %2 == 0:
+                self._collect_frame(finalthing)
+                self.frame_num += 1
             self.total_times.append(time.time() - t0)
+            self.track += 1
 
         # elif str(tag) in 'tail':
         #     if not self.tailF:
@@ -254,6 +257,7 @@ class ZMQAcquirer(Actor):
             del self.saveArray
             self.saveArray = []
             logger.info('after saving internal')
+        
         
 
     def _collect_stimulus(self, msg_dict, category):
