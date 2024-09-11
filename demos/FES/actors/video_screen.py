@@ -79,18 +79,21 @@ class VideoScreen(ManagedActor):
         # clear the queue
         while not self.links[f"camera{camera_id}_in"].empty():
             self.links[f"camera{camera_id}_in"].get_nowait()
+            self.q_in.get_nowait()
 
         try:
             frame_id = self.links[f"camera{camera_id}_in"].get(timeout=0.1)
+            pred_id = self.q_in.get()
 
-            if frame_id is not None:
+            if frame_id is not None and pred_id is not None:
                 frame = self.client.get(frame_id)
+                predictionData = self.client.get(pred_id)
             else:
                 frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
         except Exception as e:
             return np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
 
-        return frame
+        return frame, predictionData['prediction']
 
     def runStep(self): 
         pass

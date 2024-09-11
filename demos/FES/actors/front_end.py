@@ -4,7 +4,7 @@ import threading
 import queue
 from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QGridLayout
 from PyQt5.QtCore import QTimer, Qt
-from PyQt5.QtGui import QImage, QPixmap
+from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen, QColor
 
 import logging
 logger = logging.getLogger(__name__)
@@ -60,22 +60,30 @@ class CameraStreamWidget(QWidget):
 
     def update_frames(self):
         """Update frames from each camera"""
-
         for camera_id in range(self.visual.num_cameras):
             try:
-                frame = self.visual.getLastFrame(camera_id)
-        
-                self.display_frame(frame, self.camera_labels[camera_id])
+                frame, predictions = self.visual.getLastFrame(camera_id)
+                self.display_frame(frame, predictions, self.camera_labels[camera_id])
             except Exception as e:
                 logger.error(f"Error: {e}")
 
-    def display_frame(self, frame, label):
-        """Convert frame to QImage and display it in QLabel."""
-        # Convert frame to RGB format
-        # rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    def display_frame(self, frame, predictions, label):
+        """Convert frame to QImage, plot predictions if available, and display it in QLabel."""
         height, width, channel = frame.shape
         bytes_per_line = channel * width
         q_img = QImage(frame.data, width, height, bytes_per_line, QImage.Format_RGB888)
+        
+        if predictions is not None:
+            painter = QPainter(q_img)
+            painter.setPen(QPen(QColor(255, 0, 0), 2))  # Red color, 2px width
+            
+            for point in predictions:
+                x, y, likelihood = point
+                if likelihood > 0.5:  # Only plot points with high likelihood
+                    painter.drawEllipse(int(x), int(y), 5, 5)
+            
+            painter.end()
+
         pixmap = QPixmap.fromImage(q_img)
-        scaled_pixmap = pixmap.scaled(label.size(), Qt.KeepAspectRatio)  # Keep aspect ratio
+        scaled_pixmap = pixmap.scaled(label.size(), Qt.KeepAspectRatio)
         label.setPixmap(scaled_pixmap)

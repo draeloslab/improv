@@ -9,6 +9,17 @@ import time
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+# Create a file handler
+log_file = "processor.log"
+file_handler = logging.FileHandler(log_file)
+file_handler.setLevel(logging.INFO)
+
+# Create a formatter and set it for the handler
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+
+# Add the handler to the logger
+logger.addHandler(file_handler)
 
 class Processor(Actor):
     """ Applying DLC inference to each video frame
@@ -18,17 +29,10 @@ class Processor(Actor):
         super().__init__(*args, **kwargs)
 
     def setup(self):
-        """Initializes all class variables.
-
-        self.name (string): name of the actor.
-        self.frame (ObjectID): StoreInterface object id referencing data from the store.
-        self.avg_list (list): list that contains averages of individual vectors.
-        self.frame_num (int): index of current frame.
-        """
-
+        """Initializes all class variables."""
         logger.info("Beginning setup for Processor")
 
-         # load the configuration file
+        # load the configuration file
         source_folder = Path(__file__).resolve().parent.parent
 
         with open(f'{source_folder}/config.yaml', 'r') as file:
@@ -38,24 +42,22 @@ class Processor(Actor):
         self.resize = config['resize']
         self.name = "Processor"
         self.frame = None
-        self.dlc_live = DLCLive(self.model_path, resize = self.resize, dynamic = (True, 0.9, 30))
+        self.dlc_live = DLCLive(self.model_path, resize=self.resize, dynamic=(True, 0.9, 30))
         frame = np.random.rand(1080, 1920, 3)
-        self.dlc_live.init_inference(frame)  #putting in a random frame to initialize the model
+        self.dlc_live.init_inference(frame)  # putting in a random frame to initialize the model
         self.predictions = []
         self.latencies = []
         self.frame_num = 1
         logger.info("Completed setup for Processor")
 
     def stop(self):
-        """Trivial stop function for testing purposes."""
-        self.done=True
+        """Stop function for saving results and cleaning up."""
+        self.done = True
         np.save("latencies.npy", self.latencies)
         np.save("predictions.npy", self.predictions)
         logger.info("Processor stopping")
 
     def runStep(self):
-
-        
         frame = None
         try:
             start_time = time.perf_counter()
@@ -65,11 +67,10 @@ class Processor(Actor):
 
         except Exception as e:
             logger.error(f"Could not get frame! {e}")
-            pass
+            return
 
         if frame is not None and self.frame_num is not None:
             self.done = False
-            # start_time = time.perf_counter() #NOTE might want to put this where I get the key instead of here
             self.frame = self.client.get(frame)
 
             logger.info(f"Got frame: {self.frame.shape}")
@@ -77,12 +78,17 @@ class Processor(Actor):
             self.frame_num += 1
 
             # Perform inference
-            # self.dlc_live.init_inference(self.frame)
-            # start_time = time.perf_counter()
             prediction = self.dlc_live.get_pose(self.frame)
-            self.latencies.append( time.perf_counter() - start_time)
+            self.latencies.append(time.perf_counter() - start_time)
             self.predictions.append(prediction)
             logger.info(f"Prediction: {prediction}")
             logger.info(f"Frame number: {self.frame_num}")  
-            # logger.info(f"Latency: {latency:.4f} seconds")
             logger.info(f"Overall Average FPS: {1/np.mean(self.latencies)}")
+
+            data_id = self.client.put({'prediction': prediction, 'frame': frame})
+            logger.info('Put prediction and index dict in store')
+            try:
+                self.q_out.put(data_id)
+                logger.info("Sent message on")
+            except Exception as e:
+                logger.error(f"--------------------------------Generator Exception: {e}")
