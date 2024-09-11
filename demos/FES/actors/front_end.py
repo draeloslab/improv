@@ -62,10 +62,20 @@ class CameraStreamWidget(QWidget):
         """Update frames from each camera"""
         for camera_id in range(self.visual.num_cameras):
             try:
-                frame, predictions = self.visual.getLastFrame(camera_id)
+                result = self.visual.getLastFrame(camera_id)
+                if isinstance(result, tuple) and len(result) == 2:
+                    frame, predictions = result
+                else:
+                    logger.warning(f"Unexpected data format from getLastFrame for camera {camera_id}")
+                    frame = np.zeros((self.visual.frame_h, self.visual.frame_w, 3), dtype=np.uint8)
+                    predictions = None
+                
                 self.display_frame(frame, predictions, self.camera_labels[camera_id])
             except Exception as e:
-                logger.error(f"Error: {e}")
+                logger.error(f"Error updating frame for camera {camera_id}: {e}")
+                # Display a blank frame if there's an error
+                blank_frame = np.zeros((self.visual.frame_h, self.visual.frame_w, 3), dtype=np.uint8)
+                self.display_frame(blank_frame, None, self.camera_labels[camera_id])
 
     def display_frame(self, frame, predictions, label):
         """Convert frame to QImage, plot predictions if available, and display it in QLabel."""
