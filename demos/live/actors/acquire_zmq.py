@@ -134,7 +134,6 @@ class ZMQAcquirer(Actor):
             msg = self.socket.recv_pyobj(flags=0)
             msg_dict = msg
             message_data = msg_dict['data']
-            # logger.info('data shape: {}'.format(message_data.shape))
             finalthing = np.array(message_data)
             tag = msg_dict['type'] 
             # logger.info('Receiving microscope image--')

@@ -150,7 +150,6 @@ class VisualStimulus(Actor):
     def stop(self):
         '''Triggered at Run
         '''
-        # NOTE: need to figure out why this was not saving anything ? 
         np.save('output/optimized_neurons.npy', np.array(self.optimized_n))
         # print(self.stopping_list)
         np.save('output/stopping_list.npy', np.array(self.stopping_list))
