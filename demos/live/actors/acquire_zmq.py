@@ -119,28 +119,6 @@ class ZMQAcquirer(Actor):
         logger.info('Acquire got through {} frames'.format(self.frame_num))
 
     def runStep(self):
-
-        # if self.kill_flag:
-        #     self.socket.close()
-        #     self.context = zmq.Context()
-        #     self.socket = self.context.socket(zmq.SUB)
-        #     for port in self.ports:
-        #         self.socket.connect("tcp://"+str(self.ip)+":"+str(port))
-        #         print('RE-Connected to '+str(self.ip)+':'+str(port))
-        #     self.socket.setsockopt(zmq.SUBSCRIBE, b'')
-
-        #     timer = time.time()
-        #     while True:
-        #         msg = self.socket.recv_multipart()
-        #         if time.time()-timer > 0.02:
-        #             self.kill_flag = False
-        #             logger.error('Resuming run') 
-        #             break
-        #         logger.info(str(time.time()-timer))
-        #         timer = time.time()
-
-        #     self.kill_flag = False
-
         try:
             self.get_message()
         except zmq.Again:
@@ -155,8 +133,8 @@ class ZMQAcquirer(Actor):
         try:
             msg = self.socket.recv_pyobj(flags=0)
             msg_dict = msg
-
             message_data = msg_dict['data']
+            # logger.info('data shape: {}'.format(message_data.shape))
             finalthing = np.array(message_data)
             tag = msg_dict['type'] 
             # logger.info('Receiving microscope image--')
@@ -177,7 +155,7 @@ class ZMQAcquirer(Actor):
         # try:
         #     #NOTE: brucker_2pcontrol sends msg as dict, so no need to use msg_unpacker for this
             
-        #     msg_dict = self._msg_unpacker(msg)
+        #     msg_dict = self._msg_unpacker(msg
         #     # logger.info('inside try block - msg_dict')
         #     tag = msg_dict['type'] 
         # except Exception as e:
@@ -197,6 +175,7 @@ class ZMQAcquirer(Actor):
             if not self.stimF:
                 logger.info('Receiving stimulus information')
                 self.stimF = True
+            t0 = time.time()
             self.fullStimmsg.append(msg)
             self._collect_stimulus(msg_dict, category)
             self.total_times.append(time.time() - t0)
