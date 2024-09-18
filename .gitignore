@@ -133,4 +133,5 @@ arrow
 improv/_version.py
 
 output/
+output_*
 .npy
