@@ -4,11 +4,22 @@ actors:
     class: DisplayVisual
     visual: Visual
 
+  Microscope:
+    package: actors.load_disc
+    class: FileAcquirer
+    ip: '*'
+    port: 5007
+    output: output/
+    init_filename: output/initialization.h5
+    filename: output_090624_ds3/sample_stream0.h5
+    init_frame: 60
+    framerate: 15
+
   Acquirer:
     package: actors.acquire_zmq
     class: ZMQAcquirer
-    ip: 10.65.110.3 #10.122.170.21
-    ports: [50154, 5000,5008,5009,5010,5011,4701,4703,5865,5005,5017,5018] #[4701,4702,4703]
+    ip: 127.0.0.1 # 10.65.110.3 #10.122.170.21
+    ports: [50154, 5000,5007,5008,5009,5010,5011,4701,4703,5865,5005,5017,5018] #[4701,4702,4703]
     output: output/
     red_chan_image: output/red_channel_image.npy
     init_filename: output/initialization.h5
