@@ -56,24 +56,26 @@ class CameraStreamWidget(QWidget):
         # Initialize a QTimer to update frames
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_frames)
-        self.timer.start(100)  # Adjust the timer interval to match the frame rate [ms]
+        self.timer.start(50)  # Adjust the timer interval to match the frame rate [ms]
 
     def update_frames(self):
         """Update frames from each camera"""
         for camera_id in range(self.visual.num_cameras):
             try:
                 result = self.visual.getLastFrame(camera_id)
+                logger.info(f"Recieved frame {result}")
                 if isinstance(result, tuple) and len(result) == 2:
                     frame, predictions = result
                 else:
-                    logger.warning(f"Unexpected data format from getLastFrame for camera {camera_id}")
-                    frame = np.zeros((self.visual.frame_h, self.visual.frame_w, 3), dtype=np.uint8)
-                    predictions = None
+                    # logger.warning(f"Unexpected data format from getLastFrame for camera {camera_id}")
+                    # frame = np.zeros((self.visual.frame_h, self.visual.frame_w, 3), dtype=np.uint8)
+                    predictions = np.zeros((5, 3))
+                    frame = result
                 
                 self.display_frame(frame, predictions, self.camera_labels[camera_id])
             except Exception as e:
                 logger.error(f"Error updating frame for camera {camera_id}: {e}")
-                # Display a blank frame if there's an error
+                # # Display a blank frame if there's an error
                 blank_frame = np.zeros((self.visual.frame_h, self.visual.frame_w, 3), dtype=np.uint8)
                 self.display_frame(blank_frame, None, self.camera_labels[camera_id])
 
@@ -89,11 +91,11 @@ class CameraStreamWidget(QWidget):
             
             for point in predictions:
                 x, y, likelihood = point
-                if likelihood > 0.5:  # Only plot points with high likelihood
+                if likelihood > 0.001:  # Only plot points with high likelihood
                     painter.drawEllipse(int(x), int(y), 5, 5)
             
             painter.end()
 
         pixmap = QPixmap.fromImage(q_img)
-        scaled_pixmap = pixmap.scaled(label.size(), Qt.KeepAspectRatio)
+        scaled_pixmap = pixmap.scaled(label.size(), Qt.KeepAspectRatio)  # Keep aspect ratio
         label.setPixmap(scaled_pixmap)

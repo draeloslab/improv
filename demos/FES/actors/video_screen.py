@@ -84,12 +84,21 @@ class VideoScreen(ManagedActor):
         try:
             frame_id = self.links[f"camera{camera_id}_in"].get(timeout=0.1)
             pred_id = self.q_in.get()
+            logger.info(f"Pred Key received: {pred_id}")
 
-            if frame_id is not None and pred_id is not None:
+
+            if frame_id is not None:
                 frame = self.client.get(frame_id)
-                predictionData = self.client.get(pred_id)
             else:
                 frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
+            if pred_id is not None:
+                try:
+                    predictionData = self.client.get(pred_id)
+                    logger.info(f"Got prediction: {predictionData['prediction']}")
+                except Exception as e:
+                    logger.error(f"Could not get prediction! {e}")
+            else:
+                predictionData = np.zeros((5, 3))
         except Exception as e:
             return np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
 

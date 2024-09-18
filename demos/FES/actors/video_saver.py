@@ -100,7 +100,7 @@ class VideoSaver(ManagedActor):
         # create a timestamp folder
         timestamp = time.strftime("%Y%m%d-%H%M%S")
 
-        out_folder = f"/home/jakejoseph/camera_video/{timestamp}"
+        out_folder = f"/home/chesteklab/camera_video/{timestamp}"
 
         if not Path(out_folder).exists():
             Path(out_folder).mkdir(parents=True, exist_ok=True)

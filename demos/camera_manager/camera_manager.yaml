@@ -28,52 +28,52 @@ actors:
 
   # video savers: each video saver writes the frames readed to raw-video file
   VideoSaver0:
-    package: actors.video_saver_multiproc
-    # package: actors.video_saver
+    # package: actors.video_saver_multiproc
+    package: actors.video_saver
     class: VideoSaver
     camera_num: 0
     method: spawn
 
   VideoSaver1:
-    package: actors.video_saver_multiproc    
-    # package: actors.video_saver
+    # package: actors.video_saver_multiproc    
+    package: actors.video_saver
     class: VideoSaver
     camera_num: 1
     method: spawn
     
   VideoSaver2:
-    package: actors.video_saver_multiproc
-    # package: actors.video_saver
+    # package: actors.video_saver_multiproc
+    package: actors.video_saver
     class: VideoSaver
     camera_num: 2
     method: spawn
 
   # video converters: each video converter converts the raw-frames to a video format    
-  VideoConverter0:
-    package: actors.video_converter
-    class: VideoConverter
-    camera_num: 0
-    method: spawn
+  # VideoConverter0:
+  #   package: actors.video_converter
+  #   class: VideoConverter
+  #   camera_num: 0
+  #   method: spawn
    
-  VideoConverter1:
-    package: actors.video_converter
-    class: VideoConverter
-    camera_num: 1
-    method: spawn 
+  # VideoConverter1:
+  #   package: actors.video_converter
+  #   class: VideoConverter
+  #   camera_num: 1
+  #   method: spawn 
 
-  VideoConverter2:
-    package: actors.video_converter
-    class: VideoConverter
-    camera_num: 2
-    method: spawn
+  # VideoConverter2:
+  #   package: actors.video_converter
+  #   class: VideoConverter
+  #   camera_num: 2
+  #   method: spawn
 
 connections:
   CameraReader0.q_out: [VideoSaver0.q_in, VideoScreen.camera0_in]
   CameraReader1.q_out: [VideoSaver1.q_in, VideoScreen.camera1_in]
   CameraReader2.q_out: [VideoSaver2.q_in, VideoScreen.camera2_in]
-  VideoSaver0.q_out: [VideoConverter0.q_in]
-  VideoSaver1.q_out: [VideoConverter1.q_in]
-  VideoSaver2.q_out: [VideoConverter2.q_in]
+  # VideoSaver0.q_out: [VideoConverter0.q_in]
+  # VideoSaver1.q_out: [VideoConverter1.q_in]
+  # VideoSaver2.q_out: [VideoConverter2.q_in]
 
 redis_config:
   port: 6379

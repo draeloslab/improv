@@ -113,9 +113,12 @@ class VideoSaver(ManagedActor):
         video_save_command = [
             'ffmpeg', '-y', '-f', 'rawvideo', '-vcodec', 'rawvideo',
             '-s', f'{self.frame_w}x{self.frame_h}', '-pix_fmt', 'rgb24', '-r', str(fps),
-            '-i', '-', '-an', '-vcodec', 'mpeg4', '-pix_fmt', 'yuv420p', out_file_name,
+            '-i', '-', '-an', '-vcodec', 'libx264', '-pix_fmt', 'yuv420p', out_file_name,
+            '-crf', '18',  # CRF value for high quality
+            '-preset', 'slow',
             '-loglevel', 'error'  # Suppress all output except for errors
         ]
+        
 
         self.video_proc = subprocess.Popen(video_save_command, stdin=subprocess.PIPE)
 

@@ -56,7 +56,7 @@ class CameraStreamWidget(QWidget):
         # Initialize a QTimer to update frames
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_frames)
-        self.timer.start(100)  # Adjust the timer interval to match the frame rate [ms]
+        self.timer.start(50)  # Adjust the timer interval to match the frame rate [ms]
 
     def update_frames(self):
         """Update frames from each camera"""

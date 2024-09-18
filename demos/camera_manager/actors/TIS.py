@@ -119,16 +119,16 @@ class TIS:
         if showvideo:
             p += " ! tee name=t"
             p += " t. ! queue ! videoconvert ! ximagesink"
-            p += f" t. ! queue ! {conversion} appsink name=sink"
+            p += f" t. ! queue ! appsink name=sink"
         else:
-            p += f" ! queue ! {conversion} appsink name=sink"
+            p += f" ! queue ! appsink name=sink"
 
-        print(f'\tPipeline starting command: {p}')
+        logger.info(f'\tPipeline starting command: {p}')
 
         try:
             self.pipeline = Gst.parse_launch(p)
         except GLib.Error as error:
-            print("Error creating pipeline: {0}".format(error))
+            logger.info("Error creating pipeline: {0}".format(error))
             raise
 
         # Quere the source module.
@@ -136,7 +136,7 @@ class TIS:
 
         # Query a pointer to the appsink, so we can assign the callback function.
         appsink = self.pipeline.get_by_name("sink")
-        appsink.set_property("max-buffers", 60)
+        appsink.set_property("max-buffers", 5)
         appsink.set_property("drop", True)
         appsink.set_property("emit-signals", True)
         appsink.set_property("enable-last-sample", True)
@@ -149,7 +149,7 @@ class TIS:
         """
         caps = Gst.Caps.from_string('video/x-raw,format=%s,width=%d,height=%d,framerate=%s' % (self.sinkformat.value, self.width, self.height, self.framerate))
 
-        print(f"\tcaps command: {caps.to_string()}")
+        logger.info(f"\tcaps command: {caps.to_string()}")
 
         capsfilter = self.pipeline.get_by_name("caps")
         capsfilter.set_property("caps", caps)
@@ -171,7 +171,7 @@ class TIS:
         cam_state = self.pipeline.get_state(5000000000)
 
         if cam_state[1] != Gst.State.PLAYING:
-            print("Error starting pipeline. {0}".format(""))
+            logger.info("Error starting pipeline. {0}".format(""))
             return False
         
         return True
