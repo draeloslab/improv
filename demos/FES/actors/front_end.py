@@ -67,9 +67,7 @@ class CameraStreamWidget(QWidget):
                 if isinstance(result, tuple) and len(result) == 2:
                     frame, predictions = result
                 else:
-                    # logger.warning(f"Unexpected data format from getLastFrame for camera {camera_id}")
-                    # frame = np.zeros((self.visual.frame_h, self.visual.frame_w, 3), dtype=np.uint8)
-                    predictions = np.zeros((5, 3))
+                    predictions =None
                     frame = result
                 
                 self.display_frame(frame, predictions, self.camera_labels[camera_id])
