@@ -1,10 +1,11 @@
 import sys
 import numpy as np
 import threading
-import queue
+import queue  # Import the queue module
 from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QGridLayout
 from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen, QColor
+import cv2  # Import cv2 for image processing
 
 import logging
 logger = logging.getLogger(__name__)
@@ -62,35 +63,36 @@ class CameraStreamWidget(QWidget):
         """Update frames from each camera"""
         for camera_id in range(self.visual.num_cameras):
             try:
-                result = self.visual.getLastFrame(camera_id)
-                logger.info(f"Recieved frame {result}")
-                if isinstance(result, tuple) and len(result) == 2:
-                    frame, predictions = result
-                else:
-                    predictions =None
-                    frame = result
-                
+                frame, predictions = self.visual.getLastFrame(camera_id)
+                logger.info(f"Received frame for camera {camera_id}")
+
                 self.display_frame(frame, predictions, self.camera_labels[camera_id])
             except Exception as e:
                 logger.error(f"Error updating frame for camera {camera_id}: {e}")
-                # # Display a blank frame if there's an error
+                # Display a blank frame if there's an error
                 blank_frame = np.zeros((self.visual.frame_h, self.visual.frame_w, 3), dtype=np.uint8)
                 self.display_frame(blank_frame, None, self.camera_labels[camera_id])
 
     def display_frame(self, frame, predictions, label):
         """Convert frame to QImage, plot predictions if available, and display it in QLabel."""
-        height, width, channel = frame.shape
+        # Convert frame to RGB format
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        height, width, channel = rgb_frame.shape
         bytes_per_line = channel * width
-        q_img = QImage(frame.data, width, height, bytes_per_line, QImage.Format_RGB888)
+        q_img = QImage(rgb_frame.data, width, height, bytes_per_line, QImage.Format_RGB888)
         
         if predictions is not None:
-            painter = QPainter(q_img)
+            logger.info(f"Prediction recieved: {predictions}")
+            painter = QPainter()
+            painter.begin(q_img)
             painter.setPen(QPen(QColor(255, 0, 0), 2))  # Red color, 2px width
+
             
             for point in predictions:
                 x, y, likelihood = point
-                if likelihood > 0.001:  # Only plot points with high likelihood
-                    painter.drawEllipse(int(x), int(y), 5, 5)
+               # if likelihood > 0.001:  # Only plot points with high likelihood
+                painter.drawEllipse(int(x), int(y), 20, 20)
             
             painter.end()
 

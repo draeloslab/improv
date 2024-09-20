@@ -49,9 +49,9 @@ actors:
     class: Processor
 
 connections:
-  CameraReader0.q_out: [VideoSaver0.q_in, VideoScreen.camera0_in, Processor.q_in]
+  CameraReader0.q_out: [VideoSaver0.q_in, VideoScreen.camera0_in]
   CameraReader1.q_out: [VideoSaver1.q_in, VideoScreen.camera1_in]
-  CameraReader2.q_out: [VideoSaver2.q_in, VideoScreen.camera2_in]
+  CameraReader2.q_out: [VideoSaver2.q_in, VideoScreen.camera2_in, Processor.q_in]
   Processor.q_out: [VideoScreen.q_in]
   
 
