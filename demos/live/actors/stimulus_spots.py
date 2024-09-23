@@ -177,7 +177,11 @@ class VisualStimulus(Actor):
         try:
             ids = self.q_in.get(timeout=0.0001)
 
-            X, Y, stim, _ = self.client.get(ids)
+            # X, Y, stim, _ = self.client.get(ids)
+            X = self.client.get(ids[0])
+            Y = self.client.get(ids[1])
+            stim = self.client.get(ids[2])
+
             tmpX = np.squeeze(np.array(X)).T
             # logger.info(f'{tmpX.shape}, {len(Y)}----------------------------------------------------')
             sh = len(tmpX.shape)
