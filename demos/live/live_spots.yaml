@@ -11,7 +11,7 @@ actors:
     port: 5007
     output: output/
     init_filename: output/initialization.h5
-    filename: output_090624_ds3/sample_stream0.h5
+    filename: data/sample_stream0.h5
     init_frame: 60
     framerate: 15
 
@@ -44,6 +44,7 @@ actors:
     ip: '*'
     port: 5006 
     stimuli: stimuli.npy
+    # consider adding stimulus details like (stationary time, duration, hold after)
 
   Processor:
     package: actors.caiman_processor
@@ -61,7 +62,6 @@ actors:
     stimuli: stimuli.npy
     before_amount: 5
     after_amount: 10
-
 
 connections:
   Acquirer.q_out: [Processor.q_in, Visual.raw_frame_queue]
