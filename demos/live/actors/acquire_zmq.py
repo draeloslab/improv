@@ -47,7 +47,7 @@ class ZMQAcquirer(Actor):
         self.saveArrayRedChan = []
         self.save_ind = 0
         self.fullStimmsg = []
-        self.total_times = []
+        self.total_times = [[],[]]
         self.timestamp = []
         self.stimmed = []
         self.frametimes = []
@@ -132,22 +132,27 @@ class ZMQAcquirer(Actor):
         #  try receiving microscope message: 
         try:
             msg = self.socket.recv_pyobj(flags=0)
-            msg_dict = msg
-            message_data = msg_dict['data']
-            finalthing = np.array(message_data)
-            tag = msg_dict['type'] 
+            if isinstance(msg, dict):
+                msg_dict = msg
+                message_data = msg_dict['data']
+                finalthing = np.array(message_data)
+                tag = msg_dict['type']
+            elif isinstance(msg, dict):
+                msg_dict, category = self._msg_unpacker(msg)
+                tag = 'stim'
+                
             # logger.info('Receiving microscope image--')
         except Exception as e:
             logger.info('error: {}'.format(e))
 
         # try receiving pandastim message:
-        try:
-            msg = self.socket.recv_multipart()
-            msg_dict, category = self._msg_unpacker(msg)
-            tag = 'stim'
-            # logger.info('Receiving stimuli information--')
-        except:
-            pass
+        # try:
+        #     msg = self.socket.recv_multipart()
+        #     msg_dict, category = self._msg_unpacker(msg)
+        #     tag = 'stim'
+        #     # logger.info('Receiving stimuli information--')
+        # except:
+        #     pass
         # logger.info('RECIEVING IMAGES ---------')
         # logger.info('image message received (raw): {}'.format(msg))
         # logger.info('msg type: {}'.format(type(msg)))
@@ -177,7 +182,7 @@ class ZMQAcquirer(Actor):
             t0 = time.time()
             self.fullStimmsg.append(msg)
             self._collect_stimulus(msg_dict, category)
-            self.total_times.append(time.time() - t0)
+            self.total_times[0].append(time.time() - t0)
 
         # elif 'frame' in tag: 
         else:
@@ -185,7 +190,7 @@ class ZMQAcquirer(Actor):
             if self.track %2 == 0:
                 self._collect_frame(finalthing)
                 self.frame_num += 1
-            self.total_times.append(time.time() - t0)
+            self.total_times[1].append(time.time() - t0)
             self.track += 1
 
         # elif str(tag) in 'tail':
@@ -194,7 +199,7 @@ class ZMQAcquirer(Actor):
         #         self.tailF = True
         #     self._collect_tail(msg_dict)
 
-        # elif 'scan' in tag:
+        # elif 'scan' in tag:track
         #     if 'scanner2' in msg_dict['source']:
         #         logger.info('Photostim happened at frame {}'.format(self.frame_num))
         #         self.photostims.append(self.frame_num)
@@ -304,7 +309,7 @@ class ZMQAcquirer(Actor):
         
         # logger.info('msg_dict inside msg_unpacker: {}'.format(msg_dict))
 
-        msg_unpacked = pickle.loads(msg[0])
+        msg_unpacked = msg #pickle.loads(msg[0])
         # logger.info('unpacked message: {}'.format(msg_unpacked))
 
         category = None
