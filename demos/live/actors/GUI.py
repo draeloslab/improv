@@ -60,7 +60,7 @@ class FrontEnd(QtWidgets.QMainWindow, video_photostim.Ui_MainWindow):
             try:
                 self.updateLines()
             except Exception as e:
-                print('update lines error {}'.format(e))
+                logger.info('update lines error {}'.format(e))
                 import traceback
                 print('---------------------Exception in update lines: ' , traceback.format_exc())
             try:
