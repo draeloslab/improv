@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import pickle 
 import re
 import ast
+import datetime as dt
 
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -94,7 +95,8 @@ class FileAcquirer(Actor):
                 
             self._socket.send_pyobj(dict({
                 "type": "img_data",
-                "data": frame
+                "data": frame,
+                "timestamp": str(dt.now())
             }))
             # self.timestamp.append([time.time(), self.frame_num])
             self.frame_num += 1
