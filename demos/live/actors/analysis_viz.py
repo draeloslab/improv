@@ -134,7 +134,7 @@ class VizStimAnalysis(Actor):
         try:
             ids = self.q_in.get(timeout=0.0001)
             if ids is not None and ids[0]==1:
-                print('analysis: missing frame')
+                logger.info('analysis: missing frame')
                 self.total_times.append(time.time()-t)
                 self.q_out.put([1])
                 raise Empty
