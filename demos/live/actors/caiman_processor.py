@@ -11,7 +11,6 @@ from caiman.source_extraction.cnmf.params import CNMFParams
 from caiman.motion_correction import motion_correct_iteration_fast, tile_and_correct
 
 from demos.sample_actors.process import CaimanProcessor
-
 import traceback
 import logging
 
@@ -117,7 +116,17 @@ class LiveTwoP(CaimanProcessor):
                 # logger.info('self.frame: {}'.format(self.client.get(frame[0][str(self.frame_number)])))
                 self.frame = self.client.get(frame[0][str(self.frame_number)])
                 # logger.info('caiman gets frame')
-                self.frame = self._processFrame(self.frame, self.frame_number + init)
+                # self.frame = self._processFrame(self.frame, self.frame_number + init)
+                if self.onAc.params.get('online', 'motion_correct'):    # motion correct
+                            frame_cor = self.onAc.mc_next(init, self.frame)
+                else:
+                    templ = None
+                    frame_cor = frame
+                # self.t_motion.append(time() - t_mot)
+                
+                if self.onAc.params.get('online', 'normalize'):
+                    frame_cor = frame_cor/self.onAc.img_norm
+                self.frame = frame_cor
                 # logger.info('caiman processes frame')
                 t2 = time.time()
                 self._fitFrame(self.frame_number + init, self.frame.reshape(-1, order="F"))
