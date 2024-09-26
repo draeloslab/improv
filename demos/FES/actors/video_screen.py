@@ -71,6 +71,10 @@ class VideoScreen(ManagedActor):
 
         self.frame_rate_update = 60 # Update rate for the video stream
         self.frame_i = self.frame_rate_update
+        self.frame_count = 0
+        self.frame_sent = 0
+        self.frameDLC_sent = 0
+
 
         logger.info(f"Video GUI setup completed")
 
@@ -83,7 +87,11 @@ class VideoScreen(ManagedActor):
 
         try:
             frame_id = self.links[f"camera{camera_id}_in"].get(timeout=0.1)
-            frame = self.client.get(frame_id) if frame_id is not None else np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
+            frame, self.frame_time = self.client.get(frame_id) if frame_id is not None else np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
+            # self.frame_count += 1
+            self.frame_sent += time.perf_counter() - self.frame_time
+            if self.frame_count % 100 == 0:
+                logger.info(f"Avg Camera Grab Latency: {self.frame_sent/self.frame_count}")
         except Exception as e:
             logger.error(f"Error getting frame for camera {camera_id}: {e}")
             frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
@@ -94,13 +102,17 @@ class VideoScreen(ManagedActor):
             try:
                 # Use get with timeout to prevent blocking
                 pred_id = self.q_in.get(timeout=0.01)
-                logger.info(f"Pred Key received for camera 0: {pred_id}")
+                # logger.info(f"Pred Key received for camera 0: {pred_id}")
 
                 if pred_id is not None:
                     try:
                         predictionData = self.client.get(pred_id)
                         predictions = predictionData.get('prediction', None)
-                        logger.info(f"Got prediction for camera 0")
+                        # logger.info(f"Got prediction for camera 0")
+                        self.frame_count += 1
+                        self.frameDLC_sent += time.perf_counter() - predictionData.get('timestamp', 0)
+                        if self.frame_count % 100 == 0:
+                            logger.info(f"Avg DLC Grab Latency: {self.frameDLC_sent/self.frame_count}")
                     except Exception as e:
                         logger.error(f"Could not get prediction data for camera 0: {e}")
                         predictions = None

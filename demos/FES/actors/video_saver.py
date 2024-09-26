@@ -48,7 +48,7 @@ class VideoSaver(ManagedActor):
                 frame_id = self.q_in.get(timeout=1)
 
                 if frame_id is not None:
-                    frame = self.client.get(frame_id)
+                    frame, frame_time = self.client.get(frame_id)
                     self.video_proc.stdin.write(frame.tobytes())
 
                     # buffer[buffer_index] = frame
@@ -63,9 +63,11 @@ class VideoSaver(ManagedActor):
                     # FPS logging
                     if self.frame_count % 300 == 0:
                         time_end = time.perf_counter()
+                        self.frame_sent += time_end - frame_time
                         total_time = time_end - self.time_start
 
                         logger.info(f"[Camera {self.camera_name}] General FPS: {round(self.frame_count / total_time,2)}")
+                        logger.info(f"[Camera {self.camera_name}] Frame sent FPS: {round(self.frame_count / self.frame_sent,2)}")
                         self.frame_count = 0
                         self.time_start = time.perf_counter()
             except Exception as e:
@@ -124,6 +126,7 @@ class VideoSaver(ManagedActor):
         self.frame_count = 0
         self.total_delay = 0
         self.max_delay = 0
+        self.frame_sent = 0
         self.time_start = time.perf_counter()
 
         self.start_program = False

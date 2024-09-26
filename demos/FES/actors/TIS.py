@@ -193,7 +193,7 @@ class TIS:
             frame = self.__convert_to_numpy(buf.extract_dup(0, buf.get_size()), sample.get_caps())
 
             try:
-                data_id = self.client.put(frame)
+                data_id = self.client.put([frame,frame_time])
                 self.q_out.put(data_id)
 
                 delay = time.perf_counter() - frame_time

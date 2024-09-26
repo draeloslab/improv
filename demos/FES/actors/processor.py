@@ -49,6 +49,7 @@ class Processor(Actor):
         self.latencies = []
         self.dlcLatencies = []
         self.frame_num = 1
+        self.frame_sentTime = 0
 
         timestamp = time.strftime("%Y%m%d-%H%M%S")
         self.out_folder = Path(f"/home/chesteklab/predictions/{timestamp}")
@@ -71,7 +72,7 @@ class Processor(Actor):
             start_time = time.perf_counter()
 
             frame = self.q_in.get()
-            logger.info(f"Frame Key received: {frame}")
+            # logger.info(f"Frame Key received: {frame}")
 
         except Exception as e:
             logger.error(f"Could not get frame! {e}")
@@ -79,26 +80,30 @@ class Processor(Actor):
 
         if frame is not None and self.frame_num is not None:
             self.done = False
-            self.frame = self.client.get(frame)
+            self.frame,self.frame_time = self.client.get(frame)
 
-            logger.info(f"Got frame: {self.frame.shape}")
+            # logger.info(f"Got frame: {self.frame.shape}")
 
             self.frame_num += 1
 
             # Perform inference
             dlcStart = time.perf_counter()
+            self.frame_sentTime += dlcStart - self.frame_time
             prediction = self.dlc_live.get_pose(self.frame)
             self.latencies.append(time.perf_counter() - start_time)
             self.dlcLatencies.append(time.perf_counter() - dlcStart)
             self.predictions.append(prediction)
-            logger.info(f"Prediction: {prediction}")
-            logger.info(f"Frame number: {self.frame_num}")  
-            logger.info(f"Overall Average FPS: {1/np.mean(self.latencies)}")
-
-            data_id = self.client.put({'prediction': prediction, 'frame': frame})
-            logger.info('Put prediction and index dict in store')
+            if self.frame_num % 100 == 0:
+                logger.info(f"Prediction: {prediction}")
+                logger.info(f"Frame number: {self.frame_num}")  
+                logger.info(f"Overall Average FPS: {1/np.mean(self.latencies)}")
+                logger.info(f"Overall Average DLC FPS: {1/np.mean(self.dlcLatencies)}")
+                logger.info(f"Average Frame sent time: {self.frame_sentTime/self.frame_num}")
+            send_time = time.perf_counter()
+            data_id = self.client.put({'prediction': prediction, 'frame': frame, 'timestamp': send_time})
+            # logger.info('Put prediction and index dict in store')
             try:
                 self.q_out.put(data_id)
-                logger.info("Sent message on")
+                # logger.info("Sent message on")
             except Exception as e:
                 logger.error(f"--------------------------------Generator Exception: {e}")
