@@ -47,14 +47,22 @@ class Processor(Actor):
         self.dlc_live.init_inference(frame)  # putting in a random frame to initialize the model
         self.predictions = []
         self.latencies = []
+        self.dlcLatencies = []
         self.frame_num = 1
+
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        self.out_folder = Path(f"/home/chesteklab/predictions/{timestamp}")
+        self.out_folder.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Output folder set to {self.out_folder}")
         logger.info("Completed setup for Processor")
 
     def stop(self):
         """Stop function for saving results and cleaning up."""
         self.done = True
-        np.save("latencies.npy", self.latencies)
-        np.save("predictions.npy", self.predictions)
+        np.save(self.out_folder / "latencies.npy", self.latencies)
+        np.save(self.out_folder / "predictions.npy", self.predictions)
+        np.save(self.out_folder / "dlcLatencies.npy", self.dlcLatencies)
+        logger.info("Predictions and latencies saved")
         logger.info("Processor stopping")
 
     def runStep(self):
@@ -78,8 +86,10 @@ class Processor(Actor):
             self.frame_num += 1
 
             # Perform inference
+            dlcStart = time.perf_counter()
             prediction = self.dlc_live.get_pose(self.frame)
             self.latencies.append(time.perf_counter() - start_time)
+            self.dlcLatencies.append(time.perf_counter() - dlcStart)
             self.predictions.append(prediction)
             logger.info(f"Prediction: {prediction}")
             logger.info(f"Frame number: {self.frame_num}")  
