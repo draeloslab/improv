@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import pickle 
 import re
 import ast
-import datetime as dt
+from datetime import datetime as dt
 
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)

@@ -57,7 +57,7 @@ class LiveTwoP(CaimanProcessor):
         self.opts = CNMFParams(params_dict=self.params)
         self.onAc = OnACID(params=self.opts)
 
-        self.onAc.initialize_online(T=10000)
+        self.onAc.initialize_online(T=10000000)
         self.max_shifts_online = self.onAc.params.get("online", "max_shifts_online")
         # logger.info(f'Caiman is using {self.onAc.params}')
 

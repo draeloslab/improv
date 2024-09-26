@@ -12,9 +12,16 @@ import matplotlib.pyplot as plt
 import pickle 
 import re
 import ast
+from datetime import datetime as dt
 
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+# logging.basicConfig(
+#     format='%(asctime)s - %(levelname)s - %(message)s',
+#     datefmt='%Y-%m-%d %H:%M:%S',
+#     level=logging.INFOss
+# )
 
 class ZMQAcquirer(Actor):
 
@@ -48,7 +55,7 @@ class ZMQAcquirer(Actor):
         self.save_ind = 0
         self.fullStimmsg = []
         self.total_times = [[],[]]
-        self.timestamp = []
+        self.timestamp = [[],[]]
         self.stimmed = []
         self.frametimes = []
         self.framesendtimes = []
@@ -137,7 +144,7 @@ class ZMQAcquirer(Actor):
                 message_data = msg_dict['data']
                 finalthing = np.array(message_data)
                 tag = msg_dict['type']
-            elif isinstance(msg, dict):
+            elif isinstance(msg, str):
                 msg_dict, category = self._msg_unpacker(msg)
                 tag = 'stim'
                 
@@ -183,6 +190,7 @@ class ZMQAcquirer(Actor):
             self.fullStimmsg.append(msg)
             self._collect_stimulus(msg_dict, category)
             self.total_times[0].append(time.time() - t0)
+            self.timestamp[0].append([dt.now(), self.frame_num])
 
         # elif 'frame' in tag: 
         else:
@@ -191,6 +199,7 @@ class ZMQAcquirer(Actor):
                 self._collect_frame(finalthing)
                 self.frame_num += 1
             self.total_times[1].append(time.time() - t0)
+            self.timestamp[1].append([dt.now(), self.frame_num])
             self.track += 1
 
         # elif str(tag) in 'tail':
