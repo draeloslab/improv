@@ -66,8 +66,8 @@ class VideoSaver(ManagedActor):
                         self.frame_sent += time_end - frame_time
                         total_time = time_end - self.time_start
 
-                        logger.info(f"[Camera {self.camera_name}] General FPS: {round(self.frame_count / total_time,2)}")
-                        logger.info(f"[Camera {self.camera_name}] Frame sent FPS: {round(self.frame_count / self.frame_sent,2)}")
+                        logger.info(f"[Camera {self.camera_name}] General FPS: {round(self.frame_count / total_time,4)}")
+                        logger.info(f"[Camera {self.camera_name}] Frame sent FPS: {round( self.frame_sent/ self.frame_count ,5)}")
                         self.frame_count = 0
                         self.time_start = time.perf_counter()
             except Exception as e:
