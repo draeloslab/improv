@@ -156,7 +156,7 @@ class TIS:
 
     def start_pipeline(self):
         """ Start the pipeline, so the video start running """
-        self.start_time = time.perf_counter()
+        self.start_time = time.time()
         self.total_frame_count = 0
         self.frame_count = 0
         self.total_delay = 0
@@ -180,11 +180,11 @@ class TIS:
     def start_sharing(self):
         self.sharing_on = True
 
-        self.total_start_time = time.perf_counter()
+        self.total_start_time = time.time()
     
     # @profile
     def __on_new_buffer(self, appsink):
-        frame_time = time.perf_counter()
+        frame_time = time.time()
         sample = appsink.get_property('last-sample')
 
         if sample is not None and self.sharing_on:
@@ -193,10 +193,10 @@ class TIS:
             frame = self.__convert_to_numpy(buf.extract_dup(0, buf.get_size()), sample.get_caps())
 
             try:
-                data_id = self.client.put([frame,frame_time])
+                data_id = self.client.put(frame)
                 self.q_out.put(data_id)
 
-                delay = time.perf_counter() - frame_time
+                delay = time.time() - frame_time
 
                 if delay > self.max_delay:
                     self.max_delay = delay
@@ -209,7 +209,7 @@ class TIS:
             self.total_frame_count += 1
 
             if self.frame_count % 600 == 0:               
-                total_time = time.perf_counter() - self.start_time
+                total_time = time.time() - self.start_time
 
                 logger.info(f"[Camera {self.camera_name}] reader FPS: {round(self.frame_count / total_time,2)} - avg delay: {self.total_delay/self.frame_count:.4f} - max delay: {self.max_delay:.4f}")                
                 # logger.info(f"{frame.shape} - size on memory: {round(frame.nbytes/(1024**2),2)}MB")
@@ -217,7 +217,7 @@ class TIS:
                 self.total_delay = 0
                 self.max_delay = 0
                 self.frame_count = 0
-                self.start_time = time.perf_counter()
+                self.start_time = time.time()
         
         return Gst.FlowReturn.OK
 
@@ -231,7 +231,7 @@ class TIS:
         return np.ndarray((s.get_value('height'), s.get_value('width'),self.bpp), buffer=data, dtype=np.uint8)
     
     def stop_pipeline(self):
-        stop_time = time.perf_counter()
+        stop_time = time.time()
 
         self.sharing_on = False
         self.stop_program = True

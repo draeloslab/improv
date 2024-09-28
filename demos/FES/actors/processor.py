@@ -46,9 +46,10 @@ class Processor(Actor):
         frame = np.random.rand(1080, 1920, 3)
         self.dlc_live.init_inference(frame)  # putting in a random frame to initialize the model
         self.predictions = []
-        self.latencies = []
-        self.dlcLatencies = []
-        self.sentLatencies = []
+        # self.latencies = []
+        # self.dlcLatencies = []
+        # self.sentLatencies = []
+        self.actor_time = []
         self.frame_num = 1
         self.frame_sentTime = 0
 
@@ -70,9 +71,9 @@ class Processor(Actor):
     def runStep(self):
         frame = None
         try:
-            start_time = time.perf_counter()
 
-            frame = self.q_in.get()
+            frame_key = self.q_in.get()
+            start_time = time.time()
             # logger.info(f"Frame Key received: {frame}")
 
         except Exception as e:
@@ -81,30 +82,32 @@ class Processor(Actor):
 
         if frame is not None and self.frame_num is not None:
             self.done = False
-            self.frame,self.frame_time = self.client.get(frame)
+            self.frame = self.client.get(frame_key)
 
             # logger.info(f"Got frame: {self.frame.shape}")
 
             self.frame_num += 1
 
             # Perform inference
-            dlcStart = time.perf_counter()
-            self.sentLatencies.append(dlcStart - self.frame_time)
+            # dlcStart = time.perf_counter()
+            # self.sentLatencies.append(dlcStart - self.frame_time)
             prediction = self.dlc_live.get_pose(self.frame)
             self.latencies.append(time.perf_counter() - start_time)
-            self.dlcLatencies.append(time.perf_counter() - dlcStart)
+            # self.dlcLatencies.append(time.perf_counter() - dlcStart)
             self.predictions.append(prediction)
             if self.frame_num % 100 == 0:
                 logger.info(f"Prediction: {prediction}")
                 logger.info(f"Frame number: {self.frame_num}")  
-                logger.info(f"Overall Average latency: {np.mean(self.latencies)}")
-                logger.info(f" Average DLC inference: {np.mean(self.dlcLatencies)}")
-                logger.info(f"Average Frame sent time: {np.mean(self.sentLatencies)}")
+                # logger.info(f"Overall Average latency: {np.mean(self.latencies)}")
+                # logger.info(f" Average DLC inference: {np.mean(self.dlcLatencies)}")
+                # logger.info(f"Average Frame sent time: {np.mean(self.sentLatencies)}")
+                logger.info(f"Average Actor time: {np.mean(self.actor_time)}")
             send_time = time.perf_counter()
-            data_id = self.client.put({'prediction': prediction, 'frame': frame, 'timestamp': send_time})
+            data_id = self.client.put(prediction)
             # logger.info('Put prediction and index dict in store')
             try:
                 self.q_out.put(data_id)
+                self.actor_time.append(time.time() - start_time)
                 # logger.info("Sent message on")
             except Exception as e:
                 logger.error(f"--------------------------------Generator Exception: {e}")

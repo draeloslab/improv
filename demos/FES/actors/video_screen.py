@@ -73,8 +73,9 @@ class VideoScreen(ManagedActor):
         self.frame_i = self.frame_rate_update
         self.frame_count = 0
         self.frame_sent = 0
-        self.frameDLC_sent = []
         self.total_time = 0
+        self.frame_actor_time = []
+        self.pred_actor_time = []
 
 
         logger.info(f"Video GUI setup completed")
@@ -88,34 +89,41 @@ class VideoScreen(ManagedActor):
 
         try:
             frame_id = self.links[f"camera{camera_id}_in"].get(timeout=0.1)
-            frame, self.frame_time = self.client.get(frame_id) if frame_id is not None else np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
+            start_time_frame = time.time()
+
+            frame = self.client.get(frame_id) if frame_id is not None else np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
+            self.frame_actor_time.append(time.time() - start_time_frame)    
             # self.frame_count += 1
-            self.frame_sent += time.perf_counter() - self.frame_time
-            if self.frame_count % 100 == 0:
-                logger.info(f"Avg Camera Grab Latency: {self.frame_sent/self.frame_count}")
+            # self.frame_sent += time.perf_counter() - self.frame_time
+            # if self.frame_count % 100 == 0:
+            #     logger.info(f"Avg Camera Grab Latency: {self.frame_sent/self.frame_count}")
         except Exception as e:
             logger.error(f"Error getting frame for camera {camera_id}: {e}")
             frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
 
         # Only get predictions for camera 2
         predictions = None
-        if camera_id == 2:
+        if camera_id==2 : #Note: This is a placeholder for the if statement that checks if camera_id == 2
             try:
                 # Use get with timeout to prevent blocking
                 pred_id = self.q_in.get(timeout=0.01)
+                start_time_pred = time.time()
 
                 if pred_id is not None:
                     try:
-                        predictionData = self.client.get(pred_id)
-                        predictions = predictionData.get('prediction', None)
+                        predictions= self.client.get(pred_id)
+                        # predictions = predictionData.get('prediction', None)
                         # logger.info(f"Got prediction for camera 0")
-                        self.frame_count += 1    #NOTE Should I put frame count here?
-                        fromDLC = predictionData.get('timestamp', 0)
-                        self.frameDLC_sent.append( time.perf_counter() - fromDLC)
-                        self.total_time += time.perf_counter() - self.frame_time
+                        # self.frame_count += 1    #NOTE Should I put frame count here?
+                        # fromDLC = predictionData.get('timestamp', 0)
+                        # self.frameDLC_sent.append( time.perf_counter() - fromDLC)
+                        # self.total_time += time.perf_counter() - self.frame_time
                         if self.frame_count % 100 == 0:
-                            logger.info(f"Avg DLC Grab Latency: {np.mean(self.frameDLC_sent)}")
-                            logger.info(f"Full time avg latency: {self.total_time/self.frame_count}")
+                            # logger.info(f"Avg DLC Grab Latency: {np.mean(self.frameDLC_sent)}")
+                            # logger.info(f"Full time avg latency: {self.total_time/self.frame_count}")
+                            logger.info(f"Average Frame Actor time: {np.mean(self.frame_actor_time)}")
+                            logger.info(f"Average Prediction Actor time: {np.mean(self.pred_actor_time)}")
+                        self.pred_actor_time.append(time.time() - start_time_pred)
                     except Exception as e:
                         logger.error(f"Could not get prediction data for camera 0: {e}")
                         predictions = None
@@ -126,7 +134,7 @@ class VideoScreen(ManagedActor):
                 logger.error(f"Error getting prediction for camera 0: {e}")
                 predictions = None
 
-        return frame, predictions
+        return frame, predictions, start_time
 
     def runStep(self): 
         pass

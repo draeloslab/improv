@@ -61,18 +61,18 @@ class CameraStreamWidget(QWidget):
         self.timer.start(50)  # Adjust the timer interval to match the frame rate [ms]
 
         self.frame_count = 0
-        self.display_time = 0
+        self.actor_time = []
 
     def update_frames(self):
         """Update frames from each camera"""
         for camera_id in range(self.visual.num_cameras):
             try:
-                frame, predictions = self.visual.getLastFrame(camera_id)
+                frame, predictions, start_time = self.visual.getLastFrame(camera_id)
                 # logger.info(f"Received frame for camera {camera_id}")
-                self.start_time = time.perf_counter()
+                # self.start_time = time.perf_counter()
 
                 self.display_frame(frame, predictions, self.camera_labels[camera_id])
-                self.display_time += time.perf_counter() - self.start_time
+                # self.actor_time.append(time.time() - start_time)
                 self.frame_count += 1
 
             except Exception as e:
@@ -82,8 +82,8 @@ class CameraStreamWidget(QWidget):
                 self.display_frame(blank_frame, None, self.camera_labels[camera_id])
         # logger.info(f"Frame count: {self.frame_count}")
 
-        if self.frame_count % 100 == 0:
-            logger.info(f"Average frame display time: {self.display_time/self.frame_count}")
+        # if self.frame_count % 100 == 0:
+        #     logger.info(f"Average actor  time: {np.mean(self.actor_time)}")
 
     def display_frame(self, frame, predictions, label):
         """Convert frame to QImage, plot predictions if available, and display it in QLabel."""

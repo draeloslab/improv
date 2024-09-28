@@ -46,9 +46,10 @@ class VideoSaver(ManagedActor):
         while not self.stop_program:
             try:
                 frame_id = self.q_in.get(timeout=1)
+                start_time = time.time()
 
                 if frame_id is not None:
-                    frame, frame_time = self.client.get(frame_id)
+                    frame = self.client.get(frame_id)
                     self.video_proc.stdin.write(frame.tobytes())
 
                     # buffer[buffer_index] = frame
@@ -60,16 +61,18 @@ class VideoSaver(ManagedActor):
                     self.total_frames += 1
                     self.frame_count += 1
 
+                    self.actor_time.append(time.time() - start_time)
+
                     # FPS logging
                     if self.frame_count % 300 == 0:
-                        time_end = time.perf_counter()
-                        self.frame_sent += time_end - frame_time
-                        total_time = time_end - self.time_start
-
-                        logger.info(f"[Camera {self.camera_name}] General FPS: {round(self.frame_count / total_time,4)}")
-                        logger.info(f"[Camera {self.camera_name}] Frame sent FPS: {round( self.frame_sent/ self.frame_count ,5)}")
-                        self.frame_count = 0
-                        self.time_start = time.perf_counter()
+                        # time_end = time.perf_counter()
+                        # self.frame_sent += time_end - frame_time
+                        # total_time = time_end - self.time_start
+                        logger.info(f"Camera {self.camera_name}]: Average Actor time: {np.mean(self.actor_time)}")
+                        # logger.info(f"[Camera {self.camera_name}] General FPS: {round(self.frame_count / total_time,4)}")
+                        # logger.info(f"[Camera {self.camera_name}] Frame sent FPS: {round( self.frame_sent/ self.frame_count ,5)}")
+                        # self.frame_count = 0
+                        # self.time_start = time.perf_counter()
             except Exception as e:
                 logger.error(f"[Camera {self.camera_name}] Could not get frame! {e}")
                 self.stop_program = True
@@ -128,6 +131,7 @@ class VideoSaver(ManagedActor):
         self.max_delay = 0
         self.frame_sent = 0
         self.time_start = time.perf_counter()
+        self.actor_time = []
 
         self.start_program = False
 
