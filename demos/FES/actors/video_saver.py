@@ -46,6 +46,7 @@ class VideoSaver(ManagedActor):
         while not self.stop_program:
             try:
                 frame_id = self.q_in.get(timeout=1)
+                start_time = time.time()
 
                 if frame_id is not None:
                     frame = self.client.get(frame_id)
@@ -61,13 +62,14 @@ class VideoSaver(ManagedActor):
                     self.frame_count += 1
 
                     # FPS logging
-                    if self.frame_count % 300 == 0:
-                        time_end = time.perf_counter()
+                    if self.frame_count % 100 == 0:
+                        time_end = time.time()
                         total_time = time_end - self.time_start
-
+                        logger.info(f"[Camera {self.camera_name}] Average FPS: {1/np.mean(self.save_latencies)}")
                         logger.info(f"[Camera {self.camera_name}] General FPS: {round(self.frame_count / total_time,2)}")
                         self.frame_count = 0
-                        self.time_start = time.perf_counter()
+                        self.time_start = time.time()
+                    self.save_latencies.append(time.time()-start_time)
             except Exception as e:
                 logger.error(f"[Camera {self.camera_name}] Could not get frame! {e}")
                 self.stop_program = True
@@ -100,12 +102,12 @@ class VideoSaver(ManagedActor):
         # create a timestamp folder
         timestamp = time.strftime("%Y%m%d-%H%M%S")
 
-        out_folder = f"/home/chesteklab/camera_video/{timestamp}"
+        self.out_folder = f"/home/chesteklab/camera_video/{timestamp}"
 
-        if not Path(out_folder).exists():
-            Path(out_folder).mkdir(parents=True, exist_ok=True)
+        if not Path(self.out_folder).exists():
+            Path(self.out_folder).mkdir(parents=True, exist_ok=True)
 
-        out_file_name = f"{out_folder}/camera_video_{self.camera_num+1}.mp4"
+        out_file_name = f"{self.out_folder}/camera_video_{self.camera_num+1}.mp4"
 
         # video saving using ffmpeg
         video_save_command = [
@@ -124,12 +126,18 @@ class VideoSaver(ManagedActor):
         self.frame_count = 0
         self.total_delay = 0
         self.max_delay = 0
-        self.time_start = time.perf_counter()
+        self.time_start = time.time()
+        self.save_latencies = []
 
         self.start_program = False
 
         # store process
         self.store_frame_proc = threading.Thread(target=self.read_frames_process)
+
+        timestamp = time.strftime("%Y%m%d-%H%M")
+        self.out_folder_pred = Path(f"/home/chesteklab/predictions/{timestamp}")
+        self.out_folder_pred.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Output folder set to {self.out_folder_pred}")
 
         logger.info(f"[Camera {self.camera_name}] saver setup completed")
 
@@ -148,6 +156,7 @@ class VideoSaver(ManagedActor):
 
         self.video_proc.stdin.close()
         self.video_proc.wait()
+        np.save(self.out_folder_pred / "saveLatencies.npy", self.save_latencies)
 
         self.start_program = False
         self.stop_program = True

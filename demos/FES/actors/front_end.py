@@ -4,7 +4,7 @@ import threading
 import queue  # Import the queue module
 from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QGridLayout
 from PyQt5.QtCore import QTimer, Qt
-from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen, QColor
+from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen, QColor, QBrush
 import cv2  # Import cv2 for image processing
 
 import logging
@@ -57,14 +57,14 @@ class CameraStreamWidget(QWidget):
         # Initialize a QTimer to update frames
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_frames)
-        self.timer.start(50)  # Adjust the timer interval to match the frame rate [ms]
+        self.timer.start(30)  # Adjust the timer interval to match the frame rate [ms]
 
     def update_frames(self):
         """Update frames from each camera"""
         for camera_id in range(self.visual.num_cameras):
             try:
                 frame, predictions = self.visual.getLastFrame(camera_id)
-                logger.info(f"Received frame for camera {camera_id}")
+                # logger.info(f"Received frame for camera {camera_id}")
 
                 self.display_frame(frame, predictions, self.camera_labels[camera_id])
             except Exception as e:
@@ -83,15 +83,16 @@ class CameraStreamWidget(QWidget):
         q_img = QImage(rgb_frame.data, width, height, bytes_per_line, QImage.Format_RGB888)
         
         if predictions is not None:
-            logger.info(f"Prediction recieved: {predictions}")
+            # logger.info(f"Prediction recieved: {predictions}")
             painter = QPainter()
             painter.begin(q_img)
             painter.setPen(QPen(QColor(255, 0, 0), 2))  # Red color, 2px width
+            painter.setBrush(QBrush(QColor(255, 0, 0)))
 
             
             for point in predictions:
                 x, y, likelihood = point
-                if likelihood > 0.4:  # Only plot points with high likelihood
+                if likelihood > 0:  # Only plot points with high likelihood
                         painter.drawEllipse(int(x), int(y), 40, 40)
             
             painter.end()

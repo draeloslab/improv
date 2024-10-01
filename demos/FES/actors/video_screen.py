@@ -71,6 +71,14 @@ class VideoScreen(ManagedActor):
 
         self.frame_rate_update = 60 # Update rate for the video stream
         self.frame_i = self.frame_rate_update
+        self.frame_latencies =[]
+        self.pred_latencies = []
+        self.frame_count = 0
+
+        timestamp = time.strftime("%Y%m%d-%H%M")
+        self.out_folder = Path(f"/home/chesteklab/predictions/{timestamp}")
+        self.out_folder.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Output folder set to {self.out_folder}")
 
         logger.info(f"Video GUI setup completed")
 
@@ -83,10 +91,17 @@ class VideoScreen(ManagedActor):
 
         try:
             frame_id = self.links[f"camera{camera_id}_in"].get(timeout=0.1)
+            frame_start = time.time()
             frame = self.client.get(frame_id) if frame_id is not None else np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
+            if self.frame_count % 100 == 0:
+                logger.info(f'Avg frame latency: {1/np.mean(self.frame_latencies)}')
+            self.frame_latencies.append(time.time() - frame_start)
         except Exception as e:
             logger.error(f"Error getting frame for camera {camera_id}: {e}")
             frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
+
+        # Increment frame counter
+        self.frame_count += 1
 
         # Only get predictions for camera 0
         predictions = None
@@ -94,13 +109,16 @@ class VideoScreen(ManagedActor):
             try:
                 # Use get with timeout to prevent blocking
                 pred_id = self.q_in.get(timeout=0.01)
-                logger.info(f"Pred Key received for camera 0: {pred_id}")
+                pred_start = time.time()
+                # logger.info(f"Pred Key received for camera 0: {pred_id}")
 
                 if pred_id is not None:
                     try:
-                        predictionData = self.client.get(pred_id)
-                        predictions = predictionData.get('prediction', None)
-                        logger.info(f"Got prediction for camera 0")
+                        predictions = self.client.get(pred_id)
+                        if self.frame_count % 100 == 0:
+                            logger.info(f'Avg pred latency: {1/np.mean(self.pred_latencies)}')
+                        self.pred_latencies.append(time.time() - pred_start)
+                        # logger.info(f"Got prediction for camera 0")
                     except Exception as e:
                         logger.error(f"Could not get prediction data for camera 0: {e}")
                         predictions = None
@@ -118,4 +136,6 @@ class VideoScreen(ManagedActor):
 
     def stop(self):
         self.stop_program = True
+        np.save(self.out_folder / "vizframelatencies.npy", self.frame_latencies)
+        np.save(self.out_folder / "vizpredictionslatencies.npy", self.pred_latencies)
         logger.info(f"Video GUI stopped")
