@@ -2,7 +2,7 @@ camera_params:
   resolution:
     width: 1920 #1024
     height: 1080 #768
-  fps: "30/1"
+  fps: "40/1"
 zmq_config:
   ip: "localhost"
 active_cameras:
