@@ -98,9 +98,9 @@ class Processor(Actor):
             if self.frame_num % 200 == 0:
                 logger.info(f"Frame number: {self.frame_num}")
                 logger.info(f"Prediction: {prediction}")
-                logger.info(f"Overall Average FPS: {np.mean(self.latencies)}")
+                logger.info(f"Overall Average FPS: {1/np.mean(self.latencies)}")
                 logger.info(f'Camera Grab Time Avg FPS: {np.mean(self.grabLatencies)}')
-                logger.info(f'Pure DLC Inference Time Avg FPS: {np.mean(self.dlcLatencies)}')
+                logger.info(f'Pure DLC Inference Time Avg FPS: {1/np.mean(self.dlcLatencies)}')
                 logger.info(f'Put Time Avg FPS: {np.mean(self.putLatencies)}')
 
             data_id = self.client.put(prediction)

@@ -18,10 +18,10 @@ actors:
     class: Processor
 
 connections:
-  # CameraReader.frame_out: [CameraRecorder.frame_in]
-  # CameraReader.frame_out: [Processor.frame_in]
-  # Generator.frame_out: [Processor.frame_in]
-  Generator.q_out: [Processor.q_in]
+
+  Generator.q_out: [Processor.q_in, VideoScreen.camera2_in]
+  Processor.q_out: [VideoScreen.q_in]
+  
 
 
 redis_config:

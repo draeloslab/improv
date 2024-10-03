@@ -98,6 +98,8 @@ class VideoScreen(ManagedActor):
             self.frame_latencies.append(time.time() - frame_start)
         except Exception as e:
             logger.error(f"Error getting frame for camera {camera_id}: {e}")
+            # logger.info(len(self.frame_latencies))
+            # logger.info(len(self.pred_latencies))
             frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
 
         # Increment frame counter
@@ -118,6 +120,8 @@ class VideoScreen(ManagedActor):
                         if self.frame_count % 100 == 0:
                             logger.info(f'Avg pred latency: {1/np.mean(self.pred_latencies)}')
                         self.pred_latencies.append(time.time() - pred_start)
+                        # logger.info(f'Frame length: {len(self.frame_latencies)}')
+                        # logger.info(f'Pred Length: {len(self.pred_latencies)}')
                         # logger.info(f"Got prediction for camera 0")
                     except Exception as e:
                         logger.error(f"Could not get prediction data for camera 0: {e}")
@@ -136,6 +140,8 @@ class VideoScreen(ManagedActor):
 
     def stop(self):
         self.stop_program = True
+        # logger.info(f'End Frame length: {len(self.frame_latencies)}')
+        # logger.info(f'end Pred Length: {len(self.pred_latencies)}')
         np.save(self.out_folder / "vizframelatencies.npy", self.frame_latencies)
         np.save(self.out_folder / "vizpredictionslatencies.npy", self.pred_latencies)
         logger.info(f"Video GUI stopped")
