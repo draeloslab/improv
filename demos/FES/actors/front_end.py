@@ -64,6 +64,7 @@ class CameraStreamWidget(QWidget):
         for camera_id in range(self.visual.num_cameras):
             try:
                 frame, predictions = self.visual.getLastFrame(camera_id)
+                logger.info(frame)
                 # logger.info(f"Received frame for camera {camera_id}")
 
                 self.display_frame(frame, predictions, self.camera_labels[camera_id])
@@ -92,7 +93,7 @@ class CameraStreamWidget(QWidget):
             
             for point in predictions:
                 x, y, likelihood = point
-                if likelihood > 0:  # Only plot points with high likelihood
+                if likelihood > 0.5:  # Only plot points with high likelihood
                         painter.drawEllipse(int(x), int(y), 40, 40)
             
             painter.end()

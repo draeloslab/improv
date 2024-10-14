@@ -103,7 +103,8 @@ class Processor(Actor):
                 logger.info(f'Pure DLC Inference Time Avg FPS: {1/np.mean(self.dlcLatencies)}')
                 logger.info(f'Put Time Avg FPS: {np.mean(self.putLatencies)}')
 
-            data_id = self.client.put(prediction)
+            data_id = self.client.put([prediction, self.frame])
+            logger.info(f'sent on this frame{self.frame}')
             # logger.info('Put prediction and index dict in store')
             try:
                 self.q_out.put(data_id)

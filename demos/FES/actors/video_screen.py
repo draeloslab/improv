@@ -116,7 +116,10 @@ class VideoScreen(ManagedActor):
 
                 if pred_id is not None:
                     try:
-                        predictions = self.client.get(pred_id)
+                        dlcGrab = self.client.get(pred_id)
+                        predictions = dlcGrab[0]
+                        dlcframe = dlcGrab[1]
+                        logger.info(f'Got predicitons:{predictions} and frame: {dlcframe}')
                         if self.frame_count % 100 == 0:
                             logger.info(f'Avg pred latency: {1/np.mean(self.pred_latencies)}')
                         self.pred_latencies.append(time.time() - pred_start)
@@ -133,7 +136,7 @@ class VideoScreen(ManagedActor):
                 logger.error(f"Error getting prediction for camera 0: {e}")
                 predictions = None
 
-        return frame, predictions
+        return dlcframe, predictions
 
     def runStep(self): 
         pass

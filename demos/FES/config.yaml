@@ -1,4 +1,4 @@
-fps: 30
+fps: 40
 model_path: 'DLC_HumanHand_mobilenet_v2_1.0_iteration-1_shuffle-1'
 video_path: '/home/chesteklab/Desktop/jakeHand.mp4'
-resize: 1
+resize: 0.75
