@@ -61,7 +61,7 @@ class VideoSaver(ManagedActor):
                     self.total_frames += 1
                     self.frame_count += 1
 
-                    self.actor_time.append(time.time() - start_time)
+                    # self.actor_time.append(time.time() - start_time)
 
                     # FPS logging
                     if self.frame_count % 100 == 0:
@@ -115,7 +115,9 @@ class VideoSaver(ManagedActor):
         video_save_command = [
             'ffmpeg', '-y', '-f', 'rawvideo', '-vcodec', 'rawvideo',
             '-s', f'{self.frame_w}x{self.frame_h}', '-pix_fmt', 'rgb24', '-r', str(fps),
-            '-i', '-', '-an', '-vcodec', 'mpeg4', '-pix_fmt', 'yuv420p', out_file_name,
+            '-i', '-', '-an', '-vcodec', 'libx264', '-pix_fmt', 'yuv420p', out_file_name,
+            '-crf', '15',  # CRF value for high quality
+            '-preset', 'slow',
             '-loglevel', 'error'  # Suppress all output except for errors
         ]
 

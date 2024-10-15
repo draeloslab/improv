@@ -86,16 +86,25 @@ class VideoScreen(ManagedActor):
         frame_id = None
 
         # Clear the frame queue for the specific camera
-        while not self.links[f"camera{camera_id}_in"].empty():
-            self.links[f"camera{camera_id}_in"].get_nowait()
+        # while not self.links[f"camera{camera_id}_in"].empty():
+        #     self.links[f"camera{camera_id}_'''in"].get_nowait()
 
         try:
-            frame_id = self.links[f"camera{camera_id}_in"].get(timeout=0.1)
-            frame_start = time.time()
+            pred_start = time.perf_counter()
+
+            element = self.links[f"preds{camera_id}_in"].get()
+
+            frame_id = element[0]
+            predictions = element[1]
+
             frame = self.client.get(frame_id) if frame_id is not None else np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
+            
+            # logger.info(f'Got predicitons:{predictions} and frame: {frame_id}')
+            
             if self.frame_count % 100 == 0:
-                logger.info(f'Avg frame latency: {1/np.mean(self.frame_latencies)}')
-            self.frame_latencies.append(time.time() - frame_start)
+                logger.info(f'Avg pred latency: {1/np.mean(self.pred_latencies)}')
+
+            self.pred_latencies.append(time.perf_counter() - pred_start)
         except Exception as e:
             logger.error(f"Error getting frame for camera {camera_id}: {e}")
             # logger.info(len(self.frame_latencies))
@@ -105,38 +114,38 @@ class VideoScreen(ManagedActor):
         # Increment frame counter
         self.frame_count += 1
 
-        # Only get predictions for camera 0
-        predictions = None
-        if camera_id==2 : #Note: This is a placeholder for the if statement that checks if camera_id == 2
-            try:
-                # Use get with timeout to prevent blocking
-                pred_id = self.q_in.get(timeout=0.01)
-                pred_start = time.time()
-                # logger.info(f"Pred Key received for camera 0: {pred_id}")
+        # # Only get predictions for camera 0
+        # predictions = None
 
-                if pred_id is not None:
-                    try:
-                        dlcGrab = self.client.get(pred_id)
-                        predictions = dlcGrab[0]
-                        dlcframe = dlcGrab[1]
-                        logger.info(f'Got predicitons:{predictions} and frame: {dlcframe}')
-                        if self.frame_count % 100 == 0:
-                            logger.info(f'Avg pred latency: {1/np.mean(self.pred_latencies)}')
-                        self.pred_latencies.append(time.time() - pred_start)
-                        # logger.info(f'Frame length: {len(self.frame_latencies)}')
-                        # logger.info(f'Pred Length: {len(self.pred_latencies)}')
-                        # logger.info(f"Got prediction for camera 0")
-                    except Exception as e:
-                        logger.error(f"Could not get prediction data for camera 0: {e}")
-                        predictions = None
-            except queue.Empty:
-                # No prediction data available
-                predictions = None
-            except Exception as e:
-                logger.error(f"Error getting prediction for camera 0: {e}")
-                predictions = None
+        # try:
+        #     # Use get with timeout to prevent blocking
+        #     pred_id = self.q_in.get(timeout=0.01)
+        #     pred_start = time.time()
+        #     # logger.info(f"Pred Key received for camera 0: {pred_id}")
 
-        return dlcframe, predictions
+        #     if pred_id is not None:
+        #         try:
+        #             dlcGrab = self.client.get(pred_id)
+        #             predictions = dlcGrab[0]
+        #             dlcframe = dlcGrab[1]
+        #             logger.info(f'Got predicitons:{predictions} and frame: {dlcframe}')
+        #             if self.frame_count % 100 == 0:
+        #                 logger.info(f'Avg pred latency: {1/np.mean(self.pred_latencies)}')
+        #             self.pred_latencies.append(time.time() - pred_start)
+        #             # logger.info(f'Frame length: {len(self.frame_latencies)}')
+        #             # logger.info(f'Pred Length: {len(self.pred_latencies)}')
+        #             # logger.info(f"Got prediction for camera 0")
+        #         except Exception as e:
+        #             logger.error(f"Could not get prediction data for camera 0: {e}")
+        #             predictions = None
+        # except queue.Empty:
+        #     # No prediction data available
+        #     predictions = None
+        # except Exception as e:
+        #     logger.error(f"Error getting prediction for camera 0: {e}")
+        #     predictions = None
+
+        return frame, predictions
 
     def runStep(self): 
         pass
