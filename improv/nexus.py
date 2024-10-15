@@ -6,6 +6,8 @@ import logging
 import asyncio
 import concurrent
 import subprocess
+import psutil
+import numpy as np
 
 from queue import Full
 from datetime import datetime
@@ -135,6 +137,7 @@ class Nexus:
         self.actors = {}
         self.flags = {}
         self.processes = []
+        self.mem = []
 
         self.initConfig()
 
@@ -449,6 +452,17 @@ class Nexus:
                     logger.debug("t.result = " + str(t.result()))
                     self.tasks[i] = asyncio.create_task(self.remote_input())
 
+            if self.flags['run']:    
+                
+                for p in self.processes:
+                    try:
+                        process = psutil.Process(p.pid)
+                        logger.info('memory stuff') # {}'.format(process.memory_percent()))
+                        self.mem.append([str(p), process.memory_percent()])
+                    except Exception as e:
+                        print('Processes Memory error: {}'.format(e))
+                np.savetxt('/home/anjshnkr/Desktop/Code/improv/demos/live/output/processes_mem.txt', self.mem, fmt="%s")
+
         if not self.early_exit:  # don't run this again if we already have
             self.stop_polling(Signal.quit(), polling)
             logger.warning("Shutting down polling")
@@ -489,7 +503,7 @@ class Nexus:
             logger.info("Received signal from user: " + flag[0])
             if flag[0] == Signal.run():
                 logger.info("Begin run!")
-                # self.flags['run'] = True
+                self.flags['run'] = True
                 self.run()
             elif flag[0] == Signal.setup():
                 logger.info("Running setup")
