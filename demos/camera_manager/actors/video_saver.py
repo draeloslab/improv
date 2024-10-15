@@ -99,10 +99,11 @@ class VideoSaver(ManagedActor):
         fps = int(camera_params['fps'].split('/')[0])
 
         # create a timestamp folder
+        date = time.strftime("%Y-%m-%d")
         timestamp = time.strftime("%Y%m%d-%H%M%S")
 
         home_dir = os.path.expanduser('~')
-        out_folder = f"{home_dir}/camera_video/{timestamp}"
+        out_folder = f"{home_dir}/camera_video/{date}/{timestamp}"
 
         if not Path(out_folder).exists():
             Path(out_folder).mkdir(parents=True, exist_ok=True)
@@ -114,7 +115,7 @@ class VideoSaver(ManagedActor):
             'ffmpeg', '-y', '-f', 'rawvideo', '-vcodec', 'rawvideo',
             '-s', f'{self.frame_w}x{self.frame_h}', '-pix_fmt', 'rgb24', '-r', str(fps),
             '-i', '-', '-an', '-vcodec', 'libx264', '-pix_fmt', 'yuv420p', out_file_name,
-            '-crf', '18',  # CRF value for high quality
+            '-crf', '15',  # CRF value for high quality
             '-preset', 'slow',
             '-loglevel', 'error'  # Suppress all output except for errors
         ]
