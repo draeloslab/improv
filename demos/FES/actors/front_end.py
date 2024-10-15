@@ -4,7 +4,7 @@ import threading
 import queue  # Import the queue module
 from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QGridLayout
 from PyQt5.QtCore import QTimer, Qt
-from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen, QColor, QBrush, QColor
+from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen, QColor, QBrush
 import cv2  # Import cv2 for image processing
 import time
 
@@ -58,18 +58,15 @@ class CameraStreamWidget(QWidget):
         # Initialize a QTimer to update frames
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_frames)
-        self.timer.start(50)  # Adjust the timer interval to match the frame rate [ms]
-
-        self.frame_count = 0
-        self.actor_time = []
+        self.timer.start(30)  # Adjust the timer interval to match the frame rate [ms]
 
     def update_frames(self):
         """Update frames from each camera"""
         for camera_id in range(self.visual.num_cameras):
             try:
-                frame, predictions, start_time = self.visual.getLastFrame(camera_id)
+                frame, predictions = self.visual.getLastFrame(camera_id)
+                logger.info(frame)
                 # logger.info(f"Received frame for camera {camera_id}")
-                # self.start_time = time.perf_counter()
 
                 self.display_frame(frame, predictions, self.camera_labels[camera_id])
                 # self.actor_time.append(time.time() - start_time)
@@ -104,7 +101,7 @@ class CameraStreamWidget(QWidget):
             
             for point in predictions:
                 x, y, likelihood = point
-                if likelihood > 0:  # Only plot points with high likelihood
+                if likelihood > 0.5:  # Only plot points with high likelihood
                         painter.drawEllipse(int(x), int(y), 40, 40)
             
             painter.end()

@@ -171,7 +171,7 @@ class TIS:
         cam_state = self.pipeline.get_state(5000000000)
 
         if cam_state[1] != Gst.State.PLAYING:
-            logger.info("Error starting pipeline. {0}".format(""))
+            logger.info("Error starting pipeline. {0}".format(cam_state[1]))
             return False
         
         return True

@@ -2,6 +2,8 @@ import time
 import numpy as np
 from enum import Enum
 from collections import namedtuple
+from pathlib import Path
+
 
 import gi
 gi.require_version("Gst", "1.0")
@@ -161,9 +163,15 @@ class TIS:
         self.frame_count = 0
         self.total_delay = 0
         self.max_delay = 0
+        self.frame_latency= []
 
         self.image_data = []
         self.image_caps = None
+
+        timestamp = time.strftime("%Y%m%d-%H%M")
+        self.out_folder = Path(f"/home/chesteklab/predictions/{timestamp}")
+        self.out_folder.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Output folder set to {self.out_folder}")
 
         self._setcaps()
         self.pipeline.set_state(Gst.State.PLAYING)
@@ -208,16 +216,17 @@ class TIS:
             self.frame_count += 1
             self.total_frame_count += 1
 
-            if self.frame_count % 600 == 0:               
-                total_time = time.time() - self.start_time
+            if self.frame_count % 100 == 0:               
+                total_time = time.perf_counter() - self.start_time
 
                 logger.info(f"[Camera {self.camera_name}] reader FPS: {round(self.frame_count / total_time,2)} - avg delay: {self.total_delay/self.frame_count:.4f} - max delay: {self.max_delay:.4f}")                
                 # logger.info(f"{frame.shape} - size on memory: {round(frame.nbytes/(1024**2),2)}MB")
-
+                logger.info(f"Average FPS {1/np.mean(self.frame_latency)}")
                 self.total_delay = 0
                 self.max_delay = 0
                 self.frame_count = 0
-                self.start_time = time.time()
+                self.start_time = time.perf_counter()
+            self.frame_latency.append(time.time() - frame_time)
         
         return Gst.FlowReturn.OK
 
@@ -240,6 +249,9 @@ class TIS:
         self.pipeline.set_state(Gst.State.READY)
 
         recording_duration = stop_time - self.total_start_time
+
+        np.save(self.out_folder / "camframeLatencies.npy", self.frame_latency)
+
 
         logger.info(f"[Camera {self.camera_name}] reader stopped. Total frames: {self.total_frame_count} - Recording duration: {recording_duration:.2f}s ({round(recording_duration/60,1)} min)")
 

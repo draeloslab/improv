@@ -46,14 +46,14 @@ class Processor(Actor):
         frame = np.random.rand(1080, 1920, 3)
         self.dlc_live.init_inference(frame)  # putting in a random frame to initialize the model
         self.predictions = []
-        # self.latencies = []
-        # self.dlcLatencies = []
-        # self.sentLatencies = []
-        self.actor_time = []
+        self.latencies = []
+        self.dlcLatencies = []
+        self.grabLatencies = []
+        self.putLatencies = []
         self.frame_num = 1
         self.frame_sentTime = 0
 
-        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        timestamp = time.strftime("%Y%m%d-%H%M")
         self.out_folder = Path(f"/home/chesteklab/predictions/{timestamp}")
         self.out_folder.mkdir(parents=True, exist_ok=True)
         logger.info(f"Output folder set to {self.out_folder}")
@@ -65,14 +65,15 @@ class Processor(Actor):
         np.save(self.out_folder / "latencies.npy", self.latencies)
         np.save(self.out_folder / "predictions.npy", self.predictions)
         np.save(self.out_folder / "dlcLatencies.npy", self.dlcLatencies)
+        np.save(self.out_folder / "grabLatencies.npy", self.grabLatencies)
+        np.save(self.out_folder / "putLatencies.npy", self.putLatencies)
         logger.info("Predictions and latencies saved")
         logger.info("Processor stopping")
 
     def runStep(self):
         frame = None
         try:
-
-            frame_key = self.q_in.get()
+            frame = self.q_in.get()
             start_time = time.time()
             # logger.info(f"Frame Key received: {frame}")
 
@@ -89,25 +90,27 @@ class Processor(Actor):
             self.frame_num += 1
 
             # Perform inference
-            # dlcStart = time.perf_counter()
-            # self.sentLatencies.append(dlcStart - self.frame_time)
+            self.grabLatencies.append(time.time() -start_time)
+            dlcStart = time.time()
             prediction = self.dlc_live.get_pose(self.frame)
-            self.latencies.append(time.perf_counter() - start_time)
-            # self.dlcLatencies.append(time.perf_counter() - dlcStart)
+            postInf = time.time()
+            self.dlcLatencies.append(time.time()- dlcStart)
             self.predictions.append(prediction)
-            if self.frame_num % 100 == 0:
+            if self.frame_num % 200 == 0:
+                logger.info(f"Frame number: {self.frame_num}")
                 logger.info(f"Prediction: {prediction}")
-                logger.info(f"Frame number: {self.frame_num}")  
-                # logger.info(f"Overall Average latency: {np.mean(self.latencies)}")
-                # logger.info(f" Average DLC inference: {np.mean(self.dlcLatencies)}")
-                # logger.info(f"Average Frame sent time: {np.mean(self.sentLatencies)}")
-                logger.info(f"Average Actor time: {np.mean(self.actor_time)}")
-            send_time = time.perf_counter()
-            data_id = self.client.put(prediction)
+                logger.info(f"Overall Average FPS: {1/np.mean(self.latencies)}")
+                logger.info(f'Camera Grab Time Avg FPS: {np.mean(self.grabLatencies)}')
+                logger.info(f'Pure DLC Inference Time Avg FPS: {1/np.mean(self.dlcLatencies)}')
+                logger.info(f'Put Time Avg FPS: {np.mean(self.putLatencies)}')
+
+            data_id = self.client.put([prediction, self.frame])
+            logger.info(f'sent on this frame{self.frame}')
             # logger.info('Put prediction and index dict in store')
             try:
                 self.q_out.put(data_id)
-                self.actor_time.append(time.time() - start_time)
+                self.putLatencies.append(time.time() - postInf)
+                self.latencies.append(time.time() - start_time)
                 # logger.info("Sent message on")
             except Exception as e:
                 logger.error(f"--------------------------------Generator Exception: {e}")
