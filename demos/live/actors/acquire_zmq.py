@@ -54,8 +54,10 @@ class ZMQAcquirer(Actor):
         self.saveArrayRedChan = []
         self.save_ind = 0
         self.fullStimmsg = []
-        self.total_times = [[],[]]
-        self.timestamp = [[],[]]
+        self.total_times_frame = []
+        self.total_times_pstim = []
+        self.timestamp_frame = []
+        self.timestamp_pstim = []
         self.stimmed = []
         self.frametimes = []
         self.framesendtimes = []
@@ -118,11 +120,13 @@ class ZMQAcquirer(Actor):
         np.savetxt('output/timing/framesendtimes.txt', np.array(self.framesendtimes), fmt="%s")
         np.savetxt('output/timing/stimsendtimes.txt', np.array(self.stimsendtimes), fmt="%s")
         np.savetxt('output/timing/tailsendtimes.txt', np.array(self.tailsendtimes), fmt="%s")
-        np.savetxt('output/timing/acquire_frame_time.txt', self.total_times)
-        np.savetxt('output/timing/acquire_timestamp.txt', self.timestamp)
+        np.savetxt('output/timing/acquire_frame_time.txt', self.total_times_frame, fmt="%s")
+        np.savetxt('output/timing/acquire_pstim_time.txt', self.total_times_pstim, fmt="%s")
+        np.savetxt('output/timing/acquire_frame_timestamp.txt', self.timestamp_frame, fmt="%s")
+        np.savetxt('output/timing/acquire_pstim_timestamp.txt', self.timestamp_pstim, fmt="%s")
         np.save('output/fullstim.npy', self.fullStimmsg)
 
-        logger.info('Acquisition complete, avg time per frame: {}'.format(np.mean(self.total_times)))
+        logger.info('Acquisition complete, avg time per frame: {}'.format(np.mean(self.total_times_frame)))
         logger.info('Acquire got through {} frames'.format(self.frame_num))
 
     def runStep(self):
@@ -189,8 +193,8 @@ class ZMQAcquirer(Actor):
             t0 = time.time()
             self.fullStimmsg.append(msg)
             self._collect_stimulus(msg_dict, category)
-            self.total_times[0].append(time.time() - t0)
-            self.timestamp[0].append([dt.now(), self.frame_num])
+            self.total_times_pstim.append(time.time() - t0)
+            self.timestamp_pstim.append([dt.now(), self.frame_num])
 
         # elif 'frame' in tag: 
         else:
@@ -198,8 +202,8 @@ class ZMQAcquirer(Actor):
             if self.track %2 == 0:
                 self._collect_frame(finalthing)
                 self.frame_num += 1
-            self.total_times[1].append(time.time() - t0)
-            self.timestamp[1].append([dt.now(), self.frame_num])
+            self.total_times_frame.append(time.time() - t0)
+            self.timestamp_frame.append([dt.now(), self.frame_num])
             self.track += 1
 
         # elif str(tag) in 'tail':
