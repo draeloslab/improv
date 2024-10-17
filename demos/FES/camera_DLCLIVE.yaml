@@ -60,9 +60,9 @@ actors:
     pred_active: True
 
 connections:
-  CameraReader0.q_out: [VideoSaver0.q_in, VideoScreen.camera0_in, Processor0.q_in]
-  CameraReader1.q_out: [VideoSaver1.q_in, VideoScreen.camera1_in, Processor1.q_in]
-  CameraReader2.q_out: [VideoSaver2.q_in, VideoScreen.camera2_in, Processor2.q_in]
+  CameraReader0.q_out: [VideoSaver0.q_in, Processor0.q_in]
+  CameraReader1.q_out: [VideoSaver1.q_in, Processor1.q_in]
+  CameraReader2.q_out: [VideoSaver2.q_in, Processor2.q_in]
   Processor0.q_out: [VideoScreen.preds0_in]
   Processor1.q_out: [VideoScreen.preds1_in]
   Processor2.q_out: [VideoScreen.preds2_in]

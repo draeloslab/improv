@@ -87,34 +87,39 @@ class VideoScreen(ManagedActor):
         frame_id = None
 
         # Clear the frame queue for the specific camera
-        # while not self.links[f"camera{camera_id}_in"].empty():
-        #     self.links[f"camera{camera_id}_'''in"].get_nowait()
+        while not self.links[f"preds{camera_id}_in"].empty():
+            self.links[f"preds{camera_id}_in"].get_nowait()
 
         try:
             pred_start = time.perf_counter()
 
-            element = self.links[f"preds{camera_id}_in"].get()
+            element = self.links[f"preds{camera_id}_in"].get(timeout=0.1)
 
             frame_id = element[0]
             predictions = element[1]
 
-            frame = self.client.get(frame_id) if frame_id is not None else np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
-            
-            # logger.info(f'Got predicitons:{predictions} and frame: {frame_id}')
-            
-            if self.frame_count % 100 == 0:
-                logger.info(f'Avg pred latency: {1/np.mean(self.pred_latencies)}')
+            if frame_id is not None:
+                logger.info(f"{camera_id} [frame id is not none {frame_id}]")
+                frame = self.client.get(frame_id) if frame_id is not None else np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
+                
+                # logger.info(f'Got predicitons:{predictions} and frame: {frame_id}')
+                
+                if self.frame_count % 100 == 0:
+                    logger.info(f'Avg pred latency: {1/np.mean(self.pred_latencies)}')
 
-            self.pred_latencies.append(time.perf_counter() - pred_start)
+                self.pred_latencies.append(time.perf_counter() - pred_start)
         except Exception as e:
-            logger.error(f"Error getting frame for camera {camera_id}: {e}")
+            # logger.error(f"Error getting frame for camera {camera_id}: {e}")
             # logger.info(len(self.frame_latencies))
             # logger.info(len(self.pred_latencies))
+            # logger.info(f"error on {camera_id} [frame: {frame_id}]")
             frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
-            traceback.format_exc()
+            # logger.error(traceback.format_exc())
 
-        # Increment frame counter
-        self.frame_count += 1
+        return frame,predictions
+
+        # # Increment frame counter
+        # self.frame_count += 1
 
         # # Only get predictions for camera 0
         # predictions = None
@@ -147,9 +152,10 @@ class VideoScreen(ManagedActor):
         #     logger.error(f"Error getting prediction for camera 0: {e}")
         #     predictions = None
 
-        return frame, predictions
+        # return frame, predictions
 
     def runStep(self): 
+        self.start_program = True
         pass
 
     def stop(self):

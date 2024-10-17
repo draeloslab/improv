@@ -5,6 +5,7 @@ from dlclive import DLCLive
 from pathlib import Path
 import yaml
 import time
+import traceback
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -76,16 +77,18 @@ class Processor(Actor):
             logger.info("Processor stopping")
 
     def runStep(self):
-        frame = None
+        frame_key = None
+        prediction = None
+
         try:
             frame_key = self.q_in.get()
             start_time = time.time()
-            # logger.info(f"Frame Key received: {frame}")
+            # logger.info(f"Frame Key received: {frame_key}")
         except Exception as e:
             logger.error(f"Could not get frame! {e}")
             return
 
-        if frame is not None and self.frame_num is not None:
+        if frame_key is not None:
             self.done = False
 
             if self.pred_active:
@@ -102,6 +105,7 @@ class Processor(Actor):
                 postInf = time.time()
                 self.dlcLatencies.append(time.time()- dlcStart)
                 self.predictions.append(prediction)
+
                 if self.frame_num % 200 == 0:
                     logger.info(f"Frame number: {self.frame_num}")
                     logger.info(f"Prediction: {prediction}")
@@ -110,15 +114,15 @@ class Processor(Actor):
                     logger.info(f'Pure DLC Inference Time Avg FPS: {1/np.mean(self.dlcLatencies)}')
                     logger.info(f'Put Time Avg FPS: {np.mean(self.putLatencies)}')
 
-                data_id = self.client.put([frame_key, prediction])
-                logger.info(f'sent on this frame{self.frame}')
+                # logger.info(f'sent on this frame{self.frame}')
                 # logger.info('Put prediction and index dict in store')
-                try:
-                    self.q_out.put(data_id)
+
+            try:
+                self.q_out.put([frame_key,prediction])
+
+                if self.pred_active:
                     self.putLatencies.append(time.time() - postInf)
                     self.latencies.append(time.time() - start_time)
-                    # logger.info("Sent message on")
-                except Exception as e:
-                    logger.error(f"--------------------------------Generator Exception: {e}")
-            else:
-                data_id = self.client.put([frame_key, np.zeros(1)])
+            except Exception as e:
+                logger.error(f"--------------------------------Generator Exception: {e}")
+                logger.error(traceback.format_exc())

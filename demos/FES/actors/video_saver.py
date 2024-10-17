@@ -46,6 +46,9 @@ class VideoSaver(ManagedActor):
         while not self.stop_program:
             try:
                 frame_id = self.q_in.get(timeout=1)
+
+                # logger.info(frame_id)
+
                 start_time = time.time()
 
                 if frame_id is not None:
@@ -54,7 +57,7 @@ class VideoSaver(ManagedActor):
 
                     # buffer[buffer_index] = frame
 
-                    self.client.expire(frame_id, 1) # set expiration on the key from the store to 1 second
+                    self.client.expire(frame_id, 15) # set expiration on the key from the store to 1 second
 
                     # buffer_index += 1
 

@@ -67,25 +67,50 @@ class CameraStreamWidget(QWidget):
             logger.error(f'Setup failed due to {e}')
             traceback.format_exc()
 
+    # def update_frames(self):
+    #     """Update frames from each camera"""
+
+    #     for camera_id in range(self.visual.num_cameras):
+    #         try:
+    #             frame = self.visual.getLastFrame(camera_id)
+        
+    #             self.display_frame(frame, self.camera_labels[camera_id])
+    #         except Exception as e:
+    #             logger.error(f"Error: {e}")
+
+    # def display_frame(self, frame, label):
+    #     """Convert frame to QImage and display it in QLabel."""
+    #     # Convert frame to RGB format
+    #     # rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    #     height, width, channel = frame.shape
+    #     bytes_per_line = channel * width
+    #     q_img = QImage(frame.data, width, height, bytes_per_line, QImage.Format_RGB888)
+    #     pixmap = QPixmap.fromImage(q_img)
+    #     scaled_pixmap = pixmap.scaled(label.size(), Qt.KeepAspectRatio)  # Keep aspect ratio
+    #     label.setPixmap(scaled_pixmap)
 
     def update_frames(self):
-        """Update frames from each camera"""
+        # for camera_id in range(self.visual.num_cameras):
+        #     blank_frame = np.zeros((self.visual.frame_h, self.visual.frame_w, 3), dtype=np.uint8)
+        #     self.display_frame(blank_frame, None, self.camera_labels[camera_id])
+
+        # """Update frames from each camera"""
         for camera_id in range(self.visual.num_cameras):
             try:
                 frame, predictions = self.visual.getLastFrame(camera_id)
-                logger.info(frame)
+
                 # logger.info(f"Received frame for camera {camera_id}")
 
-                self.display_frame(frame, predictions, self.camera_labels[camera_id])
+                if frame is not None:
+                    self.display_frame(frame, predictions, self.camera_labels[camera_id])
+
                 # self.actor_time.append(time.time() - start_time)
-                self.frame_count += 1
 
             except Exception as e:
                 # logger.error(f"Error updating frame for camera {camera_id}: {e}")
                 # Display a blank frame if there's an error
                 blank_frame = np.zeros((self.visual.frame_h, self.visual.frame_w, 3), dtype=np.uint8)
                 self.display_frame(blank_frame, None, self.camera_labels[camera_id])
-        # logger.info(f"Frame count: {self.frame_count}")
 
         # if self.frame_count % 100 == 0:
         #     logger.info(f"Average actor  time: {np.mean(self.actor_time)}")
