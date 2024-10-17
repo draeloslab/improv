@@ -45,7 +45,7 @@ class VideoSaver(ManagedActor):
         worker = None
 
         while not self.stop_program:
-            try:
+            try:                
                 frame_id = self.q_in.get(timeout=1)
 
                 if frame_id is not None:

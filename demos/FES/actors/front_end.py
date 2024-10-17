@@ -7,6 +7,7 @@ from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen, QColor, QBrush
 import cv2  # Import cv2 for image processing
 import time
+import traceback
 
 import logging
 logger = logging.getLogger(__name__)
@@ -28,37 +29,44 @@ class CameraStreamWidget(QWidget):
     """PyQt Widget for displaying multiple camera streams."""
 
     def __init__(self, visual, comm, q_sig):
-        super().__init__()
+        try:
+            super().__init__()
 
-        self.visual = visual
-        self.comm = comm  # Link back to Nexus for transmitting signals
-        self.q_sig = q_sig
-        self.stop_program = False
-        self.last_frame_ids = [None for _ in range(self.visual.num_cameras)]
-        
-        # Set up GUI layout
-        self.setWindowTitle('Camera Streams')
-        self.setGeometry(100, 100, 1920, 1080)  # Adjust window size to fit aspect ratio
+            self.visual = visual
+            self.comm = comm  # Link back to Nexus for transmitting signals
+            self.q_sig = q_sig
+            self.stop_program = False
+            self.last_frame_ids = [None for _ in range(self.visual.num_cameras)]
+            
+            # Set up GUI layout
+            self.setWindowTitle('Camera Streams')
+            self.setGeometry(100, 100, 1920, 1080)  # Adjust window size to fit aspect ratio
 
-        # Layout to hold the camera labels
-        layout = QGridLayout()
+            # Layout to hold the camera labels
+            layout = QGridLayout()
 
-        # Create labels to show camera frames
-        self.camera_labels = [QLabel(self) for _ in range(self.visual.num_cameras)]
-        for i, label in enumerate(self.camera_labels):
-            label.setAlignment(Qt.AlignCenter)
-            label.setScaledContents(False)  # Maintain aspect ratio
-            if i < 2:
-                layout.addWidget(label, 0, i)  # First row, two columns
-            else:
-                layout.addWidget(label, 1, 0, 1, 2)  # Second row, one column spanning two cells
+            # Create labels to show camera frames
+            self.camera_labels = [QLabel(self) for _ in range(self.visual.num_cameras)]
+            for i, label in enumerate(self.camera_labels):
+                label.setAlignment(Qt.AlignCenter)
+                label.setScaledContents(False)  # Maintain aspect ratio
+                if i < 2:
+                    layout.addWidget(label, 0, i)  # First row, two columns
+                else:
+                    layout.addWidget(label, 1, 0, 1, 2)  # Second row, one column spanning two cells
 
-        self.setLayout(layout)
+            self.setLayout(layout)
 
-        # Initialize a QTimer to update frames
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.update_frames)
-        self.timer.start(30)  # Adjust the timer interval to match the frame rate [ms]
+            # Initialize a QTimer to update frames
+            self.timer = QTimer()
+            self.timer.timeout.connect(self.update_frames)
+            self.timer.start(30)  # Adjust the timer interval to match the frame rate [ms]
+
+            logger.info(f'Front End Setup completed')
+        except Exception as e:
+            logger.error(f'Setup failed due to {e}')
+            traceback.format_exc()
+
 
     def update_frames(self):
         """Update frames from each camera"""

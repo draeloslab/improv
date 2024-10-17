@@ -1,4 +1,4 @@
 fps: 30
 model_path: 'DLC_HumanHand_mobilenet_v2_1.0_iteration-1_shuffle-1'
 video_path: '/home/chesteklab/camera_video/2024-10-04/20241004-085752/camera_video_3.mp4'
-resize: 1
+resize: 0.5
