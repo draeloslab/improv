@@ -100,7 +100,7 @@ class VideoScreen(ManagedActor):
 
             frame = self.client.get(frame_id) if frame_id is not None else np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
             
-            logger.info(f'Got predicitons:{predictions} and frame: {frame_id}')
+            # logger.info(f'Got predicitons:{predictions} and frame: {frame_id}')
             
             if self.frame_count % 100 == 0:
                 logger.info(f'Avg pred latency: {1/np.mean(self.pred_latencies)}')
