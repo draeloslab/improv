@@ -117,12 +117,9 @@ class CameraStreamWidget(QWidget):
 
     def display_frame(self, frame, predictions, label):
         """Convert frame to QImage, plot predictions if available, and display it in QLabel."""
-        # Convert frame to RGB format
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-        height, width, channel = rgb_frame.shape
+        height, width, channel = frame.shape
         bytes_per_line = channel * width
-        q_img = QImage(rgb_frame.data, width, height, bytes_per_line, QImage.Format_RGB888)
+        q_img = QImage(frame.data, width, height, bytes_per_line, QImage.Format_RGB888)
         
         if predictions is not None:
             # logger.info(f"Prediction recieved: {predictions}")
@@ -130,7 +127,6 @@ class CameraStreamWidget(QWidget):
             painter.begin(q_img)
             painter.setPen(QPen(QColor(255, 0, 0), 2))  # Red color, 2px width
             painter.setBrush(QBrush(QColor(255, 0, 0)))
-
             
             for point in predictions:
                 x, y, likelihood = point
