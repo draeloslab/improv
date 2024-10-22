@@ -91,7 +91,7 @@ class VideoScreen(ManagedActor):
             self.links[f"preds{camera_id}_in"].get_nowait()
 
         try:
-            pred_start = time.perf_counter()
+            pred_start = time.time()
 
             element = self.links[f"preds{camera_id}_in"].get(timeout=0.1)
 
@@ -99,14 +99,7 @@ class VideoScreen(ManagedActor):
             predictions = element[1]
 
             if frame_id is not None:
-                logger.info(f"{camera_id} [frame id is not none {frame_id}]")
                 frame = self.client.get(frame_id) if frame_id is not None else np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
-                
-                # logger.info(f'Got predicitons:{predictions} and frame: {frame_id}')
-                
-                if self.frame_count % 100 == 0:
-                    logger.info(f'Avg pred latency: {1/np.mean(self.pred_latencies)}')
-
                 self.pred_latencies.append(time.perf_counter() - pred_start)
         except Exception as e:
             # logger.error(f"Error getting frame for camera {camera_id}: {e}")

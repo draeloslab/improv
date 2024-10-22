@@ -52,11 +52,13 @@ class Processor(Actor):
             self.dlc_live.init_inference(frame)  # putting in a random frame to initialize the model
             self.predictions = []
             self.latencies = []
-            self.dlcLatencies = []
-            self.grabLatencies = []
-            self.putLatencies = []
-            self.frame_num = 1
+            self.dlc_latencies = []
+            self.grab_latencies = []
+            self.put_latencies = []            
+            self.time_start = time.perf_counter()
+            self.frame_num = 0
             self.frame_sentTime = 0
+            self.frames_log = 200 # num frames after which to log
 
             timestamp = time.strftime("%Y%m%d-%H%M")
             self.out_folder = Path(f"/home/chesteklab/predictions/{timestamp}")
@@ -70,9 +72,9 @@ class Processor(Actor):
             self.done = True
             np.save(self.out_folder / "latencies.npy", self.latencies)
             np.save(self.out_folder / "predictions.npy", self.predictions)
-            np.save(self.out_folder / "dlcLatencies.npy", self.dlcLatencies)
-            np.save(self.out_folder / "grabLatencies.npy", self.grabLatencies)
-            np.save(self.out_folder / "putLatencies.npy", self.putLatencies)
+            np.save(self.out_folder / "dlcLatencies.npy", self.dlc_latencies)
+            np.save(self.out_folder / "grabLatencies.npy", self.grab_latencies)
+            np.save(self.out_folder / "putLatencies.npy", self.put_latencies)
             logger.info("Predictions and latencies saved")
             logger.info("Processor stopping")
 
@@ -82,7 +84,7 @@ class Processor(Actor):
 
         try:
             frame_key = self.q_in.get()
-            start_time = time.time()
+            start_time = time.perf_counter()
             # logger.info(f"Frame Key received: {frame_key}")
         except Exception as e:
             logger.error(f"Could not get frame! {e}")
@@ -93,26 +95,28 @@ class Processor(Actor):
 
             if self.pred_active:
                 self.frame = self.client.get(frame_key)
-
-                # logger.info(f"Got frame: {self.frame.shape}")
-
                 self.frame_num += 1
 
                 # Perform inference
-                self.grabLatencies.append(time.time() -start_time)
-                dlcStart = time.time()
+                dlc_start = time.perf_counter()
                 prediction = self.dlc_live.get_pose(self.frame)
-                postInf = time.time()
-                self.dlcLatencies.append(time.time()- dlcStart)
-                self.predictions.append(prediction)
+                dlc_end = time.perf_counter()
 
-                if self.frame_num % 200 == 0:
+                self.predictions.append(prediction)
+                self.dlc_latencies.append(dlc_end - dlc_start)
+                self.grab_latencies.append(dlc_end - start_time)
+
+                if self.frame_num % self.frames_log == 0:
+                    total_time = dlc_end - self.time_start                    
+
                     logger.info(f"Frame number: {self.frame_num}")
-                    logger.info(f"Prediction: {prediction}")
-                    logger.info(f"Overall Average FPS: {1/np.mean(self.latencies)}")
-                    logger.info(f'Camera Grab Time Avg FPS: {np.mean(self.grabLatencies)}')
-                    logger.info(f'Pure DLC Inference Time Avg FPS: {1/np.mean(self.dlcLatencies)}')
-                    logger.info(f'Put Time Avg FPS: {np.mean(self.putLatencies)}')
+                    # logger.info(f"Prediction: {prediction}")
+                    logger.info(f"Overall Average FPS: {round(self.frames_log / total_time,2)}")
+                    logger.info(f'Camera Grab Time Avg latency: {np.mean(self.grab_latencies)}')
+                    logger.info(f'Pure DLC Inference Time Avg latency: {np.mean(self.dlc_latencies)}')
+                    logger.info(f'Put Time Avg latency: {np.mean(self.put_latencies)}')
+
+                    self.time_start = time.perf_counter() # reset the timer
 
                 # logger.info(f'sent on this frame{self.frame}')
                 # logger.info('Put prediction and index dict in store')
@@ -121,8 +125,8 @@ class Processor(Actor):
                 self.q_out.put([frame_key,prediction])
 
                 if self.pred_active:
-                    self.putLatencies.append(time.time() - postInf)
-                    self.latencies.append(time.time() - start_time)
+                    self.put_latencies.append(time.perf_counter() - dlc_end)
+                    self.latencies.append(time.perf_counter() - start_time)
             except Exception as e:
                 logger.error(f"--------------------------------Generator Exception: {e}")
                 logger.error(traceback.format_exc())

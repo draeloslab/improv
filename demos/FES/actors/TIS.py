@@ -164,6 +164,7 @@ class TIS:
         self.total_delay = 0
         self.max_delay = 0
         self.frame_latency= []
+        # self.raw_frames = []
 
         self.image_data = []
         self.image_caps = None
@@ -199,6 +200,7 @@ class TIS:
             buf = sample.get_buffer()
 
             frame = self.__convert_to_numpy(buf.extract_dup(0, buf.get_size()), sample.get_caps())
+            # self.raw_frames.append(frame)
 
             try:
                 data_id = self.client.put(frame)
@@ -221,7 +223,7 @@ class TIS:
 
                 logger.info(f"[Camera {self.camera_name}] reader FPS: {round(self.frame_count / total_time,2)} - avg delay: {self.total_delay/self.frame_count:.4f} - max delay: {self.max_delay:.4f}")                
                 # logger.info(f"{frame.shape} - size on memory: {round(frame.nbytes/(1024**2),2)}MB")
-                logger.info(f"Average FPS {1/np.mean(self.frame_latency)}")
+                # logger.info(f"Average FPS {1/np.mean(self.frame_latency)}")
                 self.total_delay = 0
                 self.max_delay = 0
                 self.frame_count = 0
@@ -251,6 +253,7 @@ class TIS:
         recording_duration = stop_time - self.total_start_time
 
         np.save(self.out_folder / "camframeLatencies.npy", self.frame_latency)
+        # np.save(self.out_folder / f"{self.camera_name}_rawFrames.npy", self.raw_frames)
 
 
         logger.info(f"[Camera {self.camera_name}] reader stopped. Total frames: {self.total_frame_count} - Recording duration: {recording_duration:.2f}s ({round(recording_duration/60,1)} min)")

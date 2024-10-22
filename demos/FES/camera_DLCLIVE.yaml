@@ -27,19 +27,22 @@ actors:
 
   # video savers: each video saver writes the frames readed to video file
   VideoSaver0:
-    package: actors.video_saver
+    # package: actors.video_saver
+    package: actors.video_saver_multiproc
     class: VideoSaver
     camera_num: 0
     method: spawn
 
   VideoSaver1:
-    package: actors.video_saver
+    # package: actors.video_saver
+    package: actors.video_saver_multiproc
     class: VideoSaver
     camera_num: 1
     method: spawn
     
   VideoSaver2:
-    package: actors.video_saver
+    # package: actors.video_saver
+    package: actors.video_saver_multiproc
     class: VideoSaver
     camera_num: 2
     method: spawn

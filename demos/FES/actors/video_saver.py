@@ -1,3 +1,4 @@
+import os
 import time
 import threading
 import yaml
@@ -105,9 +106,11 @@ class VideoSaver(ManagedActor):
         fps = int(camera_params['fps'].split('/')[0])
 
         # create a timestamp folder
+        date = time.strftime("%Y-%m-%d")
         timestamp = time.strftime("%Y%m%d-%H%M%S")
 
-        self.out_folder = f"/home/chesteklab/camera_video/{timestamp}"
+        home_dir = os.path.expanduser('~')
+        self.out_folder = f"{home_dir}/camera_video/{date}/{timestamp}"
 
         if not Path(self.out_folder).exists():
             Path(self.out_folder).mkdir(parents=True, exist_ok=True)
