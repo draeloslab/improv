@@ -1,0 +1,4 @@
+raw_chunks_path: 'camera_video' # path inside the home_dir
+buffer_length: 5 # [s] time length of the buffer 
+num_save_processes: 2 # max number of active multithread save processes for each camera
+num_convert_processes: 1 # max number of active multithread convert processes for each camera

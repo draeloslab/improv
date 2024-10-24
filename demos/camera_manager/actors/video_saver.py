@@ -118,9 +118,8 @@ class VideoSaver(ManagedActor):
             '-crf', '15',  # CRF value for high quality
             '-preset', 'slow',
             '-loglevel', 'error'  # Suppress all output except for errors
-        ]
+        ] 
         
-
         self.video_proc = subprocess.Popen(video_save_command, stdin=subprocess.PIPE)
 
         # control variables
