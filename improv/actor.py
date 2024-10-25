@@ -184,8 +184,10 @@ class AbstractActor:
             p.nice(19)  # lowest as default
             logger.info("Lowered priority of this process: {}".format(self.name))
             print("Lowered ", os.getpid(), " for ", self.name)
-
-
+        
+    def set_pid(self, pid):
+        self.pid = pid
+        
 class ManagedActor(AbstractActor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args)
@@ -195,6 +197,7 @@ class ManagedActor(AbstractActor):
         self.actions["setup"] = self.setup
         self.actions["run"] = self.runStep
         self.actions["stop"] = self.stop
+        self.actions["set_pid"] = self.set_pid
 
     def run(self):
         with RunManager(self.name, self.actions, self.links):
@@ -213,6 +216,7 @@ class AsyncActor(AbstractActor):
         self.actions["setup"] = self.setup
         self.actions["run"] = self.runStep
         self.actions["stop"] = self.stop
+        self.actions["set_pid"] = self.set_pid
 
     def run(self):
         """Run the actor in an async loop"""
@@ -290,7 +294,11 @@ class RunManager:
             try:
                 signal = self.q_sig.get(timeout=self.timeout)
                 logger.debug("{} received Signal {}".format(self.actorName, signal))
-                if signal == Signal.run():
+                if "pid" in signal:
+                    logger.info('Received pid signal')
+                    pid = int(signal.split('pid')[1])
+                    self.actions['set_pid'](pid)
+                elif signal == Signal.run():
                     self.run = True
                     logger.warning("Received run signal, begin running")
                 elif signal == Signal.setup():
@@ -382,7 +390,11 @@ class AsyncRunManager:
             try:
                 signal = self.q_sig.get(timeout=self.timeout)
                 logger.debug("{} received Signal {}".format(self.actorName, signal))
-                if signal == Signal.run():
+                if "pid" in signal:
+                    # TODO: split string so that everything after pid is the actual PID number and then convert the actual number back into int
+                    pid = 0
+                    self.actions['set_pid'](pid)
+                elif signal == Signal.run():
                     self.run = True
                     logger.warning("Received run signal, begin running")
                 elif signal == Signal.setup():
@@ -400,6 +412,10 @@ class AsyncRunManager:
                 elif signal == Signal.resume():  # currently treat as same as run
                     logger.warning("Received resume signal, resuming")
                     self.run = True
+                # elif signal == Signal.pid():
+                #     logger.info('memory stuff in actor')
+                #     self.run = True
+                #     # TODO: need to recieve PID of actors     
             except KeyboardInterrupt:
                 break
             except Empty:

@@ -364,6 +364,9 @@ class Nexus:
             logger.info(str(p))
             p.start()
 
+        #NOTE: getPID() here?? 
+        self.get_pid()
+
         logger.info("All processes started")
 
     def destroyNexus(self):
@@ -921,3 +924,18 @@ class Nexus:
         self.p_watch.daemon = True
         self.p_watch.start()
         self.processes.append(self.p_watch)
+    
+    def get_pid(self):
+        j = 0
+        for key, q in self.sig_queues.items():
+            try:
+                if 'GUI' in key:
+                    continue
+                logger.info('pid number: {}'.format(self.processes[j].pid))
+                q.put_nowait('pid' + str(self.processes[j].pid))
+                j += 1
+            # except Full:
+            #     logger.warning("Signal queue" + q.name + "is full")
+            except Exception as e:
+                logger.info('Error in getPID: {}'.format(e))
+
