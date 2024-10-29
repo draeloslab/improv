@@ -5,6 +5,7 @@ import yaml
 import numpy as np
 import subprocess
 import pickle
+import cv2
 
 from copy import deepcopy
 from improv.actor import ManagedActor
@@ -32,18 +33,32 @@ file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
 # Function to save chunks of frames to a video file
-def save_buffer_frames(buffer, out_file_name):    
+def save_buffer_frames(buffer, out_folder, start_index):    
     try:
         redis_store = Redis(host='localhost', port=6379)
     except Exception:
         logger.exception("Cannot connect to redis datastore localhost:6379")
 
     try:
-        with open(out_file_name, 'wb') as f:
-            for frame_id in buffer:
-                if frame_id is not None:
-                    f.write(pickle.loads(redis_store.get(frame_id)))
-                    redis_store.expire(frame_id, 5) # remove the frame from the redis store after x seconds
+        for idx,frame_id in enumerate(buffer):
+            if frame_id is not None:
+                frame = pickle.loads(redis_store.get(frame_id))
+                _,compressed_frame = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 60])  
+
+                with open(f'{out_folder}/frame_{start_index+idx:07d}.jpg', 'wb') as f:
+                    f.write(compressed_frame)
+
+                # Set the expiration for the frame in the Redis store
+                redis_store.expire(frame_id, 5)
+        
+        # old code to save the frames to a raw file without compression
+        # with open(out_file_name, 'wb') as f:    
+        #     for frame_id in buffer:
+        #         if frame_id is not None:
+        #             f.write(pickle.loads(redis_store.get(frame_id)))
+        #             logger.info(f"Writing on {raw_buffer.shape} {out_file_name}")
+        #             redis_store.expire(frame_id, 5) # remove the frame from the redis store after x seconds
+
     except Exception as e:
         logger.error(f"Error saving video | {e}")
     finally:
@@ -80,11 +95,10 @@ class VideoSaver(ManagedActor):
 
                         # If the buffer is full, start the worker to save the buffer
                         if buffer_index == num_buf_frames:
+                            start_index = num_buffer * num_buf_frames
 
                             # Start a new worker to save the buffer
-                            out_file_name = f"{self.out_folder}/camera_video_{self.camera_num}_{num_buffer}.raw"
-
-                            worker = pool.apply_async(save_buffer_frames, args=(deepcopy(buffer), out_file_name,))
+                            worker = pool.apply_async(save_buffer_frames, args=(deepcopy(buffer), self.out_folder, start_index,))
                             workers.append(worker)
 
                             # Reset the buffer index and buffer
@@ -107,8 +121,10 @@ class VideoSaver(ManagedActor):
             if self.stop_program:
                 # send the last buffer to the video converter
                 logger.info(f"[Camera {self.camera_name}] saving the last frames")
-                out_file_name = f"{self.out_folder}/camera_video_{self.camera_num}_{num_buffer}.raw"
-                worker = pool.apply_async(save_buffer_frames, args=(deepcopy(buffer), out_file_name,))
+
+                start_index = num_buffer * num_buf_frames
+
+                worker = pool.apply_async(save_buffer_frames, args=(deepcopy(buffer), self.out_folder, start_index))
                 workers.append(worker)
 
                 # Wait every worker to finish
@@ -149,7 +165,7 @@ class VideoSaver(ManagedActor):
         date = time.strftime("%Y-%m-%d")
         timestamp = time.strftime("%H%M%S")
 
-        self.out_folder = f"{home_dir}/{raw_chunks_path}/{date}/{timestamp}"
+        self.out_folder = f"{home_dir}/{raw_chunks_path}/{date}/{timestamp}/camera_{self.camera_num}/"
 
         # send the out_folder to the VideoConverter
         self.q_out.put(self.out_folder)

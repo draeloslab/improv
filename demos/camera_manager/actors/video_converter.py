@@ -5,6 +5,8 @@ import yaml
 import numpy as np
 import subprocess
 import pickle
+import cv2
+from skvideo.io import FFmpegWriter
 
 from improv.actor import ManagedActor
 from pathlib import Path
@@ -26,78 +28,56 @@ file_handler.setFormatter(formatter)
 # Add the handler to the logger
 logger.addHandler(file_handler)
 
-# Function to save frames using ffmpeg subprocess
-def convert_video_raw(in_file_name, frame_w, frame_h, fps):        
-    out_file_name = in_file_name.split('.')[0] + '.mp4'
-    
-    video_save_command = [
-        'ffmpeg', '-y', '-f', 'rawvideo', '-vcodec', 'rawvideo',
-        '-s', f'{frame_w}x{frame_h}', '-pix_fmt', 'rgb24', '-r', str(fps),
-        '-i', '-', '-an', '-vcodec', 'libx264', '-pix_fmt', 'yuv420p', out_file_name,
-        '-crf', '15',  # CRF value for high quality
-        '-preset', 'slow',
-        '-loglevel', 'error',  # Suppress all output except for errors
-        '-threads', '1'  # Limit to 1 thread
-    ]
-
-    try: 
-        video_proc = subprocess.Popen(video_save_command, stdin=subprocess.PIPE)
-
-        # read the raw-video file and write it to the ffmpeg process
-        with open(in_file_name, 'rb') as f:
-            for frame in f:
-                video_proc.stdin.write(frame)                
-
-        video_proc.stdin.close()
-        video_proc.wait()
-
-        # delete the raw video file
-        os.remove(in_file_name)
-    except Exception as e:
-        logger.error(f"[convert_video_raw] Error converting video | {e}")
-
 class VideoConverter(ManagedActor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.camera_num = kwargs['camera_num']
 
-    def convert_video_process(self):        
-        with Pool(processes=self.num_convert_processes) as pool:
-            workers = []
-            processed_files = set()
+    def convert_video_process(self):      
+        out_file_name = f'{self.out_folder}/camera_{self.camera_num}.mp4'
 
-            while not self.stop_program:
-                try:
-                    # List all files in the output folder
-                    files = os.listdir(self.out_folder)
-                    raw_files = [f for f in files if f.endswith('.raw') and f.startswith(f'camera_video_{self.camera_num}')]
+        input_dict = {
+            '-pix_fmt':'rgb24',
+            '-r':str(self.fps)
+        }
 
-                    # Sort the files in ascending order
-                    raw_files.sort()
+        output_dict = {
+            '-c:v':'libopenjpeg',
+            '-pix_fmt':'yuv420p',
+            '-r':str(self.fps),
+            '-vcodec':'libx264',
+            '-threads': '2'
+        }
 
-                    if len(raw_files) >= 2:
-                        for raw_file in raw_files:
-                            video_name = os.path.join(self.out_folder, raw_file)
-                            file_hash = hash(video_name)
+        try:
+            video_proc = FFmpegWriter(out_file_name, inputdict=input_dict, outputdict=output_dict)
 
-                            if file_hash not in processed_files:
-                                worker = pool.apply_async(convert_video_raw, args=(video_name, self.frame_w, self.frame_h, self.fps,))
-                                workers.append(worker)
-                                processed_files.add(file_hash)
-                                
-                                # Break after sending the older file to the worker
-                                break
-                    
-                    # Sleep for a while before checking again
-                    time.sleep(.5)
-                except Exception as e:
-                    logger.error(f"[Camera {self.camera_name}] Video converter: Error {e}")
-                    self.stop_program = True
+            while not self.stop_program:            
+                # List all files in the output folder
+                files = os.listdir(self.out_folder)
+                raw_files = [f for f in files if f.endswith('.jpg')]
 
-            # Wait for the last worker to finish if it exists
-            for worker in workers:
-                worker.get()
+                # Sort the files in ascending order
+                raw_files.sort()
+
+                for raw_file in raw_files:
+                    # open the raw_file jpg and write it in video_proc
+                    frame_path = os.path.join(self.out_folder, raw_file)
+                    frame = cv2.imread(frame_path)
+
+                    video_proc.writeFrame(frame)
+
+                    # delete the raw_file jpg
+                    os.remove(os.path.join(self.out_folder, raw_file))
+                
+                # Sleep for a while before checking again
+                time.sleep(.1)
+            
+            video_proc.close()
+        except Exception as e:
+            logger.error(f"[Camera {self.camera_name}] Video converter: Error {e}")
+            self.stop_program = True
 
     def setup(self):
         # store init
