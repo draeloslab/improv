@@ -48,32 +48,10 @@ actors:
     camera_num: 2
     method: spawn
 
-  # video converter: each video converter transform raw-video files of camera to video file (and delete the raw file)  
-  VideoConverter0:
-    package: actors.video_converter
-    class: VideoConverter
-    method: spawn
-    camera_num: 0
-
-  VideoConverter1:
-    package: actors.video_converter
-    class: VideoConverter
-    method: spawn
-    camera_num: 1
-
-  VideoConverter2:
-    package: actors.video_converter
-    class: VideoConverter
-    method: spawn
-    camera_num: 2
-
 connections:
   CameraReader0.q_out: [VideoSaver0.q_in, VideoScreen.camera0_in]
   CameraReader1.q_out: [VideoSaver1.q_in, VideoScreen.camera1_in]
   CameraReader2.q_out: [VideoSaver2.q_in, VideoScreen.camera2_in]
-  VideoSaver0.q_out: [VideoConverter0.q_in]
-  VideoSaver1.q_out: [VideoConverter1.q_in]
-  VideoSaver2.q_out: [VideoConverter2.q_in]
 
 redis_config:
   port: 6379

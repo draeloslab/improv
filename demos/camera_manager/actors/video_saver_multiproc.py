@@ -6,14 +6,14 @@ import numpy as np
 import subprocess
 import pickle
 import cv2
+import struct
 
+from skvideo.io import FFmpegWriter
 from copy import deepcopy
 from improv.actor import ManagedActor
 from pathlib import Path
-from multiprocessing import Pool, Array, shared_memory, Process
+from multiprocessing import Pool, Process, Queue
 from redis import Redis
-from redis.retry import Retry
-from redis.backoff import ConstantBackoff
 from collections import deque
 
 import logging
@@ -33,34 +33,39 @@ file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
 # Function to save chunks of frames to a video file
-def save_buffer_frames(buffer, out_folder, start_index):    
+def save_buffer_frames(buffer, out_folder, num_buffer):    
     try:
         redis_store = Redis(host='localhost', port=6379)
     except Exception:
         logger.exception("Cannot connect to redis datastore localhost:6379")
 
     try:
-        for idx,frame_id in enumerate(buffer):
-            if frame_id is not None:
-                frame = pickle.loads(redis_store.get(frame_id))
-                _,compressed_frame = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 60])  
+        compressed_frames = []
 
-                with open(f'{out_folder}/frame_{start_index+idx:07d}.jpg', 'wb') as f:
-                    f.write(compressed_frame)
+        for frame_id in buffer:
+            if frame_id is not None:
+                frame_enc = pickle.loads(redis_store.get(frame_id))
+                # result,encimg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 60])  
+
+                compressed_frames.append(frame_enc.tobytes())
 
                 # Set the expiration for the frame in the Redis store
                 redis_store.expire(frame_id, 5)
+
+        # Define the output file path
+        file_name = f'buffer_{num_buffer:05d}.bin'
+        file_path = os.path.join(out_folder, file_name)
         
-        # old code to save the frames to a raw file without compression
-        # with open(out_file_name, 'wb') as f:    
-        #     for frame_id in buffer:
-        #         if frame_id is not None:
-        #             f.write(pickle.loads(redis_store.get(frame_id)))
-        #             logger.info(f"Writing on {raw_buffer.shape} {out_file_name}")
-        #             redis_store.expire(frame_id, 5) # remove the frame from the redis store after x seconds
+        # Save all compressed frames to the binary file
+        with open(file_path, 'wb') as f:
+            for cf in compressed_frames:
+                # Write the length of the compressed frame
+                f.write(len(cf).to_bytes(4, byteorder='little'))
+                # Write the compressed frame data
+                f.write(cf)
 
     except Exception as e:
-        logger.error(f"Error saving video | {e}")
+        logger.error(f"Error saving frames | {e}")
     finally:
         redis_store.close()
 
@@ -95,10 +100,8 @@ class VideoSaver(ManagedActor):
 
                         # If the buffer is full, start the worker to save the buffer
                         if buffer_index == num_buf_frames:
-                            start_index = num_buffer * num_buf_frames
-
                             # Start a new worker to save the buffer
-                            worker = pool.apply_async(save_buffer_frames, args=(deepcopy(buffer), self.out_folder, start_index,))
+                            worker = pool.apply_async(save_buffer_frames, args=(deepcopy(buffer), self.out_folder_buffer, num_buffer,))
                             workers.append(worker)
 
                             # Reset the buffer index and buffer
@@ -113,18 +116,15 @@ class VideoSaver(ManagedActor):
                             logger.info(f"[Camera {self.camera_name}] General FPS: {round(self.frame_count / total_time,2)}")
                             self.frame_count = 0
                             self.time_start = time.perf_counter()
-
                 except Exception as e:
-                    logger.error(f"[Camera {self.camera_name}] No more frames | {e}")
+                    logger.info(f"[Camera {self.camera_name}] No more frames {e}")
                     self.stop_program = True
 
             if self.stop_program:
                 # send the last buffer to the video converter
                 logger.info(f"[Camera {self.camera_name}] saving the last frames")
 
-                start_index = num_buffer * num_buf_frames
-
-                worker = pool.apply_async(save_buffer_frames, args=(deepcopy(buffer), self.out_folder, start_index))
+                worker = pool.apply_async(save_buffer_frames, args=(deepcopy(buffer), self.out_folder_buffer, num_buffer))
                 workers.append(worker)
 
                 # Wait every worker to finish
@@ -160,21 +160,23 @@ class VideoSaver(ManagedActor):
         raw_chunks_path = video_config['raw_chunks_path']
         self.buffer_length = video_config['buffer_length']
         self.num_save_processes = video_config['num_save_processes']
+        self.compression_quality = video_config['compression_quality']
 
         # create the dest folder
         date = time.strftime("%Y-%m-%d")
         timestamp = time.strftime("%H%M%S")
 
-        self.out_folder = f"{home_dir}/{raw_chunks_path}/{date}/{timestamp}/camera_{self.camera_num}/"
+        self.out_folder_buffer = f"{home_dir}/{raw_chunks_path}/{date}/{timestamp}/camera_{self.camera_num}/"
+        self.out_folder_video = f"{home_dir}/{raw_chunks_path}/{date}/{timestamp}/"
 
-        # send the out_folder to the VideoConverter
-        self.q_out.put(self.out_folder)
-
-        if not Path(self.out_folder).exists():
-            Path(self.out_folder).mkdir(parents=True, exist_ok=True)
+        if not Path(self.out_folder_buffer).exists():
+            Path(self.out_folder_buffer).mkdir(parents=True, exist_ok=True)
 
         # control variables
         self.stop_program = False
+        self.start_program = False
+        self.start_conversion = Queue()
+    
         self.total_frames = 0
 
         self.frame_count = 0
@@ -182,10 +184,17 @@ class VideoSaver(ManagedActor):
         self.max_delay = 0
         self.time_start = time.perf_counter()
 
-        self.start_program = False
-
         # store process
         self.store_frame_proc = threading.Thread(target=self.read_frames_process)
+
+        # video conversion process (for saving the video at the end of the recording)
+        self.video_conv_queue = Queue(maxsize=1000) # video conversion queue
+        self.output_video = os.path.join(self.out_folder_video, f"camera_video_{self.camera_num+1}.avi")
+
+        self.convert_saved_frames_proc = threading.Thread(target=self.convert_saved_frames)
+        self.convert_saved_frames_proc.start()
+
+        self.writer_video_proc = threading.Thread(target=self.save_video_process)
 
         logger.info(f"[Camera {self.camera_name}] saver setup completed")
 
@@ -195,12 +204,102 @@ class VideoSaver(ManagedActor):
             self.store_frame_proc.start()
 
     def stop(self):
+        self.stop_program = True
+        self.start_program = False
+
         logger.info(f"[Camera {self.camera_name}] waiting for camera saver thread to finish")
 
         # wait until the store thread has finished it's execution
-        self.store_frame_proc.join()            
-
+        self.store_frame_proc.join()     
         logger.info(f"[Camera {self.camera_name}] total frames received: {self.total_frames}")
 
-        self.start_program = False
-        self.stop_program = True
+        # start conversion
+        self.start_conversion.put(True)
+
+        self.convert_saved_frames_proc.join()
+        self.writer_video_proc.join()
+
+    def save_video_process(self):        
+        logger.info(f"[Camera {self.camera_name}] save_video_process started")
+        input_dict = {
+            '-pix_fmt': 'rgb24',
+            '-r': str(self.fps)
+        }
+
+        video_compression_quality = self.__map_cv_quality_to_ffmpeg_q(self.compression_quality)
+
+        output_dict = {
+            '-c:v': 'mjpeg',                    # Use MJPEG codec
+            '-q:v': str(video_compression_quality),   # Quality level (lower is higher quality)
+            '-pix_fmt': 'yuvj420p',
+            '-r': str(self.fps),
+            '-threads': '10'
+        }
+
+        logger.info(f"[Camera {self.camera_name}] Saving video to {self.output_video}")
+        video_proc = FFmpegWriter(self.output_video, inputdict=input_dict, outputdict=output_dict)
+
+        while True:
+            frame = self.video_conv_queue.get()
+
+            if frame is None:
+                break
+
+            try:
+                video_proc.writeFrame(frame)
+            except Exception as e:
+                logger.error(f"[Camera {self.camera_name}] Error writing frame to video | {e}")
+                break
+            
+        video_proc.close()
+
+        # Delete binary files after successful video creation
+        buffer_files = sorted(Path(self.out_folder_buffer).glob('buffer_*.bin'))
+
+        for buffer_file in buffer_files:
+            try:
+                os.remove(buffer_file)
+            except Exception as e:
+                logger.error(f"[Camera {self.camera_name}] Failed to delete {buffer_file} | {e}")
+
+    def convert_saved_frames(self):
+        # wait for the start until the video saver process has finished
+        self.start_conversion.get()
+
+        # Gather and sort all binary files
+        buffer_files = sorted(Path(self.out_folder_buffer).glob('buffer_*.bin'))
+
+        self.writer_video_proc.start()
+
+        for buffer_file in buffer_files:
+            with open(buffer_file, 'rb') as f:                
+                while True:
+                    # Read the length of the compressed frame (4 bytes)
+                    length_bytes = f.read(4)
+
+                    if not length_bytes:
+                        break
+
+                    frame_length = struct.unpack('I', length_bytes)[0]
+
+                    # Read the compressed frame data
+                    frame_data = f.read(frame_length)
+
+                    if len(frame_data) != frame_length:
+                        logger.warning(f"[Camera {self.camera_name}] Unexpected frame length in {buffer_file}")
+                        break
+
+                    # Decompress the frame (assuming PNG compression)
+                    nparr = np.frombuffer(frame_data, np.uint8)
+                    frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+                    if frame is not None:
+                        self.video_conv_queue.put(frame)
+                    else:
+                        logger.warning(f"[Camera {self.camera_name}] Failed to decode frame in {buffer_file}")
+
+        self.video_conv_queue.put(None)
+
+    # Function to map the OpenCV imwrite quality to FFmpeg quality
+    def __map_cv_quality_to_ffmpeg_q(self, imwrite_quality):
+        return max(2, min(31, int(31 - (imwrite_quality * 29 / 100))))

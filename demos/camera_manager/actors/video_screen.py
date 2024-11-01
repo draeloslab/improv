@@ -1,4 +1,5 @@
 import time
+import cv2
 import threading
 import yaml
 import numpy as np
@@ -84,7 +85,10 @@ class VideoScreen(ManagedActor):
             frame_id = self.links[f"camera{camera_id}_in"].get(timeout=0.1)
 
             if frame_id is not None:
-                frame = self.client.get(frame_id)
+                frame_enc = self.client.get(frame_id)
+
+                # uncompressing the frame
+                frame = cv2.imdecode(frame_enc, cv2.IMREAD_COLOR)
             else:
                 frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
         except Exception as e:

@@ -1,5 +1,6 @@
 import time
 import numpy as np
+import cv2
 from enum import Enum
 from collections import namedtuple
 
@@ -192,8 +193,11 @@ class TIS:
 
             frame = self.__convert_to_numpy(buf.extract_dup(0, buf.get_size()), sample.get_caps())
 
+            # compress the frame before storing
+            _,frame_enc = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 60])            
+
             try:
-                data_id = self.client.put(frame)
+                data_id = self.client.put(frame_enc)
                 self.q_out.put(data_id)
 
                 delay = time.perf_counter() - frame_time
@@ -202,11 +206,11 @@ class TIS:
                     self.max_delay = delay
 
                 self.total_delay += delay
+                self.frame_count += 1
+                self.total_frame_count += 1
             except Exception as e:
+                logger.warning(f"[Camera {self.camera_name}] Could not put frame in the store | {e}")
                 pass
-
-            self.frame_count += 1
-            self.total_frame_count += 1
 
             if self.frame_count % 600 == 0:               
                 total_time = time.perf_counter() - self.start_time

@@ -7,6 +7,7 @@ import subprocess
 from improv.actor import ManagedActor
 from pathlib import Path
 from multiprocessing import Pool, Array, shared_memory, Process
+from skvideo.io import FFmpegWriter
 
 import logging
 logger = logging.getLogger(__name__)
@@ -50,7 +51,8 @@ class VideoSaver(ManagedActor):
 
                 if frame_id is not None:
                     frame = self.client.get(frame_id)
-                    self.video_proc.stdin.write(frame.tobytes())
+                    # self.video_proc.stdin.write(frame.tobytes())
+                    self.video_proc.writeFrame(frame)
 
                     # buffer[buffer_index] = frame
 
@@ -100,7 +102,7 @@ class VideoSaver(ManagedActor):
 
         # create a timestamp folder
         date = time.strftime("%Y-%m-%d")
-        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        timestamp = time.strftime("%H%M%S")
 
         home_dir = os.path.expanduser('~')
         out_folder = f"{home_dir}/camera_video/{date}/{timestamp}"
@@ -111,16 +113,31 @@ class VideoSaver(ManagedActor):
         out_file_name = f"{out_folder}/camera_video_{self.camera_num+1}.mp4"
 
         # video saving using ffmpeg
-        video_save_command = [
-            'ffmpeg', '-y', '-f', 'rawvideo', '-vcodec', 'rawvideo',
-            '-s', f'{self.frame_w}x{self.frame_h}', '-pix_fmt', 'rgb24', '-r', str(fps),
-            '-i', '-', '-an', '-vcodec', 'libx264', '-pix_fmt', 'yuv420p', out_file_name,
-            '-crf', '15',  # CRF value for high quality
-            '-preset', 'slow',
-            '-loglevel', 'error'  # Suppress all output except for errors
-        ] 
+        # video_save_command = [
+        #     'ffmpeg', '-y', '-f', 'rawvideo', '-vcodec', 'rawvideo',
+        #     '-s', f'{self.frame_w}x{self.frame_h}', '-pix_fmt', 'rgb24', '-r', str(fps),
+        #     '-i', '-', '-an', '-vcodec', 'libx264', '-pix_fmt', 'yuv420p', out_file_name,
+        #     '-crf', '15',  # CRF value for high quality
+        #     '-preset', 'slow',
+        #     '-loglevel', 'error'  # Suppress all output except for errors
+        # ] 
+
+        # self.video_proc = subprocess.Popen(video_save_command, stdin=subprocess.PIPE)
+
+        input_dict = {
+            '-pix_fmt':'rgb24',
+            '-r':str(fps)
+        }
+
+        output_dict = {
+            '-c:v':'libopenjpeg',
+            '-pix_fmt':'yuv420p',
+            '-r':str(fps),
+            '-vcodec':'libx264',
+            '-threads': '4'
+        }
         
-        self.video_proc = subprocess.Popen(video_save_command, stdin=subprocess.PIPE)
+        self.video_proc = FFmpegWriter(out_file_name, inputdict=input_dict, outputdict=output_dict)
 
         # control variables
         self.stop_program = False
@@ -151,8 +168,10 @@ class VideoSaver(ManagedActor):
 
         logger.info(f"[Camera {self.camera_name}] total frames received: {self.total_frames}")
 
-        self.video_proc.stdin.close()
-        self.video_proc.wait()
+        # self.video_proc.stdin.close()
+        # self.video_proc.wait()
+
+        self.video_proc.close()
 
         self.start_program = False
         self.stop_program = True
