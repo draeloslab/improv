@@ -45,7 +45,6 @@ def save_buffer_frames(buffer, out_folder, num_buffer):
         for frame_id in buffer:
             if frame_id is not None:
                 frame_enc = pickle.loads(redis_store.get(frame_id))
-                # result,encimg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 60])  
 
                 compressed_frames.append(frame_enc.tobytes())
 
@@ -192,8 +191,6 @@ class VideoSaver(ManagedActor):
         self.output_video = os.path.join(self.out_folder_video, f"camera_video_{self.camera_num+1}.avi")
 
         self.convert_saved_frames_proc = threading.Thread(target=self.convert_saved_frames)
-        self.convert_saved_frames_proc.start()
-
         self.writer_video_proc = threading.Thread(target=self.save_video_process)
 
         logger.info(f"[Camera {self.camera_name}] saver setup completed")
@@ -212,12 +209,14 @@ class VideoSaver(ManagedActor):
         # wait until the store thread has finished it's execution
         self.store_frame_proc.join()     
         logger.info(f"[Camera {self.camera_name}] total frames received: {self.total_frames}")
-
+        
         # start conversion
-        self.start_conversion.put(True)
+        self.convert_saved_frames_proc.start()
 
+        # wait until the video conversion process has finished
         self.convert_saved_frames_proc.join()
         self.writer_video_proc.join()
+        logger.info(f"[Camera {self.camera_name}] video conversion completed")
 
     def save_video_process(self):        
         logger.info(f"[Camera {self.camera_name}] save_video_process started")
@@ -232,46 +231,48 @@ class VideoSaver(ManagedActor):
             '-c:v': 'mjpeg',                    # Use MJPEG codec
             '-q:v': str(video_compression_quality),   # Quality level (lower is higher quality)
             '-pix_fmt': 'yuvj420p',
-            '-r': str(self.fps),
-            '-threads': '10'
+            '-r': str(self.fps)
         }
 
         logger.info(f"[Camera {self.camera_name}] Saving video to {self.output_video}")
-        video_proc = FFmpegWriter(self.output_video, inputdict=input_dict, outputdict=output_dict)
 
-        while True:
-            frame = self.video_conv_queue.get()
+        saving_error = False
 
-            if frame is None:
-                break
+        try:
+            video_proc = FFmpegWriter(self.output_video, inputdict=input_dict, outputdict=output_dict)
 
-            try:
+            while True:
+                frame = self.video_conv_queue.get()
+
+                if frame is None:
+                    break        
+
                 video_proc.writeFrame(frame)
-            except Exception as e:
-                logger.error(f"[Camera {self.camera_name}] Error writing frame to video | {e}")
-                break
-            
+        except Exception as e:
+            logger.error(f"[Camera {self.camera_name}] Error writing frame to video | {e}")
+            saving_error = True
+
         video_proc.close()
 
-        # Delete binary files after successful video creation
-        buffer_files = sorted(Path(self.out_folder_buffer).glob('buffer_*.bin'))
+        if not saving_error:
+            # Delete binary files after successful video creation
+            buffer_files = sorted(Path(self.out_folder_buffer).glob('buffer_*.bin'))
 
-        for buffer_file in buffer_files:
-            try:
-                os.remove(buffer_file)
-            except Exception as e:
-                logger.error(f"[Camera {self.camera_name}] Failed to delete {buffer_file} | {e}")
+            for buffer_file in buffer_files:
+                try:
+                    os.remove(buffer_file)
+                except Exception as e:
+                    logger.error(f"[Camera {self.camera_name}] Failed to delete {buffer_file} | {e}")
 
     def convert_saved_frames(self):
-        # wait for the start until the video saver process has finished
-        self.start_conversion.get()
-
         # Gather and sort all binary files
         buffer_files = sorted(Path(self.out_folder_buffer).glob('buffer_*.bin'))
 
         self.writer_video_proc.start()
 
-        for buffer_file in buffer_files:
+        for idx, buffer_file in enumerate(buffer_files):
+            logger.info(f"[Camera {self.camera_name}] Processing {idx+1}/{len(buffer_files)}")
+
             with open(buffer_file, 'rb') as f:                
                 while True:
                     # Read the length of the compressed frame (4 bytes)

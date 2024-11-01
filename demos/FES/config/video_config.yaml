@@ -1,0 +1,4 @@
+raw_chunks_path: 'camera_video' # path inside the home_dir
+buffer_length: 5 # [s] time length of the buffer 
+num_save_processes: 2 # max number of active multithread save frames processes for each camera
+compression_quality: 60 # [0-100] quality of the compressed frame (0 - worst quality, 100 - best quality)

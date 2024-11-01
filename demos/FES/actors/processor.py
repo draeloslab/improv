@@ -1,11 +1,12 @@
-from improv.actor import Actor
 import numpy as np
 import logging
-from dlclive import DLCLive
-from pathlib import Path
 import yaml
 import time
 import traceback
+import cv2
+from dlclive import DLCLive
+from pathlib import Path
+from improv.actor import Actor
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -79,27 +80,31 @@ class Processor(Actor):
             logger.info("Processor stopping")
 
     def runStep(self):
-        frame_key = None
+        frame_id = None
         prediction = None
 
         try:
-            frame_key = self.q_in.get()
+            frame_id = self.q_in.get()
             start_time = time.perf_counter()
-            # logger.info(f"Frame Key received: {frame_key}")
+            # logger.info(f"Frame Id received: {frame_id}")
         except Exception as e:
             logger.error(f"Could not get frame! {e}")
             return
 
-        if frame_key is not None:
+        if frame_id is not None:
             self.done = False
 
             if self.pred_active:
-                self.frame = self.client.get(frame_key)
+                # retrieving the compressed frame from the storage
+                frame_enc = self.client.get(frame_id)
+                # uncompressing the frame
+                frame = cv2.imdecode(frame_enc, cv2.IMREAD_COLOR)
+
                 self.frame_num += 1
 
                 # Perform inference
                 dlc_start = time.perf_counter()
-                prediction = self.dlc_live.get_pose(self.frame)
+                prediction = self.dlc_live.get_pose(frame)
                 dlc_end = time.perf_counter()
 
                 self.predictions.append(prediction)
@@ -118,11 +123,11 @@ class Processor(Actor):
 
                     self.time_start = time.perf_counter() # reset the timer
 
-                # logger.info(f'sent on this frame{self.frame}')
+                # logger.info(f'sent on this frame{frame}')
                 # logger.info('Put prediction and index dict in store')
 
             try:
-                self.q_out.put([frame_key,prediction])
+                self.q_out.put([frame_id,prediction])
 
                 if self.pred_active:
                     self.put_latencies.append(time.perf_counter() - dlc_end)

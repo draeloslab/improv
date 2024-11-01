@@ -2,14 +2,15 @@ import time
 import threading
 import yaml
 import numpy as np
-from pathlib import Path
-import subprocess
-from improv.actor import ManagedActor, Actor, Signal
-from .front_end import CameraStreamWidget
-from PyQt5 import QtWidgets
+import cv2
 import queue
 import logging
 import traceback
+import subprocess
+from pathlib import Path
+from improv.actor import ManagedActor, Actor, Signal
+from .front_end import CameraStreamWidget
+from PyQt5 import QtWidgets
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -99,8 +100,14 @@ class VideoScreen(ManagedActor):
             predictions = element[1]
 
             if frame_id is not None:
-                frame = self.client.get(frame_id) if frame_id is not None else np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
-                self.pred_latencies.append(time.perf_counter() - pred_start)
+                frame_enc = self.client.get(frame_id)
+
+                # uncompressing the frame
+                frame = cv2.imdecode(frame_enc, cv2.IMREAD_COLOR)
+            else:
+                frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
+
+            self.pred_latencies.append(time.perf_counter() - pred_start)
         except Exception as e:
             # logger.error(f"Error getting frame for camera {camera_id}: {e}")
             # logger.info(len(self.frame_latencies))
