@@ -7,6 +7,7 @@ import cv2
 from dlclive import DLCLive
 from pathlib import Path
 from improv.actor import Actor
+from .dlcProcessor import IndexAngles
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -48,6 +49,7 @@ class Processor(Actor):
             self.resize = config['resize']
             self.name = "Processor"
             self.frame = None
+            # dlc_proc = IndexAngles()
             self.dlc_live = DLCLive(self.model_path, resize=self.resize, dynamic=(True, 0.9, 30))
             frame = np.random.rand(1080, 1920, 3)
             self.dlc_live.init_inference(frame)  # putting in a random frame to initialize the model
@@ -82,6 +84,7 @@ class Processor(Actor):
     def runStep(self):
         frame_id = None
         prediction = None
+        angle = None
 
         try:
             frame_id = self.q_in.get()
@@ -105,6 +108,25 @@ class Processor(Actor):
                 # Perform inference
                 dlc_start = time.perf_counter()
                 prediction = self.dlc_live.get_pose(frame)
+
+                p2, p3, p4 = prediction[1, :2], prediction[2, :2], prediction[3, :2]
+
+                # logger.info(f"p2: {p2.shape}, p3: {p3.shape}, p4: {p4.shape}")
+
+                # Define vectors from point 3 to points 2 and 4
+                v3_to_2, v3_to_4 = p2 - p3, p4 - p3
+
+                # logger.info(f"v3_to_2: {v3_to_2.shape}, v3_to_4: {v3_to_4.shape}")
+
+                # Calculate dot product and magnitudes
+                dot_product = np.dot(v3_to_2, v3_to_4)
+                magnitude_3_to_2 = np.linalg.norm(v3_to_2)
+                magnitude_3_to_4 = np.linalg.norm(v3_to_4)
+
+                # Calculate angle in degrees at point 3
+                angle = np.degrees(np.arccos(np.clip(dot_product / (magnitude_3_to_2 * magnitude_3_to_4), -1.0, 1.0)))
+
+                logger.info(f"Angle: {angle}") 
                 dlc_end = time.perf_counter()
 
                 self.predictions.append(prediction)

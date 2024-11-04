@@ -86,6 +86,8 @@ class VideoScreen(ManagedActor):
 
     def getLastFrame(self, camera_id):
         frame_id = None
+        # predictions = None  # Initialize predictions with a default value
+        # angle = None
 
         # Clear the frame queue for the specific camera
         while not self.links[f"preds{camera_id}_in"].empty():
@@ -98,6 +100,7 @@ class VideoScreen(ManagedActor):
 
             frame_id = element[0]
             predictions = element[1]
+            # angle = element[2]
 
             if frame_id is not None:
                 frame_enc = self.client.get(frame_id)
@@ -116,7 +119,7 @@ class VideoScreen(ManagedActor):
             frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
             # logger.error(traceback.format_exc())
 
-        return frame,predictions
+        return frame,predictions #, angle
 
         # # Increment frame counter
         # self.frame_count += 1

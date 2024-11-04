@@ -8,6 +8,8 @@ from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen, QColor, QBrush
 import cv2  # Import cv2 for image processing
 import time
 import traceback
+from pathlib import Path
+import yaml
 
 import logging
 logger = logging.getLogger(__name__)
@@ -37,7 +39,16 @@ class CameraStreamWidget(QWidget):
             self.q_sig = q_sig
             self.stop_program = False
             self.last_frame_ids = [None for _ in range(self.visual.num_cameras)]
-            
+
+            # load the configuration file
+            source_folder = Path(__file__).resolve().parent.parent
+
+            with open(f'{source_folder}/config.yaml', 'r') as file:
+                config = yaml.safe_load(file)
+
+
+            self.threshold = config['threshold']
+
             # Set up GUI layout
             self.setWindowTitle('Camera Streams')
             self.setGeometry(100, 100, 1920, 1080)  # Adjust window size to fit aspect ratio
@@ -120,21 +131,29 @@ class CameraStreamWidget(QWidget):
         height, width, channel = frame.shape
         bytes_per_line = channel * width
         q_img = QImage(frame.data, width, height, bytes_per_line, QImage.Format_RGB888)
-        
+
         if predictions is not None:
-            # logger.info(f"Prediction recieved: {predictions}")
+            # Initialize the painter to draw on the frame
             painter = QPainter()
             painter.begin(q_img)
             painter.setPen(QPen(QColor(255, 0, 0), 2))  # Red color, 2px width
             painter.setBrush(QBrush(QColor(255, 0, 0)))
-            
+
+            # Draw predictions as red circles on the frame
             for point in predictions:
                 x, y, likelihood = point
-                if likelihood > 0.1:  # Only plot points with high likelihood
-                        painter.drawEllipse(int(x), int(y), 40, 40)
-            
+                if likelihood > self.threshold:  # Only plot points with high likelihood
+                    painter.drawEllipse(int(x), int(y), 40, 40)
+
+            # # Draw the angle text on the frame
+            # painter.setPen(QPen(QColor(0, 255, 0), 2))  # Green color for text
+            # angle_text = f"Angle: {angle:.2f}°"
+            # painter.drawText(10, 30, angle_text)  # Draw text at the top-left corner
+
             painter.end()
 
+        # Convert the painted image to a pixmap and display it in the label
         pixmap = QPixmap.fromImage(q_img)
         scaled_pixmap = pixmap.scaled(label.size(), Qt.KeepAspectRatio)  # Keep aspect ratio
         label.setPixmap(scaled_pixmap)
+
