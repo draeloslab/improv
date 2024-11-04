@@ -130,7 +130,7 @@ class CameraStreamWidget(QWidget):
             
             for point in predictions:
                 x, y, likelihood = point
-                if likelihood > 0.5:  # Only plot points with high likelihood
+                if likelihood > 0.1:  # Only plot points with high likelihood
                         painter.drawEllipse(int(x), int(y), 40, 40)
             
             painter.end()

@@ -1,3 +1,5 @@
 deeplabcut-live
 pycairo
 PyGObject
+opencv-python
+scikit-video

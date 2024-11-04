@@ -25,36 +25,28 @@ actors:
     class: CameraReader
     camera_num: 2
 
-  # video savers: each video saver writes the frames readed to video file
-  # VideoSaver0:
-  #   package: actors.video_saver
-  #   class: VideoSaver
-  #   camera_num: 0
-  #   method: spawn
-
-  # VideoSaver1:
-  #   package: actors.video_saver
-  #   class: VideoSaver
-  #   camera_num: 1
-  #   method: spawn
-    
-  # VideoSaver2:
-  #   package: actors.video_saver
-  #   class: VideoSaver
-  #   camera_num: 2
-  #   method: spawn
-
-  Processor:
+  Processor0:
     package: actors.processor
     class: Processor
+    pred_active: False
+
+  Processor1:
+    package: actors.processor
+    class: Processor
+    pred_active: False
+
+  Processor2:
+    package: actors.processor
+    class: Processor
+    pred_active: True
 
 connections:
-  CameraReader0.q_out: [VideoScreen.camera0_in]
-  CameraReader1.q_out: [ VideoScreen.camera1_in]
-  CameraReader2.q_out: [ VideoScreen.camera2_in, Processor.q_in]
-  Processor.q_out: [VideoScreen.q_in]
-  
-
+  CameraReader0.q_out: [Processor0.q_in]
+  CameraReader1.q_out: [Processor1.q_in]
+  CameraReader2.q_out: [Processor2.q_in]
+  Processor0.q_out: [VideoScreen.preds0_in]
+  Processor1.q_out: [VideoScreen.preds1_in]
+  Processor2.q_out: [VideoScreen.preds2_in]
 
 redis_config:
   port: 6379
