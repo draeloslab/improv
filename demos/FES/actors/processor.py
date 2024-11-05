@@ -7,6 +7,7 @@ import cv2
 from dlclive import DLCLive
 from pathlib import Path
 from improv.actor import Actor
+from collections import deque
 # from .dlcProcessor import IndexAngles
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,9 @@ class Processor(Actor):
             self.frame_num = 0
             self.frame_sentTime = 0
             self.frames_log = 200 # num frames after which to log
+            self.recent_predictions = [deque(maxlen=3) for _ in range(5)]  #want to keep this low to avoid lag
+
+
 
             timestamp = time.strftime("%Y%m%d-%H%M")
             self.out_folder = Path(f"/home/chesteklab/predictions/{timestamp}")
@@ -85,6 +89,7 @@ class Processor(Actor):
         frame_id = None
         self.prediction = None
         angle = None
+        smoothed_prediction = None
 
         try:
             frame_id = self.q_in.get()
@@ -108,13 +113,25 @@ class Processor(Actor):
                 # Perform inference
                 dlc_start = time.perf_counter()
                 self.prediction = self.dlc_live.get_pose(frame)
+                smoothed_prediction = np.zeros_like(self.prediction)
+                for i, point in enumerate(self.prediction):
+                    x, y, likelihood = point
+                    self.recent_predictions[i].append((x, y))
+                    # Calculate the moving average for x and y
+                    avg_x = np.mean([p[0] for p in self.recent_predictions[i]])
+                    avg_y = np.mean([p[1] for p in self.recent_predictions[i]])
+                    smoothed_prediction[i, :2] = avg_x, avg_y
+                    smoothed_prediction[i, 2] = likelihood
+                    if likelihood < 0.3 and len(self.predictions) > 0:
+                        smoothed_prediction[i,:2] = self.predictions[-1][i,:2]
 
-                angle = self.calculateAngle()
+                self.predictions.append(smoothed_prediction) #TODO might want to also store the raw prediction
+
+                angle = self.calculateAngle(smoothed_prediction)
 
                 # logger.info(f"Angle: {angle}") 
                 dlc_end = time.perf_counter()
 
-                self.predictions.append(self.prediction)
                 self.dlc_latencies.append(dlc_end - dlc_start)
                 self.grab_latencies.append(dlc_end - start_time)
 
@@ -134,8 +151,8 @@ class Processor(Actor):
                 # logger.info('Put prediction and index dict in store')
 
             try:
-                self.q_out.put([frame_id,self.prediction, angle])
-                logger.info(f"Sent prediciton: {self.prediction} and angle: {angle} to the next actor")
+                self.q_out.put([frame_id,smoothed_prediction, angle])
+                # logger.info(f"Sent prediciton: {self.prediction} and angle: {angle} to the next actor")
 
                 if self.pred_active:
                     self.put_latencies.append(time.perf_counter() - dlc_end)
@@ -145,8 +162,8 @@ class Processor(Actor):
                 logger.error(traceback.format_exc())
 
 
-    def calculateAngle(self):
-        p2, p3, p4 = self.prediction[1, :2], self.prediction[2, :2], self.prediction[3, :2]
+    def calculateAngle(self,prediction):
+        p2, p3, p4 = prediction[0, :2], prediction[1, :2], prediction[2, :2]
         # Define vectors from point 3 to points 2 and 4
         v3_to_2 = p2 - p3
         v3_to_4 = p4 - p3

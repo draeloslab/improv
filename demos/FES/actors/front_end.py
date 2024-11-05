@@ -45,7 +45,8 @@ class CameraStreamWidget(QWidget):
             self.stop_program = False
             self.last_frame_ids = [None for _ in range(self.visual.num_cameras)]
             self.angles = [0]  # Store angles for live plotting
-            self.recent_angles = deque(maxlen=10) #TODO make this a parameter
+            self.recent_angles = deque(maxlen=5) #TODO make this a parameter
+            
 
             # Load the configuration file
             source_folder = Path(__file__).resolve().parent.parent
@@ -95,7 +96,7 @@ class CameraStreamWidget(QWidget):
                 # Update the angle plot if an angle is provided
                 
                 if angle is not None:
-                    #Applying a moving average
+                    # #Applying a moving average
                     self.recent_angles.append(angle)
                     smooted_angle = np.mean(self.recent_angles)
                     self.angles.append(smooted_angle)
@@ -128,16 +129,16 @@ class CameraStreamWidget(QWidget):
             for i, point in enumerate(predictions):
             # for point in predictions:
                 x, y, likelihood = point
-                # if likelihood > self.threshold:
-                painter.setPen(QPen(QColor(255, 0, 0), 2))  # Red color, 2px width
-                painter.drawEllipse(int(x), int(y), 20, 20)
-                painter.setPen(QPen(QColor(255, 255, 255), 2))  # White color for text
-                painter.setFont(QFont("Arial", 12))  # Set font size to 12
-                painter.drawText(int(x) + 20, int(y) + 20, labels[i % len(labels)])  # Add label
-                # Draw lines between points
-                if prev_point is not None:
-                    painter.drawLine(int(prev_point[0]), int(prev_point[1]), int(x), int(y))
-                prev_point = (x, y)
+                if likelihood > 0.1:
+                    painter.setPen(QPen(QColor(255, 0, 0), 2))  # Red color, 2px width
+                    painter.drawEllipse(int(x), int(y), 50, 50)
+                    painter.setPen(QPen(QColor(255, 255, 255), 2))  # White color for text
+                    painter.setFont(QFont("Arial", 50))  # Set font size to 12
+                    painter.drawText(int(x) + 20, int(y) + 20, labels[i % len(labels)])  # Add label
+                    # Draw lines between points
+                    if prev_point is not None:
+                        painter.drawLine(int(prev_point[0]), int(prev_point[1]), int(x), int(y))
+                    prev_point = (x, y)
 
             painter.setPen(QPen(QColor(0, 255, 0), 2))  # Green color for text
             angle_text = f"Angle: {angle:.2f}°" if angle is not None else "Angle: N/A"
@@ -155,6 +156,7 @@ class CameraStreamWidget(QWidget):
         ax.set_title("Live Angle Plot")
         ax.set_xlabel("Frame")
         ax.set_ylabel("Angle (°)")
+        ax.set_ylim(0, 360)
 
         # Convert Matplotlib figure to QImage
         canvas = FigureCanvasAgg(fig)
