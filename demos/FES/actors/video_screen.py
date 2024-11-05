@@ -100,7 +100,8 @@ class VideoScreen(ManagedActor):
 
             frame_id = element[0]
             predictions = element[1]
-            # angle = element[2]
+            angle = element[2]
+            # logger.info(f'Angle received: {angle}')
 
             if frame_id is not None:
                 frame_enc = self.client.get(frame_id)
@@ -119,7 +120,7 @@ class VideoScreen(ManagedActor):
             frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
             # logger.error(traceback.format_exc())
 
-        return frame,predictions #, angle
+        return frame,predictions,angle
 
         # # Increment frame counter
         # self.frame_count += 1

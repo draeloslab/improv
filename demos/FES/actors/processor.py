@@ -7,7 +7,7 @@ import cv2
 from dlclive import DLCLive
 from pathlib import Path
 from improv.actor import Actor
-from .dlcProcessor import IndexAngles
+# from .dlcProcessor import IndexAngles
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -107,26 +107,11 @@ class Processor(Actor):
 
                 # Perform inference
                 dlc_start = time.perf_counter()
-                prediction = self.dlc_live.get_pose(frame)
+                self.prediction = self.dlc_live.get_pose(frame)
 
-                p2, p3, p4 = prediction[1, :2], prediction[2, :2], prediction[3, :2]
+                angle = self.calculateAngle()
 
-                # logger.info(f"p2: {p2.shape}, p3: {p3.shape}, p4: {p4.shape}")
-
-                # Define vectors from point 3 to points 2 and 4
-                v3_to_2, v3_to_4 = p2 - p3, p4 - p3
-
-                # logger.info(f"v3_to_2: {v3_to_2.shape}, v3_to_4: {v3_to_4.shape}")
-
-                # Calculate dot product and magnitudes
-                dot_product = np.dot(v3_to_2, v3_to_4)
-                magnitude_3_to_2 = np.linalg.norm(v3_to_2)
-                magnitude_3_to_4 = np.linalg.norm(v3_to_4)
-
-                # Calculate angle in degrees at point 3
-                angle = np.degrees(np.arccos(np.clip(dot_product / (magnitude_3_to_2 * magnitude_3_to_4), -1.0, 1.0)))
-
-                logger.info(f"Angle: {angle}") 
+                # logger.info(f"Angle: {angle}") 
                 dlc_end = time.perf_counter()
 
                 self.predictions.append(prediction)
@@ -149,7 +134,8 @@ class Processor(Actor):
                 # logger.info('Put prediction and index dict in store')
 
             try:
-                self.q_out.put([frame_id,prediction])
+                self.q_out.put([frame_id,prediction, angle])
+                logger.info(f"Sent prediciton: {prediction} and angle: {angle} to the next actor")
 
                 if self.pred_active:
                     self.put_latencies.append(time.perf_counter() - dlc_end)
@@ -157,3 +143,18 @@ class Processor(Actor):
             except Exception as e:
                 logger.error(f"--------------------------------Generator Exception: {e}")
                 logger.error(traceback.format_exc())
+
+
+    def calculateAngle(self):
+        p2, p3, p4 = self.prediction[1, :2], self.prediction[2, :2], self.prediction[3, :2]
+        # Define vectors from point 3 to points 2 and 4
+        v3_to_2 = p2 - p3
+        v3_to_4 = p4 - p3
+
+        # Calculate dot product and determinant
+        dot_product = np.dot(v3_to_2, v3_to_4)
+        determinant = v3_to_2[0] * v3_to_4[1] - v3_to_2[1] * v3_to_4[0]
+
+        # Calculate angle in degrees at point 3
+        angle = np.degrees(np.arctan2(determinant, dot_product)) % 360
+        return angle
