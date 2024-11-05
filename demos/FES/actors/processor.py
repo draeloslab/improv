@@ -83,7 +83,7 @@ class Processor(Actor):
 
     def runStep(self):
         frame_id = None
-        prediction = None
+        self.prediction = None
         angle = None
 
         try:
@@ -114,7 +114,7 @@ class Processor(Actor):
                 # logger.info(f"Angle: {angle}") 
                 dlc_end = time.perf_counter()
 
-                self.predictions.append(prediction)
+                self.predictions.append(self.prediction)
                 self.dlc_latencies.append(dlc_end - dlc_start)
                 self.grab_latencies.append(dlc_end - start_time)
 
@@ -134,8 +134,8 @@ class Processor(Actor):
                 # logger.info('Put prediction and index dict in store')
 
             try:
-                self.q_out.put([frame_id,prediction, angle])
-                logger.info(f"Sent prediciton: {prediction} and angle: {angle} to the next actor")
+                self.q_out.put([frame_id,self.prediction, angle])
+                logger.info(f"Sent prediciton: {self.prediction} and angle: {angle} to the next actor")
 
                 if self.pred_active:
                     self.put_latencies.append(time.perf_counter() - dlc_end)
