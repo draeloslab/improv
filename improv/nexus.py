@@ -454,18 +454,7 @@ class Nexus:
                 elif t in done:
                     logger.debug("t.result = " + str(t.result()))
                     self.tasks[i] = asyncio.create_task(self.remote_input())
-
-            if self.flags['run']:    
-                
-                for p in self.processes:
-                    try:
-                        process = psutil.Process(p.pid)
-                        logger.info('memory stuff') # {}'.format(process.memory_percent()))
-                        self.mem.append([str(p), process.memory_percent()])
-                    except Exception as e:
-                        print('Processes Memory error: {}'.format(e))
-                np.savetxt('/home/anjshnkr/Desktop/Code/improv/demos/live/output/processes_mem.txt', self.mem, fmt="%s")
-
+                    
         if not self.early_exit:  # don't run this again if we already have
             self.stop_polling(Signal.quit(), polling)
             logger.warning("Shutting down polling")
@@ -931,7 +920,7 @@ class Nexus:
             try:
                 if 'GUI' in key:
                     continue
-                logger.info('pid number: {}'.format(self.processes[j].pid))
+                # logger.info('pid number: {}'.format(self.processes[j].pid))
                 q.put_nowait('pid' + str(self.processes[j].pid))
                 j += 1
             # except Full:
