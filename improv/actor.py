@@ -33,6 +33,7 @@ class AbstractActor:
         self.client = None
         self.store_loc = store_loc
         self.lower_priority = False
+        self.mem = []
 
         # Start with no explicit data queues.
         # q_in and q_out are reserved for passing ID information
@@ -187,16 +188,15 @@ class AbstractActor:
             logger.info("Lowered priority of this process: {}".format(self.name))
             print("Lowered ", os.getpid(), " for ", self.name)
         
-    def set_pid(self, pid):
-        self.pid = pid
+    def set_pid(self, an, pid):
+        self.pid = [an, pid]
         # logger.info('pid: {}'.format(self.pid))
 
     def check_mem(self):
         try:
-            logger.info(self.pid)
-            process = psutil.Process(self.pid)
-            # self.mem.append([process.memory_percent()])
-            logger.info('Check memory: {}'.format(process.memory_percent()))
+            process = psutil.Process(self.pid[1])
+            self.mem = [self.pid[0], process.memory_percent()]
+            logger.info('mem: {}'.format(self.mem))
         except Exception as e:
             logger.info('Error in check memory: {}'.format(e))
         
@@ -291,16 +291,17 @@ class RunManager:
         while True:
             # Run any actions given a received Signal
             if self.run:
-                try:
-                    self.actions["run"]()
-                except Exception as e:
-                    logger.error("Actor {} error in run: {}".format(an, e))
-                    logger.error(traceback.format_exc())
                 if self.check_mem:
                     try: 
                         self.actions['mem']()
                     except Exception as e:
                         logger.error("Check memory error: {}".format(e))
+                    self.check_mem = False
+                try:
+                    self.actions["run"]()
+                except Exception as e:
+                    logger.error("Actor {} error in run: {}".format(an, e))
+                    logger.error(traceback.format_exc())
             elif self.stop:
                 try:
                     self.actions["stop"]()
@@ -327,7 +328,7 @@ class RunManager:
                 if "pid" in signal:
                     logger.warning('Received pid signal')
                     pid = int(signal.split('pid')[1])
-                    self.actions['set_pid'](pid)
+                    self.actions['set_pid'](an, pid)
                 elif signal == Signal.run():
                     self.run = True
                     logger.warning("Received run signal, begin running")
@@ -349,6 +350,7 @@ class RunManager:
                 elif signal == Signal.mem():
                     self.check_mem = True
                     logger.info('Received signal for check mem')
+                    self.actions['mem']()
             except KeyboardInterrupt:
                 break
             except Empty:
@@ -394,6 +396,8 @@ class AsyncRunManager:
 
     async def run_actor(self):
         an = self.actorName
+        # self.check_mem = False
+
         while True:
             # Run any actions given a received Signal
             if self.run:
@@ -415,7 +419,7 @@ class AsyncRunManager:
                     logger.error(traceback.format_exc())
                 self.stop = False  # Run once
             elif self.config:
-                try:
+                try: 
                     if self.runStore:
                         self.runStore()
                     await self.actions["setup"]()
