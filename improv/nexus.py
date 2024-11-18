@@ -557,6 +557,9 @@ class Nexus:
             elif flag[0] == Signal.stop():
                 logger.info("Nexus received stop signal")
                 self.stop()
+            else:
+                logger.info("Nexus recevied signal that is being sent to all actors")
+                self.pass_signal_to_actors(flag[0])
         elif flag:
             logger.error("Unknown signal received from Nexus: {}".format(flag))
 
@@ -578,6 +581,14 @@ class Nexus:
                     self.stoppped = False
                     logger.info("All stops were successful. Allowing start.")
 
+    def pass_signal_to_actors(self, flag):
+        for q in self.sig_queues.values():
+            try:
+                logger.info("Sending signal {} to all actors".format(flag))
+                q.put_nowait(flag)
+            except Full:
+                logger.warning("Signal queue" + q.name + "is full")
+    
     def setup(self):
         for q in self.sig_queues.values():
             try:
