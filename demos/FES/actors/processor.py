@@ -63,8 +63,9 @@ class Processor(Actor):
             self.frame_num = 0
             self.frame_sentTime = 0
             self.frames_log = 200 # num frames after which to log
-            self.recent_predictions = [deque(maxlen=3) for _ in range(5)]  #want to keep this low to avoid lag
-
+            # self.recent_predictions = [deque(maxlen=3) for _ in range(5)]  #want to keep this low to avoid lag
+            self.recent_predictions = [None for _ in range(5)]
+            self.alpha = 0.5 #Smoothing factor for EMA
 
 
             timestamp = time.strftime("%Y%m%d-%H%M")
@@ -116,11 +117,19 @@ class Processor(Actor):
                 smoothed_prediction = np.zeros_like(self.prediction)
                 for i, point in enumerate(self.prediction):
                     x, y, likelihood = point
-                    self.recent_predictions[i].append((x, y))
+                    if self.recent_predictions[i] is None:
+                        self.recent_predictions[i] = (x,y)
+
+                    prev_x, prev_y = self.recent_predictions[i]
+                    ema_x = self.alpha * x + (1 - self.alpha) * prev_x
+                    ema_y = self.alpha * y + (1 - self.alpha) * prev_y
+
+
+                    self.recent_predictions[i] = (ema_x, ema_y)
                     # Calculate the moving average for x and y
-                    avg_x = np.mean([p[0] for p in self.recent_predictions[i]])
-                    avg_y = np.mean([p[1] for p in self.recent_predictions[i]])
-                    smoothed_prediction[i, :2] = avg_x, avg_y
+                    # avg_x = np.mean([p[0] for p in self.recent_predictions[i]])
+                    # avg_y = np.mean([p[1] for p in self.recent_predictions[i]])
+                    smoothed_prediction[i, :2] = ema_x, ema_y
                     smoothed_prediction[i, 2] = likelihood
                     if likelihood < 0.3 and len(self.predictions) > 0:
                         smoothed_prediction[i,:2] = self.predictions[-1][i,:2]
