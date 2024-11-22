@@ -1,96 +1,88 @@
 import time
 import serial
-import struct
+import logging
+from improv.actor import Actor
 
-# Constants
-NUM_SENSORS = 5  # Number of sensors for flex/force: typically 5
-PINS = ["A0", "A1", "A3"]  # Example pin names for sensors
-CHANS = [2, 4, 5]  # Sensor channels
-TIMER_INTERVAL = 0.001  # 1 ms interval
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
-# Serial connection (for example, use COM port or /dev/ttyUSB0)
-ser = serial.Serial("COM6", 115200)
+# Create a file handler
+log_file = "processor.log"
+file_handler = logging.FileHandler(log_file)
+file_handler.setLevel(logging.INFO)
 
-# Timer flag
-timer_ready = False
+# Create a formatter and set it for the handler
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
 
+# Add the handler to the logger
+logger.addHandler(file_handler)
 
-def one_ms_passed():
-    global timer_ready
-    timer_ready = True
+class Sender(Actor):
+    """Sample actor to generate data to pass into a sample processor.
 
-
-def read_sensors():
+    Intended for use along with sample_processor.py.
     """
-    Read sensor values and return a list of readings.
-    """
-    # Initialize return values with zeros
-    vals = [0] * (NUM_SENSORS + 1)
-    vals[0] = 0  # First value corresponds to the outdated proximity sensor
 
-    for i in range(len(PINS)):
-        # Analog reading would be replaced by appropriate sensor reading
-        vals[CHANS[i]] = analog_read(PINS[i])
-        time.sleep(0.0001)  # Delay for 100 microseconds
-    
-    return vals
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
+    def setup(self):
+        logger.info("Beginning setup for Sender")
 
-def analog_read(pin):
-    """
-    Dummy function to simulate analog reading from a pin.
-    """
-    return 255  # Replace with actual analog read logic if needed
+        # Constants
+        self.NUM_SENSORS = 5  # Number of sensors for flex/force: typically 5
+        self.PINS = ["A0", "A1", "A3"]  # Example pin names for sensors
+        self.CHANS = [2, 4, 5]  # Sensor channels
+        self.TIMER_INTERVAL = 0.001  # 1 ms interval
+
+        # Serial connection (for example, use COM port or /dev/ttyUSB0)
+        self.ser = serial.Serial("COM6", 115200)
+
+        logger.info("Completed setup for Sender")
 
 
-def pack_bytes(adc_vals):
-    """
-    Pack 10-bit sensor values into an array of bytes.
-    """
-    # Create header bytes
-    packed_vals = bytearray(10)  # Create a byte array of packet data bytes + header
-    packed_vals[0] = ord('-')  # Header byte 1
-    packed_vals[1] = ord('>')  # Header byte 2
+    def pack_bytes(self, adc_vals):
+        """
+        Pack 10-bit sensor values into an array of bytes.
+        """
+        # Create header bytes
+        packed_vals = bytearray(10)  # Create a byte array of packet data bytes + header
+        packed_vals[0] = ord('-')  # Header byte 1
+        packed_vals[1] = ord('>')  # Header byte 2
 
-    # Combine 10-bit values into one 64-bit integer
-    temp_data = 0
-    for i in range(NUM_SENSORS + 1):
-        temp_data |= adc_vals[i] << (i * 10)
+        # Combine 10-bit values into one 64-bit integer
+        temp_data = 0
+        for i in range(self.NUM_SENSORS + 1):
+            temp_data |= adc_vals[i] << (i * 10)
 
-    # Extract bytes from temp_data and store in packed_vals
-    for i in range(8):  # Remaining 8 bytes
-        packed_vals[i + 2] = (temp_data >> (i * 8)) & 0xFF
-    
-    return packed_vals
-
-
-def main_loop():
-    global timer_ready
-    
-    while True:
-        # Run the loop continuously
-        if timer_ready:
-            # Read from the sensors
-            sensor_vals = read_sensors()
-
-            # Create message packet
-            valspack = pack_bytes(sensor_vals)
-
-            # Send the message through UART
-            ser.write(valspack)
-
-            # Reset the timer flag
-            timer_ready = False
+        # Extract bytes from temp_data and store in packed_vals
+        for i in range(8):  # Remaining 8 bytes
+            packed_vals[i + 2] = (temp_data >> (i * 8)) & 0xFF
         
-        # Simulate 1ms timer interval
-        time.sleep(TIMER_INTERVAL)
-        one_ms_passed()
+        return packed_vals
 
 
-if __name__ == "__main__":
-    # Start main loop
-    try:
-        main_loop()
-    except KeyboardInterrupt:
-        # Close serial port when the script is interrupted
-        ser.close()
+    def runStep(self):
+
+        #Grab angle from processor
+        try:
+            element = self.q_in.get()
+        except Exception as e:
+            logger.error(f"Could not get element! {e}")
+            return
+        
+        _ ,_ ,angle = element
+        
+
+        # Create message packet
+        valspack = self.pack_bytes(angle)
+
+        # Send the message through UART
+        self.ser.write(valspack)
+
+
+    def stop(self):
+        logger.info("Stopping Sender")
+        # self.ser.close()  #Not sure if this is necessary
+        logger.info("Sender stopped")
