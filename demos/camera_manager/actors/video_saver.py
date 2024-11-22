@@ -3,7 +3,7 @@ import time
 import threading
 import yaml
 import numpy as np
-import subprocess
+import cv2
 from improv.actor import ManagedActor
 from pathlib import Path
 from multiprocessing import Pool, Array, shared_memory, Process
@@ -50,8 +50,11 @@ class VideoSaver(ManagedActor):
                 frame_id = self.q_in.get(timeout=1)
 
                 if frame_id is not None:
-                    frame = self.client.get(frame_id)
-                    # self.video_proc.stdin.write(frame.tobytes())
+                    frame_enc = self.client.get(frame_id)
+
+                    # uncompressing the frame
+                    frame = cv2.imdecode(frame_enc, cv2.IMREAD_COLOR)
+
                     self.video_proc.writeFrame(frame)
 
                     # buffer[buffer_index] = frame

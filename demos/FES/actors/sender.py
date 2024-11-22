@@ -9,7 +9,7 @@ CHANS = [2, 4, 5]  # Sensor channels
 TIMER_INTERVAL = 0.001  # 1 ms interval
 
 # Serial connection (for example, use COM port or /dev/ttyUSB0)
-ser = serial.Serial("COM6", 115200)
+ser = serial.Serial("/dev/ttyUSB0", 115200)
 
 # Timer flag
 timer_ready = False
@@ -40,7 +40,7 @@ def analog_read(pin):
     """
     Dummy function to simulate analog reading from a pin.
     """
-    return 255  # Replace with actual analog read logic if needed
+    return 69  # Replace with actual analog read logic if needed
 
 
 def pack_bytes(adc_vals):
@@ -78,6 +78,7 @@ def main_loop():
 
             # Send the message through UART
             ser.write(valspack)
+            print('Sent value!')
 
             # Reset the timer flag
             timer_ready = False
