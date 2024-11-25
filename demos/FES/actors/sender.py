@@ -32,12 +32,11 @@ class Sender(Actor):
 
         # Constants
         self.NUM_SENSORS = 5  # Number of sensors for flex/force: typically 5
-        self.PINS = ["A0", "A1", "A3"]  # Example pin names for sensors
-        self.CHANS = [2, 4, 5]  # Sensor channels
+        self.CHANS = [2]  # Sensor channels
         self.TIMER_INTERVAL = 0.001  # 1 ms interval
 
-# Serial connection (for example, use COM port or /dev/ttyUSB0)
-ser = serial.Serial("/dev/ttyUSB0", 115200)
+        # Serial connection (for example, use COM port or /dev/ttyUSB0)
+        self.ser = serial.Serial("/dev/ttyUSB0", 115200)
 
         logger.info("Completed setup for Sender")
 
@@ -54,7 +53,7 @@ ser = serial.Serial("/dev/ttyUSB0", 115200)
         # Combine 10-bit values into one 64-bit integer
         temp_data = 0
         for i in range(self.NUM_SENSORS + 1):
-            temp_data |= adc_vals[i] << (i * 10)
+            temp_data |= int(adc_vals) << (i * 10)
 
         # Extract bytes from temp_data and store in packed_vals
         for i in range(8):  # Remaining 8 bytes
@@ -73,6 +72,7 @@ ser = serial.Serial("/dev/ttyUSB0", 115200)
             return
         
         _ ,_ ,angle = element
+        logger.info(f'recieved angle {angle}, and type {type(angle)}')
         
 
         # Create message packet
