@@ -26,6 +26,7 @@ class VisualStimulus(Actor):
 
         self.prepared_frame = None
         self.random_flag = False
+        self.params = []
         
         self.stimuli = np.load(stimuli, allow_pickle=True)
         np.save('output/generated_stimuli.npy', self.stimuli)
@@ -59,7 +60,7 @@ class VisualStimulus(Actor):
 
         self.initial_angles = np.linspace(0,330,num=12) #np.array([5,10,8,4,3,9,2,1]) # np.linspace(0,360,endpoint=False, num=8)
         self.initial_vel = np.array([0.02, 0.04, 0.06, 0.08, 0.10, 0.12])
-        self.initial_pos = np.array([list(product(np.arange(205,1525,100), np.arange(625,1285,100)))])
+        self.initial_pos = np.array([list(product(np.arange(205,1525,100), np.arange(625,1285,100)))]).squeeze()
         self.initial_len = np.linspace(0,900, num=10)
         self.initial_width = np.linspace(0, 1800, num=10)
         self.initial_shape = np.array([0,1])
@@ -215,7 +216,7 @@ class VisualStimulus(Actor):
 
 
         ### initial run ignores signals and just sends 8 basic stimuli
-        params = None
+        # params = []
         if self.stop_sending:
             pass
         
@@ -223,13 +224,15 @@ class VisualStimulus(Actor):
             # pass
             if self.prepared_frame is None:
                 logger.info('starting self.inital_frame ---------')
-                self.prepared_frame, params = self.initial_frame()
+                self.prepared_frame = self.initial_frame()
+                # logger.info('FRAME INTIAL FRAMES {}'.format(self.prepared_frame))
+                # logger.info('PARAMS FROM INTIAL FRAMES {}'.format(params))
                 # logger.info('got circ size {}'.format(self.circ_size))
                 # logger.info(self.prepared_frame)
                 # self.prepared_frame.pop('load')
             if (time.time() - self.timer) >= self.total_stim_time:
                 # logger.info(self.prepared_frame)
-                self.send_frame(self.prepared_frame, params)
+                self.send_frame(self.prepared_frame)
                 self.prepared_frame = None
 
 
@@ -243,7 +246,7 @@ class VisualStimulus(Actor):
                     # self.prepared_frame.pop('load')
                 if (time.time() - self.timer) >= self.total_stim_time:
                         # self.random_frame()
-                    self.send_frame(self.prepared_frame, params)
+                    self.send_frame(self.prepared_frame)
                     self.prepared_frame = None
 
             else:
@@ -359,14 +362,13 @@ class VisualStimulus(Actor):
                 else:
                     ind, xt_1 = self.optim.max_acq()
                     logger.info('suggest next stim: {}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
-                    self.prepared_frame, params = self.create_chosen_stim(ind)
-                    logger.info('PARAMS ??: {}'.format(params))
+                    self.prepared_frame = self.create_chosen_stim(ind)
  
             if (time.time() - self.timer) >= self.total_stim_time:
-                self.send_frame(self.prepared_frame, params)
+                self.send_frame(self.prepared_frame)
                 self.prepared_frame = None
 
-    def send_frame(self, stim, params):
+    def send_frame(self, stim):
 
         # circ_size = self.circ_size
 
@@ -379,26 +381,29 @@ class VisualStimulus(Actor):
         #             'fg_intensity': 0,
         #             }
 
-        if stim is not None:
+        # logger.info('PARMS INSIDE SEND FRAME {}'.format(params))
 
-            if params[3] == 0: #shape is ellipse
+        if stim is not None:
+            logger.info('PARAMS: {}'.format(self.params[3]))
+
+            if self.params[3] == 0: #shape is ellipse
                 text = {'texture_size': 1600,
-                        'frequency': params[4],
-                        'center': params[0],
-                        'width': params[2],
-                        'length': params[1],
+                        'frequency': int(self.params[4]),
+                        'center': (int(round(self.params[0][0])), int(round(self.params[0][1]))),
+                        'width': int(self.params[2]),
+                        'length': int(self.params[1]),
                         'texture_name': 'gray_ellipse',
                         'bg_intensity': 200,
                         'fg_intensity': 50,
                         }
             
-            if params[3] == 1: #shape is a rectangle
+            if self.params[3] == 1: #shape is a rectangle
                 text = {'texture_size': 1600,
-                        'frequency': params[4],
-                        'center': params[0],
-                        'width': params[2],
-                        'length': params[1],
-                        'texture_name': 'gray_ellipse',
+                        'frequency': int(self.params[4]),
+                        'center': (int(round(self.params[0][0])), int(round(self.params[0][1]))),
+                        'width': int(self.params[2]),
+                        'length': int(self.params[1]),
+                        'texture_name': 'gray_rectangle',
                         'bg_intensity': 200,
                         'fg_intensity': 50,
                         }
@@ -437,15 +442,14 @@ class VisualStimulus(Actor):
         angle = xt[0]
         vel = xt[1]
         pos = xt[2]
-        len = xt[3]
+        length = xt[3]
         width = xt[4]
         shape = xt[5]
         freq = xt[6]
 
         logger.info('create chosen stim xt: '.format(xt))
-        stim, params = self.create_frame(angle, vel, [pos, len, width, shape, freq])
-        logger.info('params in create chosen stim: '.format(params))
-        return stim, params
+        stim, self.params = self.create_frame(angle, vel, [pos, length, width, shape, freq])
+        return stim
 
     def create_frame(self, angle, vel, params):
         ### Static or common stimulus params are set here
@@ -454,25 +458,36 @@ class VisualStimulus(Actor):
         # freq = 33
 
         # self.circ_size = circle_size
-
+        self.params = params
         stat_t = 0
         stim_t = stat_t + 5
         self.total_stim_time = stim_t
     
-        stim = {
-                'stim_name': 'moving_gray',
-                'angle': int(angle),
-                'velocity': vel,
-                'stationary_time': stat_t,
-                'duration': stim_t,
-                'hold_after': float(stim_t),
-                    }
+        if self.params[3] == 0: #ellipse:
+            stim = {
+                    'stim_name': 'moving_gray_ellipse',
+                    'angle': int(angle),
+                    'velocity': vel,
+                    'stationary_time': stat_t,
+                    'duration': stim_t,
+                    'hold_after': float(stat_t),
+                        }
+        elif self.params[3] == 1: #rectangle:
+            stim = {
+                    'stim_name': 'moving_gray_rectangle',
+                    'angle': int(angle),
+                    'velocity': vel,
+                    'stationary_time': stat_t,
+                    'duration': stim_t,
+                    'hold_after': float(stim_t),
+                        }
 
+        
         self.timer = time.time()
-        return stim, params
+        return stim 
 
     def initial_frame(self):
-        logger.info('inside intial frame --------------------')
+        # logger.info('self.inital_pos {}'.format(self.initial_pos))
         if self.which_angle%8 == 0:
             random.shuffle(self.initial_angles)
             random.shuffle(self.initial_vel)
@@ -483,14 +498,13 @@ class VisualStimulus(Actor):
             random.shuffle(self.initial_frequency)
         angle = self.initial_angles[self.which_angle%8] #self.stim_sets[0][self.which_angle%len(self.stim_sets[0])]
         vel = self.initial_vel[self.which_angle%6]
-        pos = self.initial_pos[self.which_angle%8]
-        len = self.initial_len[self.which_angle%8]
-        width = self.initial_width[self.which_angle%8]
-        shape = self.initial_shape[self.which_angle%8]
-        freq = self.initial_frequency[self.which_angle%8]
+        pos = self.initial_pos[self.which_angle%len(self.initial_pos)]
+        length = self.initial_len[self.which_angle%len(self.initial_len)]
+        width = self.initial_width[self.which_angle%len(self.initial_width)]
+        shape = self.initial_shape[self.which_angle%len(self.initial_shape)]
+        freq = self.initial_frequency[self.which_angle%len(self.initial_frequency)]
 
-        logger.info('which angle: '.format(self.which_angle%8))
-        logger.info('intial frame POS: '.format(pos))
+        
         
         self.which_angle += 1
         if self.which_angle >= self.initial_length: 
@@ -500,10 +514,10 @@ class VisualStimulus(Actor):
             self.which_angle = 0
             logger.info('Done with initial frames, starting random set')
         
-        stim, params = self.create_frame(angle, vel, [pos, len, width, shape, freq]) #, 0.14)
+        stim = self.create_frame(angle, vel, [pos, length, width, shape, freq]) #, 0.14)
         self.timer = time.time()
         self.circ_size = angle
-        return stim, [pos, len, width, shape, freq]
+        return stim
 
 
     def random_frame(self):
