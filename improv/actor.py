@@ -396,8 +396,6 @@ class AsyncRunManager:
 
     async def run_actor(self):
         an = self.actorName
-        # self.check_mem = False
-
         while True:
             # Run any actions given a received Signal
             if self.run:
@@ -419,7 +417,7 @@ class AsyncRunManager:
                     logger.error(traceback.format_exc())
                 self.stop = False  # Run once
             elif self.config:
-                try: 
+                try:
                     if self.runStore:
                         self.runStore()
                     await self.actions["setup"]()

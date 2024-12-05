@@ -582,9 +582,9 @@ class Nexus:
                     logger.info("All stops were successful. Allowing start.")
 
     def pass_signal_to_actors(self, flag):
+        logger.info("Sending signal {} to all actors".format(flag))
         for q in self.sig_queues.values():
             try:
-                logger.info("Sending signal {} to all actors".format(flag))
                 q.put_nowait(flag)
             except Full:
                 logger.warning("Signal queue" + q.name + "is full")
