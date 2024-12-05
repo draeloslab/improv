@@ -57,7 +57,7 @@ actors:
     class: CaimanVisualStim
     
   Analysis:
-    package: actors.analysis_viz
+    package: actors.analysis_viz_multi
     class: VizStimAnalysis
     stimuli: stimuli.npy
     before_amount: 5
