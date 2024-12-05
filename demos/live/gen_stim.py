@@ -3,7 +3,7 @@ from itertools import product
 
 x1 = np.linspace(0,330,num=12) 
 x2 = np.array([0.02, 0.04, 0.06, 0.08, 0.10, 0.12]) 
-x3 = np.array([list(product(np.arange(205,1525,100), np.arange(625,1285,100)))])
+x3 = np.array([list(product(np.arange(205,1525,100), np.arange(625,1285,100)))]).squeeze()
 x4 = np.linspace(0,900, num=10)
 x5 = np.linspace(0, 1800, num=10)
 x6 = np.array([0,1])
