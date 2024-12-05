@@ -254,8 +254,8 @@ class VizStimAnalysis(Actor):
         # convert stimID into 8 cardinal directions
         stimID = self.IDstim(int(whichStim))
 
-        logger.info('FRAME in updateStim start: {}'.format(frame))
-        logger.info('STIM in updateStim start: {}'.format(stim))
+        # logger.info('FRAME in updateStim start: {}'.format(frame))
+        # logger.info('STIM in updateStim start: {}'.format(stim))
         angle = stim[frame][0]
         vel = stim[frame][1]
         pos = stim[frame][2]
@@ -271,16 +271,16 @@ class VizStimAnalysis(Actor):
         # print(self.x_vel)
         self.xs['vel'] = np.argwhere(vel==self.x_vel)[0]
         self.xs['pos'] = np.argwhere(pos==self.initial_pos)[0]
-        logger.info('different length: {}, {}'.format(length, self.len))
         self.xs['len'] = np.argwhere(length==self.len)[0]
         self.xs['width'] = np.argwhere(width==self.width)[0]
         self.xs['shape'] = np.argwhere(shape==self.shape)[0]
         self.xs['freq'] = np.argwhere(freq==self.freq)[0]
+        
         # self.xs['freq'] = np.argwhere(freq==self.x_freq)[0]
         # self.xs['contrast'] = np.argwhere(contrast==self.x_contrast)[0]
 
         logger.info('xs: {}'.format(self.xs))
-        self.stim_count[int(self.xs['angle']), int(self.xs['vel']), int(self.xs['pos']),
+        self.stim_count[int(self.xs['angle']), int(self.xs['vel']), self.xs['pos'],
                         int(self.xs['len']), int(self.xs['width']), int(self.xs['shape']),
                         int(self.xs['freq'])] += 1
 
@@ -462,13 +462,13 @@ class VizStimAnalysis(Actor):
                 self.stimX.append(list(self.xs.values()))
                 self.stimY.append(np.mean(ests[:,self.frame-self.after_amount:self.frame],1))
                 self.testNum += 1
-                sc = self.stim_count[int(self.xs['angle']), int(self.xs['vel']), int(self.xs['pos']),
+                sc = self.stim_count[int(self.xs['angle']), int(self.xs['vel']), self.xs['pos'],
                         int(self.xs['len']), int(self.xs['width']), int(self.xs['shape']),
                         int(self.xs['freq'])]
                 numN = self.ests.shape[0]
-                self.all_y[:numN, int(self.xs['angle']), int(self.xs['vel']),int(self.xs['pos']),
+                self.all_y[:numN, int(self.xs['angle']), int(self.xs['vel']),self.xs['pos'],
                         int(self.xs['len']), int(self.xs['width']), int(self.xs['shape']),
-                        int(self.xs['freq'])] = ((sc-1)*self.all_y[:numN, int(self.xs['angle']), int(self.xs['vel']), int(self.xs['pos']),
+                        int(self.xs['freq'])] = ((sc-1)*self.all_y[:numN, int(self.xs['angle']), int(self.xs['vel']), self.xs['pos'],
                         int(self.xs['len']), int(self.xs['width']), int(self.xs['shape']),
                         int(self.xs['freq'])] + self.stimY[-1])/sc
 
