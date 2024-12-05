@@ -7,7 +7,7 @@ x3 = np.array([list(product(np.arange(205,1525,100), np.arange(625,1285,100)))])
 x4 = np.linspace(10,900, num=10).astype(int)
 x5 = np.linspace(10, 1800, num=10).astype(int)
 x6 = np.array([0,1])
-x7 = np.linspace(1,330, num=12)
+x7 = np.linspace(1,330, num=12).astype(int)
 
 # labels = ['angle', 'vel']
 labels = ['angle', 'vel', 'init_pos', 'length', 'width', 'shape', 'frequency']
