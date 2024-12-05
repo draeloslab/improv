@@ -113,7 +113,7 @@ class ZMQAcquirer(Actor):
         f.close()
         logger.info('Trying to save 4')
 
-        np.savetxt('output/stimmed.txt', np.array(self.stimmed))
+        np.save('output/stimmed.npy', np.array(self.stimmed))
         np.savetxt('output/photostimmed_msgs.txt', np.array(self.photostims))
         np.save('output/tails.npy', np.array(self.tails))
         np.savetxt('output/timing/frametimes.txt', np.array(self.frametimes))
@@ -290,7 +290,7 @@ class ZMQAcquirer(Actor):
                 angle = float(msg_dict['stimulus']['angle'])
                 vel = float(msg_dict['stimulus']['velocity'])
                 self.links['stim_queue'].put({self.frame_num:[angle, vel]})
-                self.stimmed.append([self.frame_num, angle, vel])
+                # self.stimmed.append([self.frame_num, angle, vel])
                 logger.info('Stimulus: Moving gratings angle {} with velocity {} at frame {}'.format(angle, vel, self.frame_num))
             
             # logger.info('texture name: {}'.format(msg_dict['texture']['texture_name']))
@@ -302,7 +302,7 @@ class ZMQAcquirer(Actor):
                 size = float(msg_dict['circle_radius'])
                 vel = float(msg_dict['velocity'])
                 self.links['stim_queue'].put({self.frame_num:[size, vel]})
-                self.stimmed.append([self.frame_num, size, vel])
+                # self.stimmed.append([self.frame_num, size, vel])
                 logger.info('Stimulus: Circle radius {} with velocity {} at frame {}'.format(size, vel, self.frame_num))
             
             else:
@@ -310,7 +310,8 @@ class ZMQAcquirer(Actor):
                 angle = float(msg_dict['stimulus']['angle'])
                 vel = float(msg_dict['stimulus']['velocity'])
                 freq = int(msg_dict['texture']['frequency'])
-                center = (msg_dict['texture']['center'])
+                center_x = int(msg_dict['texture']['center_x'])
+                center_y = int(msg_dict['texture']['center_y'])
                 length = int(msg_dict['texture']['length'])
                 width = int(msg_dict['texture']['width'])
 
@@ -321,14 +322,14 @@ class ZMQAcquirer(Actor):
 
                 logger.info('sending stim queue')
                 try:
-                    self.links['stim_queue'].put({self.frame_num:[angle, vel, center, length, width, shape, freq]})
-                    self.stimmed.append([self.frame_num, angle, vel, center, length, width, shape, freq])
+                    self.links['stim_queue'].put({self.frame_num:[angle, vel, center_x, center_y, length, width, shape, freq]})
+                    self.stimmed.append([self.frame_num, angle, vel, center_x, center_y, length, width, shape, freq])
                 except Exception as e:
                     logger.error('an error has occured in sending stim queue: {}'.format(e))
                 if shape == 0:
-                    logger.info('Stimulus: {} Ellipse of length {} and width {} at angle {} with velocity {} at intial position {} at frame {}'.format(freq, length, width, angle, vel, center, self.frame_num))
+                    logger.info('Stimulus: {} Ellipse of length {} and width {} at angle {} with velocity {} at intial position {} at frame {}'.format(freq, length, width, angle, vel, center_x, center_y, self.frame_num))
                 else:
-                    logger.info('Stimulus: {} Rectangle of length {} and width {} at angle {} with velocity {} at intial position {} at frame {}'.format(freq, length, width, angle, vel, center, self.frame_num))
+                    logger.info('Stimulus: {} Rectangle of length {} and width {} at angle {} with velocity {} at intial position {} at frame {}'.format(freq, length, width, angle, vel, center_x, center_y, self.frame_num))
 
             logger.info('Number of stimuli: {}'.format(self.stim_count))
             # self.stimsendtimes.append([sendtime])

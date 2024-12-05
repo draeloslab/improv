@@ -60,14 +60,16 @@ class VisualStimulus(Actor):
 
         self.initial_angles = np.linspace(0,330,num=12) #np.array([5,10,8,4,3,9,2,1]) # np.linspace(0,360,endpoint=False, num=8)
         self.initial_vel = np.array([0.02, 0.04, 0.06, 0.08, 0.10, 0.12])
-        self.initial_pos = np.array([list(product(np.arange(205,1525,100), np.arange(625,1285,100)))]).squeeze()
+        self.initial_posx = np.arange(205,1525,100)
+        self.initial_posy = np.arange(625,1285,100)
         self.initial_len = np.linspace(10,900, num=10)
         self.initial_width = np.linspace(10, 1800, num=10)
         self.initial_shape = np.array([0,1])
         self.initial_frequency = np.linspace(1,330, num=12)
         random.shuffle(self.initial_angles)
         random.shuffle(self.initial_vel)
-        random.shuffle(self.initial_pos)
+        random.shuffle(self.initial_posx)
+        random.shuffle(self.initial_posy)
         random.shuffle(self.initial_len)
         random.shuffle(self.initial_width)
         random.shuffle(self.initial_shape)
@@ -105,7 +107,7 @@ class VisualStimulus(Actor):
         self.maxT = 20
 
         ## random sampling for initialization
-        self.initial_length = 6 #16*2 #16*3
+        self.initial_length = 600 #16*2 #16*3
 
         self.optimized_n = []
 
@@ -185,8 +187,8 @@ class VisualStimulus(Actor):
             # X, Y, stim, _ = self.client.getList(ids)
             X = self.client.get(ids[0])
             Y = self.client.get(ids[1])
-            stim = self.client.get(ids[2])
-            # logger.info('Y is receiving: {}'.format(Y))
+            # stim = self.client.get(ids[3])
+            logger.info('Y is receiving: {}'.format(len(Y)))
             tmpX = np.squeeze(np.array(X)).T
             # logger.info(f'{tmpX.shape}----------------------------------------------------')
             sh = len(tmpX.shape)
@@ -203,15 +205,16 @@ class VisualStimulus(Actor):
                     b[i][:len(j)] = j
                 self.y0 = b.T
                 # logger.info('X, Y shapes: {}, {}'.format(self.X.shape, self.y0.shape))
-            except:
-                logger.info('X, Y shapes: {}, {}'.format(self.X.shape, self.y0.shape))
+            except Exception as e:
+                logger.info('Error in stimulus_multi calc y0: {}'.format(e))
+                # logger.info('X, Y shapes: {}, {}'.format(self.X.shape, self.y0.shape))
                 pass
             
 
         except Empty as e:
             pass
         except Exception as e:
-            print('Error in stimulus_multi get: {}'.format(e))
+            print('Error in stimulus_multi get: {}'.format(e)) #TODO: changeme
 
 
 
@@ -220,7 +223,7 @@ class VisualStimulus(Actor):
         if self.stop_sending:
             pass
         
-        elif self.initial:
+        elif True:
             # pass
             if self.prepared_frame is None:
                 self.prepared_frame = self.initial_frame()
@@ -230,135 +233,135 @@ class VisualStimulus(Actor):
 
 
         ### once initial done, or we move on, initial GP with next neuron
-        elif self.newN:
-            # # ## doing random stims
-            if self.random_flag:
+        # elif self.newN:
+        #     # # ## doing random stims
+        #     if self.random_flag:
                 
-                if self.prepared_frame is None:
-                    self.prepared_frame = self.random_frame()
-                if (time.time() - self.timer) >= self.total_stim_time:
-                        # self.random_frame()
-                    self.send_frame(self.prepared_frame)
-                    self.prepared_frame = None
+        #         if self.prepared_frame is None:
+        #             self.prepared_frame = self.random_frame()
+        #         if (time.time() - self.timer) >= self.total_stim_time:
+        #                 # self.random_frame()
+        #             self.send_frame(self.prepared_frame)
+        #             self.prepared_frame = None
 
-            else:
-                # print(self.optimized_n, set(self.optimized_n))
-                nonopt = np.array(list(set(np.arange(self.y0.shape[0]))-set(self.optimized_n)))
-                logger.info('nonopt is {}, number of neurons '.format(nonopt,self.y0.shape[0]))
-                if len(nonopt) >= 1 or len(self.goback_neurons)>=1:
-                    if len(nonopt) >= 1:
-                        self.nID = nonopt[np.argmax(np.mean(self.y0[nonopt,:], axis=1))]
-                        logger.info('selecting most responsive neuron: {}'.format(self.nID))
-                        self.optimized_n.append(self.nID)
-                        self.saved_GP_est = []
-                        self.saved_GP_unc = []
-                    elif len(self.goback_neurons)>=1:
-                        self.nID = self.goback_neurons.pop(0)
-                        print('Trying again with neuron', self.nID)
-                        self.optimized_n.append(self.nID)
+        #     else:
+        #         # print(self.optimized_n, set(self.optimized_n))
+        #         nonopt = np.array(list(set(np.arange(self.y0.shape[0]))-set(self.optimized_n)))
+        #         logger.info('nonopt is {}, number of neurons '.format(nonopt,self.y0.shape[0]))
+        #         if len(nonopt) >= 1 or len(self.goback_neurons)>=1:
+        #             if len(nonopt) >= 1:
+        #                 self.nID = nonopt[np.argmax(np.mean(self.y0[nonopt,:], axis=1))]
+        #                 logger.info('selecting most responsive neuron: {}'.format(self.nID))
+        #                 self.optimized_n.append(self.nID)
+        #                 self.saved_GP_est = []
+        #                 self.saved_GP_unc = []
+        #             elif len(self.goback_neurons)>=1:
+        #                 self.nID = self.goback_neurons.pop(0)
+        #                 print('Trying again with neuron', self.nID)
+        #                 self.optimized_n.append(self.nID)
                     
-                    print(self.y0.shape, self.X.shape, self.X0.shape)
-                    if self.X.shape[1] < self.y0.shape[1]:
-                        self.optim.initialize_GP(self.X[:, :].T, self.y0[self.nID, -self.X.shape[1]:].T)
-                    elif self.y0.shape[1] < self.maxT:
-                        self.optim.initialize_GP(self.X[:, -self.y0.shape[1]:].T, self.y0[self.nID, -self.y0.shape[1]:].T)
-                    else:
-                        # self.optim.initialize_GP(self.X[:, -self.maxT:].T, self.y0[self.nID, -self.maxT:].T)
-                        self.optim.initialize_GP(self.X[:, :].T, self.y0[self.nID, :].T)
-                    # print('known average sigma, ', np.mean(self.optim.sigma))
-                    # self.optim.initialize_GP(self.X0[:, :3], self.y0[self.nID, :3])
-                    self.test_count = 0
-                    self.newN = False
-                    self.stopping = np.zeros(self.maxT)
+        #             print(self.y0.shape, self.X.shape, self.X0.shape)
+        #             if self.X.shape[1] < self.y0.shape[1]:
+        #                 self.optim.initialize_GP(self.X[:, :].T, self.y0[self.nID, -self.X.shape[1]:].T)
+        #             elif self.y0.shape[1] < self.maxT:
+        #                 self.optim.initialize_GP(self.X[:, -self.y0.shape[1]:].T, self.y0[self.nID, -self.y0.shape[1]:].T)
+        #             else:
+        #                 # self.optim.initialize_GP(self.X[:, -self.maxT:].T, self.y0[self.nID, -self.maxT:].T)
+        #                 self.optim.initialize_GP(self.X[:, :].T, self.y0[self.nID, :].T)
+        #             # print('known average sigma, ', np.mean(self.optim.sigma))
+        #             # self.optim.initialize_GP(self.X0[:, :3], self.y0[self.nID, :3])
+        #             self.test_count = 0
+        #             self.newN = False
+        #             self.stopping = np.zeros(self.maxT)
 
-                    curr_unc = np.diagonal(self.optim.sigma.reshape((72,72))).reshape((12,6))
-                    curr_est = self.optim.f.reshape((12,6))
-                    self.saved_GP_unc.append(curr_unc)
-                    self.saved_GP_est.append(curr_est)
+        #             curr_unc = np.diagonal(self.optim.sigma.reshape((72,72))).reshape((12,6))
+        #             curr_est = self.optim.f.reshape((12,6))
+        #             self.saved_GP_unc.append(curr_unc)
+        #             self.saved_GP_est.append(curr_est)
 
-                    ids = []
-                    # print('--------------- nID', self.nID)
-                    # ids.append(self.client.put(self.nID, 'nID'))
-                    ids.append(self.nID)
-                    ids.append(self.client.put(curr_est)) #, 'est'))
-                    ids.append(self.client.put(curr_unc)) # 'unc'))
-                    # ids.append(self.client.put(self.conf, 'conf'))
-                    self.q_out.put(ids)
+        #             ids = []
+        #             # print('--------------- nID', self.nID)
+        #             # ids.append(self.client.put(self.nID, 'nID'))
+        #             ids.append(self.nID)
+        #             ids.append(self.client.put(curr_est)) #, 'est'))
+        #             ids.append(self.client.put(curr_unc)) # 'unc'))
+        #             # ids.append(self.client.put(self.conf, 'conf'))
+        #             self.q_out.put(ids)
                 
-                # else:
-                #     self.initial = True
-                #     print('----------------- done with this plane, moving to next')
-                #     self.send_move(10)
+        #         # else:
+        #         #     self.initial = True
+        #         #     print('----------------- done with this plane, moving to next')
+        #         #     self.send_move(10)
 
-        ### update GP, suggest next stim
-        else:
+        # ### update GP, suggest next stim
+        # else:
             
-            if self.prepared_frame is None:
-                X = np.zeros(2)
-                # print('self.X from analysis is ', self.X[:,-1])
-                # print('going back further', self.X)
-                # print('GP_stimuli', self.GP_stimuli[0])
-                # try:
-                X[0] = self.GP_stimuli[0][int(self.X[0,-1])]
-                X[1] = self.GP_stimuli[1][int(self.X[1,-1])]
-                # X[2] = self.GP_stimuli[2][int(self.X[2,-1])]
-                logger.info('optim {} , update GP with {}, {}'.format( self.nID, X, self.y0[self.nID, -1]))
-                self.optim.update_GP(np.squeeze(X), self.y0[self.nID,-1])
+        #     if self.prepared_frame is None:
+        #         X = np.zeros(2)
+        #         # print('self.X from analysis is ', self.X[:,-1])
+        #         # print('going back further', self.X)
+        #         # print('GP_stimuli', self.GP_stimuli[0])
+        #         # try:
+        #         X[0] = self.GP_stimuli[0][int(self.X[0,-1])]
+        #         X[1] = self.GP_stimuli[1][int(self.X[1,-1])]
+        #         # X[2] = self.GP_stimuli[2][int(self.X[2,-1])]
+        #         logger.info('optim {} , update GP with {}, {}'.format( self.nID, X, self.y0[self.nID, -1]))
+        #         self.optim.update_GP(np.squeeze(X), self.y0[self.nID,-1])
 
-                curr_unc = np.diagonal(self.optim.sigma.reshape((72,72))).reshape((12,6))
-                curr_est = self.optim.f.reshape((12,6))
-                self.saved_GP_unc.append(curr_unc)
-                self.saved_GP_est.append(curr_est)
-                # except:
-                #     pass
-                ids = []
-                # print('--------------- nID', self.nID)
-                # ids.append(self.client.put(self.nID, 'nID'))
-                ids.append(self.nID)
-                ids.append(self.client.put(curr_est)) #, 'est'))
-                ids.append(self.client.put(curr_unc)) #, 'unc'))
-                # ids.append(self.client.put(self.conf, 'conf'))
-                self.q_out.put(ids)
+        #         curr_unc = np.diagonal(self.optim.sigma.reshape((72,72))).reshape((12,6))
+        #         curr_est = self.optim.f.reshape((12,6))
+        #         self.saved_GP_unc.append(curr_unc)
+        #         self.saved_GP_est.append(curr_est)
+        #         # except:
+        #         #     pass
+        #         ids = []
+        #         # print('--------------- nID', self.nID)
+        #         # ids.append(self.client.put(self.nID, 'nID'))
+        #         ids.append(self.nID)
+        #         ids.append(self.client.put(curr_est)) #, 'est'))
+        #         ids.append(self.client.put(curr_unc)) #, 'unc'))
+        #         # ids.append(self.client.put(self.conf, 'conf'))
+        #         self.q_out.put(ids)
 
-                stopCrit = self.optim.stopping()
-                logger.info('----------- stopCrit: {}'.format(stopCrit))
-                self.stopping[self.test_count] = stopCrit
-                self.test_count += 1
+        #         stopCrit = self.optim.stopping()
+        #         logger.info('----------- stopCrit: {}'.format(stopCrit))
+        #         self.stopping[self.test_count] = stopCrit
+        #         self.test_count += 1
 
                 
-                if stopCrit < 3.0e-4: #6.0e-4: #8e-2: #0.37/2.05
-                    peak = self.stim_star[np.argmax(self.optim.f)]
-                    logger.info('Satisfied with this neuron, moving to next. Est peak: {}'.format(peak))
-                    # self.nID += 1
-                    self.newN = True
-                    self.stopping_list.append(self.stopping)
-                    self.peak_list.append(peak)
-                    self.optim_f_list.append(self.optim.f)
+        #         if stopCrit < 3.0e-4: #6.0e-4: #8e-2: #0.37/2.05
+        #             peak = self.stim_star[np.argmax(self.optim.f)]
+        #             logger.info('Satisfied with this neuron, moving to next. Est peak: {}'.format(peak))
+        #             # self.nID += 1
+        #             self.newN = True
+        #             self.stopping_list.append(self.stopping)
+        #             self.peak_list.append(peak)
+        #             self.optim_f_list.append(self.optim.f)
 
-                    np.save('output/saved_GP_est_'+str(self.nID)+'.npy', np.array(self.saved_GP_est))
-                    np.save('output/saved_GP_unc_'+str(self.nID)+'.npy', np.array(self.saved_GP_unc))
+        #             np.save('output/saved_GP_est_'+str(self.nID)+'.npy', np.array(self.saved_GP_est))
+        #             np.save('output/saved_GP_unc_'+str(self.nID)+'.npy', np.array(self.saved_GP_unc))
 
-                    # if len(self.optim_f_list) >= 500:
-                    #     print('----------------- done with this plane, moving to next')
-                    #     self.send_move(10)
+        #             # if len(self.optim_f_list) >= 500:
+        #             #     print('----------------- done with this plane, moving to next')
+        #             #     self.send_move(10)
                     
-                elif self.test_count >= self.maxT:
-                    logger.info('exceeded test count')
-                    self.goback_neurons.append(self.nID)
-                    self.newN = True
-                    self.stopping_list.append(self.stopping)
-                    peak = self.stim_star[np.argmax(self.optim.f)]
-                    self.peak_list.append(peak)
-                    self.optim_f_list.append(self.optim.f)
+        #         elif self.test_count >= self.maxT:
+        #             logger.info('exceeded test count')
+        #             self.goback_neurons.append(self.nID)
+        #             self.newN = True
+        #             self.stopping_list.append(self.stopping)
+        #             peak = self.stim_star[np.argmax(self.optim.f)]
+        #             self.peak_list.append(peak)
+        #             self.optim_f_list.append(self.optim.f)
 
-                else:
-                    ind, xt_1 = self.optim.max_acq()
-                    logger.info('suggest next stim: {}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
-                    self.prepared_frame = self.create_chosen_stim(ind)
+        #         else:
+        #             ind, xt_1 = self.optim.max_acq()
+        #             logger.info('suggest next stim: {}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
+        #             self.prepared_frame = self.create_chosen_stim(ind)
  
-            if (time.time() - self.timer) >= self.total_stim_time:
-                self.send_frame(self.prepared_frame)
-                self.prepared_frame = None
+        #     if (time.time() - self.timer) >= self.total_stim_time:
+        #         self.send_frame(self.prepared_frame)
+        #         self.prepared_frame = None
 
     def send_frame(self, stim):
 
@@ -377,23 +380,25 @@ class VisualStimulus(Actor):
 
         if stim is not None:
 
-            if self.params[3] == 0: #shape is ellipse
+            if self.params[4] == 0: #shape is ellipse
                 text = {'texture_size': 1600,
                         'frequency': int(self.params[4]),
-                        'center': (int(round(self.params[0][0])), int(round(self.params[0][1]))),
-                        'width': int(self.params[2]),
-                        'length': int(self.params[1]),
+                        'center_x': int(self.params[0]),
+                        'center_y': int(self.params[1]),
+                        'width': int(self.params[3]),
+                        'length': int(self.params[2]),
                         'texture_name': 'gray_ellipse',
                         'bg_intensity': 200,
                         'fg_intensity': 50,
                         }
             
-            if self.params[3] == 1: #shape is a rectangle
+            if self.params[4] == 1: #shape is a rectangle
                 text = {'texture_size': 1600,
                         'frequency': int(self.params[4]),
-                        'center': (int(round(self.params[0][0])), int(round(self.params[0][1]))),
-                        'width': int(self.params[2]),
-                        'length': int(self.params[1]),
+                        'center_x': int(self.params[0]),
+                        'center_y': int(self.params[1]),
+                        'width': int(self.params[3]),
+                        'length': int(self.params[2]),
                         'texture_name': 'gray_rectangle',
                         'bg_intensity': 200,
                         'fg_intensity': 50,
@@ -418,14 +423,15 @@ class VisualStimulus(Actor):
         xt = self.stim_star[ind]
         angle = xt[0]
         vel = xt[1]
-        pos = xt[2]
-        length = xt[3]
-        width = xt[4]
-        shape = xt[5]
-        freq = xt[6]
+        posx = xt[2]
+        posy = xt[3]
+        length = xt[4]
+        width = xt[5]
+        shape = xt[6]
+        freq = xt[7]
 
         logger.info('create chosen stim xt: '.format(xt))
-        stim, self.params = self.create_frame(angle, vel, [pos, length, width, shape, freq])
+        stim = self.create_frame(angle, vel, [posx, posy, length, width, shape, freq])
         return stim
 
     def create_frame(self, angle, vel, params):
@@ -440,7 +446,7 @@ class VisualStimulus(Actor):
         stim_t = stat_t + 5
         self.total_stim_time = stim_t
     
-        if self.params[3] == 0: #ellipse:
+        if self.params[4] == 0: #ellipse:
             stim = {
                     'stim_name': 'moving_gray_ellipse',
                     'angle': int(angle),
@@ -449,7 +455,7 @@ class VisualStimulus(Actor):
                     'duration': stim_t,
                     'hold_after': float(stat_t),
                         }
-        elif self.params[3] == 1: #rectangle:
+        elif self.params[4] == 1: #rectangle:
             stim = {
                     'stim_name': 'moving_gray_rectangle',
                     'angle': int(angle),
@@ -468,14 +474,16 @@ class VisualStimulus(Actor):
         if self.which_angle%8 == 0:
             random.shuffle(self.initial_angles)
             random.shuffle(self.initial_vel)
-            random.shuffle(self.initial_pos)
+            random.shuffle(self.initial_posx)
+            random.shuffle(self.initial_posy)
             random.shuffle(self.initial_len)
             random.shuffle(self.initial_width)
             random.shuffle(self.initial_shape)
             random.shuffle(self.initial_frequency)
         angle = self.initial_angles[self.which_angle%8] #self.stim_sets[0][self.which_angle%len(self.stim_sets[0])]
         vel = self.initial_vel[self.which_angle%6]
-        pos = self.initial_pos[self.which_angle%len(self.initial_pos)]
+        posx = self.initial_posx[self.which_angle%len(self.initial_posx)]
+        posy = self.initial_posy[self.which_angle%len(self.initial_posy)]
         length = self.initial_len[self.which_angle%len(self.initial_len)]
         width = self.initial_width[self.which_angle%len(self.initial_width)]
         shape = self.initial_shape[self.which_angle%len(self.initial_shape)]
@@ -490,7 +498,7 @@ class VisualStimulus(Actor):
             self.which_angle = 0
             logger.info('Done with initial frames, starting random set')
         
-        stim = self.create_frame(angle, vel, [pos, length, width, shape, freq]) #, 0.14)
+        stim = self.create_frame(angle, vel, [posx, posy, length, width, shape, freq]) #, 0.14)
         self.timer = time.time()
         self.circ_size = angle
         return stim

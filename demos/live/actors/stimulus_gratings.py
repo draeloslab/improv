@@ -173,7 +173,7 @@ class VisualStimulus(Actor):
             X = self.client.get(ids[0])
             Y = self.client.get(ids[1])
             stim = self.client.get(ids[2])
-            # logger.info('Y is receiving: {}'.format(Y))
+            logger.info('Y is receiving: {}'.format(Y.shape))
             tmpX = np.squeeze(np.array(X)).T
             # logger.info(f'{tmpX.shape}----------------------------------------------------')
             sh = len(tmpX.shape)

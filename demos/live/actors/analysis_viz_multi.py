@@ -60,18 +60,20 @@ class VizStimAnalysis(Actor):
 
         self.x_angle = self.stimuli[0]
         self.x_vel = self.stimuli[1]
-        self.initial_pos = self.stimuli[2]
-        self.len = self.stimuli[3]
-        self.width = self.stimuli[4]
-        self.shape = self.stimuli[5]
-        self.freq = self.stimuli[6]
+        self.initial_posx = self.stimuli[2]
+        self.initial_posy = self.stimuli[3]
+        self.len = self.stimuli[4]
+        self.width = self.stimuli[5]
+        self.shape = self.stimuli[6]
+        self.freq = self.stimuli[7]
         # self.x_freq = self.stimuli[2]
         # self.x_contrast = self.stimuli[3]
 
         self.counters = {}
         self.counters['angle'] = np.ones((self.x_angle.shape[0],2))
         self.counters['vel'] =  np.ones((self.x_vel.shape[0],2))
-        self.counters['pos'] = np.ones((self.initial_pos.shape[0], 2))
+        self.counters['posx'] = np.ones((self.initial_posx.shape[0], 2))
+        self.counters['posy'] = np.ones((self.initial_posy.shape[0], 2))
         self.counters['length'] = np.ones((self.len.shape[0], 2))
         self.counters['width'] = np.ones((self.width.shape[0], 2))
         self.counters['shape'] = np.ones((self.shape.shape[0], 2))
@@ -82,7 +84,8 @@ class VizStimAnalysis(Actor):
         self.ys = {}
         self.ys['angle'] = np.zeros((1, self.x_angle.shape[0], 2))
         self.ys['vel'] = np.zeros((1, self.x_vel.shape[0], 2))
-        self.ys['pos'] = np.zeros((1, self.initial_pos.shape[0], 2))
+        self.ys['posx'] = np.zeros((1, self.initial_posx.shape[0], 2))
+        self.ys['posy'] = np.zeros((1, self.initial_posy.shape[0], 2))
         self.ys['length'] = np.zeros((1, self.len.shape[0], 2))
         self.ys['width'] = np.zeros((1, self.width.shape[0], 2))
         self.ys['shape'] = np.zeros((1, self.shape.shape[0], 2))
@@ -94,7 +97,8 @@ class VizStimAnalysis(Actor):
         self.y_results = {}
         self.y_results['angle'] = None
         self.y_results['vel'] = None
-        self.y_results['pos'] = None
+        self.y_results['posx'] = None
+        self.y_results['posy'] = None
         self.y_results['length'] = None
         self.y_results['width'] = None
         self.y_results['shape'] = None
@@ -105,8 +109,9 @@ class VizStimAnalysis(Actor):
         self.xs = {}
         self.xs['angle'] = 0
         self.xs['vel'] = 0
-        self.xs['pos'] = 0
-        self.xs['len'] = 0
+        self.xs['posx'] = 0
+        self.xs['posy'] = 0
+        self.xs['length'] = 0
         self.xs['width'] = 0
         self.xs['shape'] = 0
         self.xs['freq'] = 0
@@ -115,8 +120,8 @@ class VizStimAnalysis(Actor):
 
         # self.all_y = np.zeros((500, self.x_angle.shape[0],self.x_angle.shape[0]))
         # self.stim_count = np.zeros((self.x_angle.shape[0],self.x_angle.shape[0]))
-        self.all_y = np.zeros((500, self.x_angle.shape[0],self.x_vel.shape[0],self.initial_pos.shape[0],self.len.shape[0],self.width.shape[0],self.shape.shape[0],self.freq.shape[0]))
-        self.stim_count = np.zeros((self.x_angle.shape[0],self.x_vel.shape[0],self.initial_pos.shape[0],self.len.shape[0],self.width.shape[0],self.shape.shape[0],self.freq.shape[0]))
+        self.all_y = np.zeros((500, self.x_angle.shape[0],self.x_vel.shape[0],self.initial_posx.shape[0], self.initial_posy.shape[0],self.len.shape[0],self.width.shape[0],self.shape.shape[0],self.freq.shape[0]))
+        self.stim_count = np.zeros((self.x_angle.shape[0],self.x_vel.shape[0],self.initial_posx.shape[0], self.initial_posy.shape[0],self.len.shape[0],self.width.shape[0],self.shape.shape[0],self.freq.shape[0]))
 
         self.stimX = []
         self.stimY = []
@@ -258,11 +263,12 @@ class VizStimAnalysis(Actor):
         # logger.info('STIM in updateStim start: {}'.format(stim))
         angle = stim[frame][0]
         vel = stim[frame][1]
-        pos = stim[frame][2]
-        length = stim[frame][3]
-        width = stim[frame][4]
-        shape = stim[frame][5]
-        freq = stim[frame][6]
+        posx = stim[frame][2]
+        posy = stim[frame][3]
+        length = stim[frame][4]
+        width = stim[frame][5]
+        shape = stim[frame][6]
+        freq = stim[frame][7]
         # freq = stim[frame][4]
         # contrast = stim[frame][5]
 
@@ -270,8 +276,9 @@ class VizStimAnalysis(Actor):
         # print(stim)
         # print(self.x_vel)
         self.xs['vel'] = np.argwhere(vel==self.x_vel)[0]
-        self.xs['pos'] = np.argwhere(pos==self.initial_pos)[0]
-        self.xs['len'] = np.argwhere(length==self.len)[0]
+        self.xs['posx'] = np.argwhere(posx==self.initial_posx)[0]
+        self.xs['posy'] = np.argwhere(posy==self.initial_posy)[0]
+        self.xs['length'] = np.argwhere(length==self.len)[0]
         self.xs['width'] = np.argwhere(width==self.width)[0]
         self.xs['shape'] = np.argwhere(shape==self.shape)[0]
         self.xs['freq'] = np.argwhere(freq==self.freq)[0]
@@ -280,8 +287,8 @@ class VizStimAnalysis(Actor):
         # self.xs['contrast'] = np.argwhere(contrast==self.x_contrast)[0]
 
         logger.info('xs: {}'.format(self.xs))
-        self.stim_count[int(self.xs['angle']), int(self.xs['vel']), self.xs['pos'],
-                        int(self.xs['len']), int(self.xs['width']), int(self.xs['shape']),
+        self.stim_count[int(self.xs['angle']), int(self.xs['vel']), int(self.xs['posx']), int(self.xs['posy']), 
+                        int(self.xs['length']), int(self.xs['width']), int(self.xs['shape']),
                         int(self.xs['freq'])] += 1
 
         # assuming we have one of those 8 stimuli
@@ -462,16 +469,16 @@ class VizStimAnalysis(Actor):
                 self.stimX.append(list(self.xs.values()))
                 self.stimY.append(np.mean(ests[:,self.frame-self.after_amount:self.frame],1))
                 self.testNum += 1
-                sc = self.stim_count[int(self.xs['angle']), int(self.xs['vel']), self.xs['pos'],
-                        int(self.xs['len']), int(self.xs['width']), int(self.xs['shape']),
+                sc = self.stim_count[int(self.xs['angle']), int(self.xs['vel']), int(self.xs['posx']), int(self.xs['posy']), 
+                        int(self.xs['length']), int(self.xs['width']), int(self.xs['shape']),
                         int(self.xs['freq'])]
                 numN = self.ests.shape[0]
-                self.all_y[:numN, int(self.xs['angle']), int(self.xs['vel']),self.xs['pos'],
-                        int(self.xs['len']), int(self.xs['width']), int(self.xs['shape']),
-                        int(self.xs['freq'])] = ((sc-1)*self.all_y[:numN, int(self.xs['angle']), int(self.xs['vel']), self.xs['pos'],
-                        int(self.xs['len']), int(self.xs['width']), int(self.xs['shape']),
+                mm = ((sc-1)*self.all_y[:numN, int(self.xs['angle']), int(self.xs['vel']), int(self.xs['posx']),int(self.xs['posy']), 
+                        int(self.xs['length']), int(self.xs['width']), int(self.xs['shape']),
                         int(self.xs['freq'])] + self.stimY[-1])/sc
-
+                self.all_y[:numN, int(self.xs['angle']), int(self.xs['vel']),int(self.xs['posx']),int(self.xs['posy']), 
+                        int(self.xs['length']), int(self.xs['width']), int(self.xs['shape']),
+                        int(self.xs['freq'])] = mm
         self.estsAvg = np.squeeze(self.ests[:,:,0] - self.ests[:,:,1])        
         self.estsAvg = np.where(np.isnan(self.estsAvg), 0, self.estsAvg)
         self.estsAvg[self.estsAvg == np.inf] = 0
