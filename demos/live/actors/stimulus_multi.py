@@ -61,8 +61,8 @@ class VisualStimulus(Actor):
         self.initial_angles = np.linspace(0,330,num=12) #np.array([5,10,8,4,3,9,2,1]) # np.linspace(0,360,endpoint=False, num=8)
         self.initial_vel = np.array([0.02, 0.04, 0.06, 0.08, 0.10, 0.12])
         self.initial_pos = np.array([list(product(np.arange(205,1525,100), np.arange(625,1285,100)))]).squeeze()
-        self.initial_len = np.linspace(0,900, num=10)
-        self.initial_width = np.linspace(0, 1800, num=10)
+        self.initial_len = np.linspace(10,900, num=10)
+        self.initial_width = np.linspace(10, 1800, num=10)
         self.initial_shape = np.array([0,1])
         self.initial_frequency = np.linspace(1,330, num=12)
         random.shuffle(self.initial_angles)
@@ -211,7 +211,7 @@ class VisualStimulus(Actor):
         except Empty as e:
             pass
         except Exception as e:
-            print('Error in stimulus_gratings get: {}'.format(e))
+            print('Error in stimulus_multi get: {}'.format(e))
 
 
 
@@ -223,15 +223,8 @@ class VisualStimulus(Actor):
         elif self.initial:
             # pass
             if self.prepared_frame is None:
-                logger.info('starting self.inital_frame ---------')
                 self.prepared_frame = self.initial_frame()
-                # logger.info('FRAME INTIAL FRAMES {}'.format(self.prepared_frame))
-                # logger.info('PARAMS FROM INTIAL FRAMES {}'.format(params))
-                # logger.info('got circ size {}'.format(self.circ_size))
-                # logger.info(self.prepared_frame)
-                # self.prepared_frame.pop('load')
             if (time.time() - self.timer) >= self.total_stim_time:
-                # logger.info(self.prepared_frame)
                 self.send_frame(self.prepared_frame)
                 self.prepared_frame = None
 
@@ -243,7 +236,6 @@ class VisualStimulus(Actor):
                 
                 if self.prepared_frame is None:
                     self.prepared_frame = self.random_frame()
-                    # self.prepared_frame.pop('load')
                 if (time.time() - self.timer) >= self.total_stim_time:
                         # self.random_frame()
                     self.send_frame(self.prepared_frame)
@@ -384,7 +376,6 @@ class VisualStimulus(Actor):
         # logger.info('PARMS INSIDE SEND FRAME {}'.format(params))
 
         if stim is not None:
-            logger.info('PARAMS: {}'.format(self.params[3]))
 
             if self.params[3] == 0: #shape is ellipse
                 text = {'texture_size': 1600,
@@ -407,22 +398,8 @@ class VisualStimulus(Actor):
                         'bg_intensity': 200,
                         'fg_intensity': 50,
                         }
-
-            # For 'sin_gray' or 'grating_gray':
-            # text = {'texture_size': 1024,
-            #         'texture_name': 'sin_gray',
-            #         'bg_intensity': 255,
-            #         'fg_intensity': 0,
-            #         }
-
-            # For 'sin_rgb' or 'grating_rgb' :
-            # text = {'texture_size': 1024,
-            #         'texture_name': 'grating_rgb',
-            #         'bg_intensity': 255,
-            #         'fg_intensity': 0,
-            #         'color': (255, 0, 0),
-            #         }
-            
+                
+            logger.info('texture: {}'.format(text))
             stimulus = {'stimulus': stim, 'texture': text}
             self._socket.send_string(self.stimulus_topic, zmq.SNDMORE)
             self._socket.send_pyobj(stimulus)
@@ -504,7 +481,6 @@ class VisualStimulus(Actor):
         shape = self.initial_shape[self.which_angle%len(self.initial_shape)]
         freq = self.initial_frequency[self.which_angle%len(self.initial_frequency)]
 
-        
         
         self.which_angle += 1
         if self.which_angle >= self.initial_length: 

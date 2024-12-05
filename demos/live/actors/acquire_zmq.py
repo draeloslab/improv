@@ -149,6 +149,7 @@ class ZMQAcquirer(Actor):
                 finalthing = np.array(message_data)
                 tag = msg_dict['type']
             elif isinstance(msg, str):
+                # logger.info('pandastim raw msg: {}'.format(msg))
                 msg_dict, category = self._msg_unpacker(msg)
                 tag = 'stim'
                 
@@ -254,7 +255,6 @@ class ZMQAcquirer(Actor):
             self.saveArray = []
             logger.info('after saving internal')
         
-        
 
     def _collect_stimulus(self, msg_dict, category):
         # sendtime = msg_dict['time']
@@ -292,14 +292,43 @@ class ZMQAcquirer(Actor):
                 self.links['stim_queue'].put({self.frame_num:[angle, vel]})
                 self.stimmed.append([self.frame_num, angle, vel])
                 logger.info('Stimulus: Moving gratings angle {} with velocity {} at frame {}'.format(angle, vel, self.frame_num))
-
+            
+            # logger.info('texture name: {}'.format(msg_dict['texture']['texture_name']))
+            # logger.info('texture name type: {}'.format(type(msg_dict['texture']['texture_name'])))
+            # if msg_dict['texture']['texture_name'] == 'gray_ellipse' or msg_dict['texture']['texture_name'] == 'gray_rectangle':
+ 
             ## spots stim with Karina
-            if msg_dict['texture']['texture_name'] == 'gray_circle':
+            elif msg_dict['texture']['texture_name'] == 'gray_circle':
                 size = float(msg_dict['circle_radius'])
                 vel = float(msg_dict['velocity'])
                 self.links['stim_queue'].put({self.frame_num:[size, vel]})
                 self.stimmed.append([self.frame_num, size, vel])
                 logger.info('Stimulus: Circle radius {} with velocity {} at frame {}'.format(size, vel, self.frame_num))
+            
+            else:
+                logger.info('collecting stimulus -- ')
+                angle = float(msg_dict['stimulus']['angle'])
+                vel = float(msg_dict['stimulus']['velocity'])
+                freq = int(msg_dict['texture']['frequency'])
+                center = (msg_dict['texture']['center'])
+                length = int(msg_dict['texture']['length'])
+                width = int(msg_dict['texture']['width'])
+
+                if msg_dict['texture']['texture_name'] == 'gray_ellipse':
+                    shape = int(0)
+                else:
+                    shape = int(1)
+
+                logger.info('sending stim queue')
+                try:
+                    self.links['stim_queue'].put({self.frame_num:[angle, vel, center, length, width, shape, freq]})
+                    self.stimmed.append([self.frame_num, angle, vel, center, length, width, shape, freq])
+                except Exception as e:
+                    logger.error('an error has occured in sending stim queue: {}'.format(e))
+                if shape == 0:
+                    logger.info('Stimulus: {} Ellipse of length {} and width {} at angle {} with velocity {} at intial position {} at frame {}'.format(freq, length, width, angle, vel, center, self.frame_num))
+                else:
+                    logger.info('Stimulus: {} Rectangle of length {} and width {} at angle {} with velocity {} at intial position {} at frame {}'.format(freq, length, width, angle, vel, center, self.frame_num))
 
             logger.info('Number of stimuli: {}'.format(self.stim_count))
             # self.stimsendtimes.append([sendtime])
