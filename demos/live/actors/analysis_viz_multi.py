@@ -202,7 +202,7 @@ class VizStimAnalysis(Actor):
                 self.stimText = list(sig.values())
             except Empty as e:
                 pass #no change in input stimulus
-                # logger.error(f'an error occcured: {e}', exc_info=True)
+            #     logger.error(f'an error occcured: {e}', exc_info=True)
             except Exception as e:
                 logger.error(f'an error occcured: {e}', exc_info=True)
 
@@ -309,10 +309,12 @@ class VizStimAnalysis(Actor):
         # paradigm for these trials is for each stim: [off, on, off]
         if self.lastOnOff is None:
             self.lastOnOff = curStim
+        
         elif curStim == 1: #self.lastOnOff == 0 and curStim == 1: #was off, now on
             # select this frame as the starting point of the new trial
             # and stimulus has started to be shown
             # All other computations will reference this point
+            # logger.info('inside curStim == 1 block -- ')
             self.stimStart = frame 
             self.currentStim = stimID
             if stimID<8:
@@ -463,7 +465,7 @@ class VizStimAnalysis(Actor):
                     # self.y_contrast[:,self.xc,0] = (self.counters['contrast'][self.xc,0]*self.y_contrast[:,self.xc,0] + val)/(self.counters['contrast'][self.xc,0]+1)
                     # self.counters['contrast'][self.xc, 0] += 1
             # logger.info('frame_number: {}'.format(self.frame))
-            # logger.info('stimStart + self.after_amount: {}'.format((self.stimStart, self.after_amount)))
+            # logger.info('frame {}, stimStart: {} + self.after_amount: {}'.format(self.frame, self.stimStart, self.after_amount))
             if self.frame == self.stimStart + self.after_amount:
                 logger.info('appending to X: {}'.format(list(self.xs.values())))
                 self.stimX.append(list(self.xs.values()))
