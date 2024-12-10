@@ -62,8 +62,8 @@ class VisualStimulus(Actor):
         self.initial_vel = np.array([0.02, 0.04, 0.06, 0.08, 0.10, 0.12])
         self.initial_posx = np.arange(205,1525,100)
         self.initial_posy = np.arange(625,1285,100)
-        self.initial_len = np.linspace(10,900, num=10)
-        self.initial_width = np.linspace(10, 1800, num=10)
+        self.initial_len = np.linspace(20,800, num=10).astype(int)
+        self.initial_width = np.linspace(20,1600, num=10).astype(int)
         self.initial_shape = np.array([0,1])
         self.initial_frequency = np.linspace(1,330, num=12)
         random.shuffle(self.initial_angles)
@@ -107,7 +107,7 @@ class VisualStimulus(Actor):
         self.maxT = 20
 
         ## random sampling for initialization
-        self.initial_length = 600 #16*2 #16*3
+        self.initial_length = 10 #16*2 #16*3
 
         self.optimized_n = []
 
@@ -188,7 +188,7 @@ class VisualStimulus(Actor):
             X = self.client.get(ids[0])
             Y = self.client.get(ids[1])
             # stim = self.client.get(ids[3])
-            logger.info('Y is receiving: {}'.format(len(Y)))
+            # logger.info('Y is receiving: {}'.format(len(Y)))
             tmpX = np.squeeze(np.array(X)).T
             # logger.info(f'{tmpX.shape}----------------------------------------------------')
             sh = len(tmpX.shape)
@@ -206,8 +206,8 @@ class VisualStimulus(Actor):
                 self.y0 = b.T
                 # logger.info('X, Y shapes: {}, {}'.format(self.X.shape, self.y0.shape))
             except Exception as e:
-                logger.info('Error in stimulus_multi calc y0: {}'.format(e))
-                # logger.info('X, Y shapes: {}, {}'.format(self.X.shape, self.y0.shape))
+                # logger.info('Error in stimulus_multi calc y0: {}'.format(e))
+                logger.info('X, Y shapes: {}, {}'.format(self.X.shape, self.y0.shape))
                 pass
             
 
