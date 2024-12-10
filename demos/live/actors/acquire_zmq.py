@@ -307,13 +307,16 @@ class ZMQAcquirer(Actor):
             
             else:
                 logger.info('collecting stimulus -- ')
-                angle = float(msg_dict['stimulus']['angle'])
-                vel = float(msg_dict['stimulus']['velocity'])
-                freq = int(msg_dict['texture']['frequency'])
-                center_x = int(msg_dict['texture']['center_x'])
-                center_y = int(msg_dict['texture']['center_y'])
-                length = int(msg_dict['texture']['length'])
-                width = int(msg_dict['texture']['width'])
+                try:
+                    angle = float(msg_dict['stimulus']['angle'])
+                    vel = float(msg_dict['stimulus']['velocity'])
+                    freq = int(msg_dict['texture']['frequency'])
+                    center_x = int(msg_dict['texture']['center_x'])
+                    center_y = int(msg_dict['texture']['center_y'])
+                    length = int(msg_dict['texture']['length'])
+                    width = int(msg_dict['texture']['width'])
+                except Exception as e: 
+                    logger.error('Error in acquire, in collecting stimulus {}'.format(e))
 
                 if msg_dict['texture']['texture_name'] == 'gray_ellipse':
                     shape = int(0)
@@ -321,11 +324,9 @@ class ZMQAcquirer(Actor):
                     shape = int(1)
 
                 logger.info('sending stim queue')
-                try:
-                    self.links['stim_queue'].put({self.frame_num:[angle, vel, center_x, center_y, length, width, shape, freq]})
-                    self.stimmed.append([self.frame_num, angle, vel, center_x, center_y, length, width, shape, freq])
-                except Exception as e:
-                    logger.error('an error has occured in sending stim queue: {}'.format(e))
+                self.links['stim_queue'].put({self.frame_num:[angle, vel, center_x, center_y, length, width, shape, freq]})
+                self.stimmed.append([self.frame_num, angle, vel, center_x, center_y, length, width, shape, freq])
+               
                 if shape == 0:
                     logger.info('Stimulus: {} Ellipse of length {} and width {} at angle {} with velocity {} at intial position {} at frame {}'.format(freq, length, width, angle, vel, center_x, center_y, self.frame_num))
                 else:
