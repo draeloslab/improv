@@ -65,7 +65,7 @@ class Processor(Actor):
             self.frames_log = 200 # num frames after which to log
             # self.recent_predictions = [deque(maxlen=3) for _ in range(5)]  #want to keep this low to avoid lag
             self.recent_predictions = [None for _ in range(5)]
-            self.alpha = 0.5 #Smoothing factor for EMA
+            self.alpha = 0.3 #Smoothing factor for EMA
 
 
             timestamp = time.strftime("%Y%m%d-%H%M")

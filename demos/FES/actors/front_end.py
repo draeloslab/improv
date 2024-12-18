@@ -97,13 +97,13 @@ class CameraStreamWidget(QWidget):
                 
                 if angle is not None:
                     # #Applying a moving average
-                    self.recent_angles.append(angle)
-                    smooted_angle = np.mean(self.recent_angles)
-                    self.angles.append(smooted_angle)
-                    if predictions[1:3,2].mean() < 0.5:  #Linear interpolation if the likelihood is low
-                        self.angles.append(self.angles[-1])
-                    else:
-                        self.angles.append(angle)
+                    # self.recent_angles.append(angle)
+                    # smooted_angle = np.mean(self.recent_angles)
+                    # self.angles.append(smooted_angle)
+                    # if predictions[1:3,2].mean() < 0.5:  #Linear interpolation if the likelihood is low
+                    #     self.angles.append(self.angles[-1])
+                    # else:
+                    self.angles.append(angle)
                     if len(self.angles) > 100:  # Limit to the latest 100 angles
                         self.angles.pop(0)
                     self.update_angle_plot()
@@ -124,12 +124,14 @@ class CameraStreamWidget(QWidget):
             painter.begin(q_img)
             painter.setBrush(QBrush(QColor(255, 0, 0)))
 
-            labels = ["DIP", "PIP", "MCP", "Wrist", "Forearm"]
+            # labels = ["DIP", "PIP", "MCP", "Wrist", "Forearm"]
+            labels = ["Wrist", "MCP", "End"]
+
             prev_point = None
             for i, point in enumerate(predictions):
             # for point in predictions:
                 x, y, likelihood = point
-                if likelihood > 0.1:
+                if likelihood > 0:
                     painter.setPen(QPen(QColor(255, 0, 0), 2))  # Red color, 2px width
                     painter.drawEllipse(int(x), int(y), 50, 50)
                     painter.setPen(QPen(QColor(255, 255, 255), 2))  # White color for text
