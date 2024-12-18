@@ -28,25 +28,25 @@ actors:
 
   # video savers: each video saver writes the frames readed to raw-video file
   VideoSaver0:
-    # package: actors.video_saver_multiproc
-    package: actors.video_saver
+    # package: actors.video_saver # old video saver (slow - max 30fps)
+    package: actors.video_saver_multiproc_new
     class: VideoSaver
     camera_num: 0
-    method: spawn
+    # method: spawn
 
   VideoSaver1:
-    # package: actors.video_saver_multiproc    
-    package: actors.video_saver
+    # package: actors.video_saver # old video saver (slow - max 30fps)
+    package: actors.video_saver_multiproc_new    
     class: VideoSaver
     camera_num: 1
-    method: spawn
+    # method: spawn
     
   VideoSaver2:
-    # package: actors.video_saver_multiproc
-    package: actors.video_saver
+    # package: actors.video_saver # old video saver (slow - max 30fps)
+    package: actors.video_saver_multiproc_new
     class: VideoSaver
     camera_num: 2
-    method: spawn
+    # method: spawn
 
 connections:
   CameraReader0.q_out: [VideoSaver0.q_in, VideoScreen.camera0_in]

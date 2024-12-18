@@ -7,14 +7,14 @@ import subprocess
 import pickle
 import cv2
 import struct
-
 from skvideo.io import FFmpegWriter
 from copy import deepcopy
 from improv.actor import ManagedActor
 from pathlib import Path
-from multiprocessing import Pool, Process, Queue
+from multiprocessing import Pool, Process
 from redis import Redis
 from collections import deque
+from queue import Queue
 
 import logging
 logger = logging.getLogger(__name__)
@@ -32,47 +32,47 @@ file_handler.setFormatter(formatter)
 # Add the handler to the logger
 logger.addHandler(file_handler)
 
-# Function to save chunks of frames to a video file
-def save_buffer_frames(buffer, out_folder, num_buffer):    
-    try:
-        redis_store = Redis(host='localhost', port=6379)
-    except Exception:
-        logger.exception("Cannot connect to redis datastore localhost:6379")
-
-    try:
-        compressed_frames = []
-
-        for frame_id in buffer:
-            if frame_id is not None:
-                frame_enc = pickle.loads(redis_store.get(frame_id))
-
-                compressed_frames.append(frame_enc.tobytes())
-
-                # Set the expiration for the frame in the Redis store
-                redis_store.expire(frame_id, 5)
-
-        # Define the output file path
-        file_name = f'buffer_{num_buffer:05d}.bin'
-        file_path = os.path.join(out_folder, file_name)
-        
-        # Save all compressed frames to the binary file
-        with open(file_path, 'wb') as f:
-            for cf in compressed_frames:
-                # Write the length of the compressed frame
-                f.write(len(cf).to_bytes(4, byteorder='little'))
-                # Write the compressed frame data
-                f.write(cf)
-
-    except Exception as e:
-        logger.error(f"Error saving frames | {e}")
-    finally:
-        redis_store.close()
-
 class VideoSaver(ManagedActor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.camera_num = kwargs['camera_num']
+
+    # Function to save chunks of frames to a video file
+    def save_buffer_frames(self, buffer, num_buffer):
+        try:
+            compressed_frames = [] # TODO: this could be a fixed vector for reducing memory usage
+            
+            for frame_id in buffer:
+                frame_enc = self.client.get(frame_id)
+                compressed_frames.append(frame_enc.tobytes())
+
+                # Set the expiration for the frame in the client
+                self.client.expire(frame_id, 5)
+
+            # Define the output file path
+            file_name = f'buffer_{num_buffer:05d}.bin'
+            file_path = os.path.join(self.out_folder_buffer, file_name)
+            
+            # Save all compressed frames to the binary file
+            with open(file_path, 'wb') as f:
+                for cf in compressed_frames:
+                    # Write the length of the compressed frame
+                    f.write(len(cf).to_bytes(4, byteorder='little'))
+                    # Write the compressed frame data
+                    f.write(cf)
+
+        except Exception as e:
+            logger.error(f"Error saving frames | {e}")
+
+    def save_buffer_frames_loop(self):
+        while not self.stop_program or not self.save_queue.empty():
+            try:
+                prev_buffer, num_buffer = self.save_queue.get(timeout=1)
+                self.save_buffer_frames(prev_buffer, num_buffer)
+                self.save_queue.task_done()
+            except:
+                continue
 
     def read_frames_process(self):
         num_buf_frames = self.fps * self.buffer_length  # number of frames to buffer 
@@ -84,54 +84,43 @@ class VideoSaver(ManagedActor):
         num_buffer = 0 # number of buffers saved
         workers = []
         
-        with Pool(processes=self.num_save_processes) as pool:
-            while not self.stop_program:
-                try:
-                    frame_id = self.q_in.get(timeout=1)
+        while not self.stop_program:
+            try:
+                frame_id = self.q_in.get(timeout=1)
 
-                    if frame_id is not None:
-                        # Insert the frame_id into the buffer at the current index
-                        buffer.append(frame_id)
+                if frame_id is not None:
+                    # Insert the frame_id into the buffer at the current index
+                    buffer.append(frame_id)
 
-                        buffer_index += 1
-                        self.total_frames += 1
-                        self.frame_count += 1
+                    buffer_index += 1
+                    self.total_frames += 1
+                    self.frame_count += 1
 
-                        # If the buffer is full, start the worker to save the buffer
-                        if buffer_index == num_buf_frames:
-                            # Start a new worker to save the buffer
-                            worker = pool.apply_async(save_buffer_frames, args=(deepcopy(buffer), self.out_folder_buffer, num_buffer,))
-                            workers.append(worker)
+                    # If the buffer is full, save the buffer
+                    if buffer_index == num_buf_frames:
+                        self.save_queue.put((deepcopy(buffer), num_buffer))
 
-                            # Reset the buffer index and buffer
-                            buffer = deque(maxlen=num_buf_frames)
-                            buffer_index = 0
-                            num_buffer += 1
+                        # Reset the buffer index and buffer
+                        buffer = deque(maxlen=num_buf_frames)
+                        buffer_index = 0
+                        num_buffer += 1
 
-                        # Reset the time and frame count to calculate FPS
-                        if self.frame_count % 300 == 0:                            
-                            time_end = time.perf_counter()
-                            total_time = time_end - self.time_start
-                            logger.info(f"[Camera {self.camera_name}] General FPS: {round(self.frame_count / total_time,2)}")
-                            self.frame_count = 0
-                            self.time_start = time.perf_counter()
-                except Exception as e:
-                    logger.info(f"[Camera {self.camera_name}] No more frames {e}")
-                    self.stop_program = True
+                    # Reset the time and frame count to calculate FPS
+                    if self.frame_count % 300 == 0:                            
+                        time_end = time.perf_counter()
+                        total_time = time_end - self.time_start
+                        logger.info(f"[Camera {self.camera_name}] General FPS: {round(self.frame_count / total_time,2)}")
+                        self.frame_count = 0
+                        self.time_start = time.perf_counter()
+            except Exception as e:
+                logger.info(f"[Camera {self.camera_name}] No more frames {e}")
+                self.stop_program = True
 
             if self.stop_program:
                 # send the last buffer to the video converter
                 logger.info(f"[Camera {self.camera_name}] saving the last frames")
 
-                worker = pool.apply_async(save_buffer_frames, args=(deepcopy(buffer), self.out_folder_buffer, num_buffer))
-                workers.append(worker)
-
-                # Wait every worker to finish
-                for worker in workers:
-                    worker.get()
-
-            # Close the pool
-            pool.close()
+                worker = self.save_buffer_frames(buffer, num_buffer)
 
     def setup(self):
         # store init
@@ -183,6 +172,11 @@ class VideoSaver(ManagedActor):
         self.max_delay = 0
         self.time_start = time.perf_counter()
 
+        # Initialize save queue and start save thread
+        self.save_queue = Queue()
+        self.save_thread = threading.Thread(target=self.save_buffer_frames_loop, daemon=True)
+        self.save_thread.start()
+
         # store process
         self.store_frame_proc = threading.Thread(target=self.read_frames_process)
 
@@ -208,6 +202,10 @@ class VideoSaver(ManagedActor):
 
         # wait until the store thread has finished it's execution
         self.store_frame_proc.join()     
+
+        # wait until all buffers are saved
+        self.save_queue.join()
+
         logger.info(f"[Camera {self.camera_name}] total frames received: {self.total_frames}")
         
         # start conversion
@@ -228,7 +226,7 @@ class VideoSaver(ManagedActor):
         video_compression_quality = self.__map_cv_quality_to_ffmpeg_q(self.compression_quality)
 
         output_dict = {
-            '-c:v': 'mjpeg',                    # Use MJPEG codec
+            '-c:v': 'mjpeg',                          # Use MJPEG codec
             '-q:v': str(video_compression_quality),   # Quality level (lower is higher quality)
             '-pix_fmt': 'yuvj420p',
             '-r': str(self.fps)
