@@ -268,6 +268,9 @@ class VideoSaver(ManagedActor):
 
         self.writer_video_proc.start()
 
+        msg = {'type': 'num_buffer_files', 'value': len(buffer_files)}
+        self.links['msg_out'].put(msg)
+
         for idx, buffer_file in enumerate(buffer_files):
             logger.info(f"[Camera {self.camera_name}] Processing {idx+1}/{len(buffer_files)}")
 
@@ -297,7 +300,14 @@ class VideoSaver(ManagedActor):
                     else:
                         logger.warning(f"[Camera {self.camera_name}] Failed to decode frame in {buffer_file}")
 
+            msg = {'type': 'buffer_conv_progress', 'value': idx+1}
+            self.links['msg_out'].put(msg)
+
         self.video_conv_queue.put(None)
+
+        # Signal the end of the video conversion
+        msg = {'type': 'video_conversion_done'}
+        self.links['msg_out'].put(msg)
 
     # Function to map the OpenCV imwrite quality to FFmpeg quality
     def __map_cv_quality_to_ffmpeg_q(self, imwrite_quality):

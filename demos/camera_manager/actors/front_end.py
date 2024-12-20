@@ -3,9 +3,10 @@ import numpy as np
 import threading
 import queue
 import time
+from pathlib import Path
 from improv.actor import Signal
 from PyQt5.QtWidgets import (
-    QApplication, QWidget, QGridLayout, QLabel, QPushButton, QVBoxLayout, QSizePolicy
+    QApplication, QWidget, QGridLayout, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QSizePolicy, QProgressBar, QDialog
 )
 from PyQt5.QtCore import QTimer, Qt, QSize
 from PyQt5.QtGui import QImage, QPixmap, QIcon, QScreen
@@ -26,6 +27,52 @@ file_handler.setFormatter(formatter)
 # Add the handler to the logger
 logger.addHandler(file_handler)
 
+class ProgressDialog(QDialog):
+    """
+    A dialog window that displays progress bars for each camera's buffer conversion.
+    """
+    def __init__(self, total_buffers, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Buffer Conversion Progress")
+        self.setMinimumWidth(400)
+        
+        self.layout = QVBoxLayout()
+        self.progress_bars = []
+        self.labels = []
+        
+        # Create a progress bar and label for each camera
+        for i, total in enumerate(total_buffers):
+            camera_label = QLabel(f"Camera {i+1}: 0/{total}")
+            progress_bar = QProgressBar()
+            progress_bar.setMaximum(total)
+            progress_bar.setValue(0)
+            
+            self.labels.append(camera_label)
+            self.progress_bars.append(progress_bar)
+            
+            # Layout for each camera's progress
+            camera_layout = QHBoxLayout()
+            camera_layout.addWidget(camera_label)
+            camera_layout.addWidget(progress_bar)
+            
+            self.layout.addLayout(camera_layout)
+        
+        self.setLayout(self.layout)
+    
+    def update_progress(self, buffer_progress):
+        """
+        Update the progress bars based on the number of buffers completed.
+        
+        Args:
+            buffer_progress (list): List containing the number of buffers completed for each camera.
+        """
+        for i, num_done in enumerate(buffer_progress):
+            if i < len(self.progress_bars):
+                self.progress_bars[i].setValue(num_done)
+                total = self.progress_bars[i].maximum()
+                self.labels[i].setText(f"Camera {i+1}: {num_done}/{total}")
+
+
 class CameraStreamWidget(QWidget):
     """PyQt Widget for displaying multiple camera streams."""
 
@@ -37,6 +84,16 @@ class CameraStreamWidget(QWidget):
         self.q_sig = q_sig
         self.stop_program = False
         self.last_frame_ids = [None for _ in range(self.visual.num_cameras)]
+
+        # Initialize ProgressDialog as None
+        self.progress_dialog = None
+
+        # Timer to update progress (assuming conversion happens asynchronously)
+        self.progress_timer = QTimer()
+        self.progress_timer.timeout.connect(self.conversion_buffer_progress)
+
+        # get current folder path
+        current_dir = Path(__file__).parent.parent
         
         # Dynamically set window size based on screen resolution
         screen = QScreen.availableGeometry(QApplication.primaryScreen())
@@ -52,8 +109,8 @@ class CameraStreamWidget(QWidget):
         layout.setSpacing(1)  # Add some padding between widgets
 
         # Calculate label size (half the screen width and height minus padding)
-        label_width = int((screen_width) // 2 - 20)
-        label_height = int((screen_height) // 2 - 20)
+        label_width = int((screen_width) // 2 - 25)
+        label_height = int((screen_height) // 2 - 30)
 
         # Create labels to show camera frames
         self.camera_labels = [QLabel(self) for _ in range(self.visual.num_cameras)]
@@ -76,25 +133,61 @@ class CameraStreamWidget(QWidget):
 
         # Run button with green background and icon
         self.run_button = QPushButton('Start recording', self)
-        self.run_button.setIcon(QIcon('/path/to/run_icon.png'))  # Replace with your icon path
-        self.run_button.setStyleSheet("background-color: green; color: white;")
+        self.run_button.setIcon(QIcon(f'{current_dir}/assets/icons/start_recording.png'))  # Replace with your icon path
+        self.run_button.setStyleSheet("""
+            QPushButton {
+                background-color: #1e824c;
+                color: white;
+                padding: 5px 5px;  /* top/bottom, left/right padding */
+                text-align: left;   /* Align text to the left */
+                qproperty-alignment: AlignLeft; /* Ensure content alignment to the left */
+            }
+            QPushButton::icon {
+                margin-right: 10px; /* Space between icon and text */
+            }
+        """)
         self.run_button.setIconSize(QSize(24, 24))  # Set icon size
+        self.run_button.setLayoutDirection(Qt.LeftToRight)
         self.run_button.clicked.connect(self.btn_run_action)
         buttons_layout.addWidget(self.run_button)
 
         # Stop button with red background and icon
         self.stop_button = QPushButton('Stop recording', self)
-        self.stop_button.setIcon(QIcon('/path/to/stop_icon.png'))  # Replace with your icon path
-        self.stop_button.setStyleSheet("background-color: red; color: white;")
+        self.stop_button.setIcon(QIcon(f'{current_dir}/assets/icons/stop_recording.png'))  # Replace with your icon path
+        self.stop_button.setStyleSheet("""
+            QPushButton {
+                background-color: #d91e18;
+                color: white;
+                padding: 5px 5px;  /* top/bottom, left/right padding */
+                text-align: left;   /* Align text to the left */
+                qproperty-alignment: AlignLeft; /* Ensure content alignment to the left */
+            }
+            QPushButton::icon {
+                margin-right: 10px; /* Space between icon and text */
+            }
+        """)
         self.stop_button.setIconSize(QSize(24, 24))  # Set icon size
+        self.stop_button.setLayoutDirection(Qt.LeftToRight)
         self.stop_button.clicked.connect(self.btn_stop_action)
         buttons_layout.addWidget(self.stop_button)
 
         # Quit button with black background and icon
         self.quit_button = QPushButton('Quit', self)
-        self.quit_button.setIcon(QIcon('/path/to/quit_icon.png'))  # Replace with your icon path
-        self.quit_button.setStyleSheet("background-color: black; color: white;")
+        self.quit_button.setIcon(QIcon(f'{current_dir}/assets/icons/quit.png'))  # Replace with your icon path
         self.quit_button.setIconSize(QSize(24, 24))  # Set icon size
+        self.quit_button.setStyleSheet("""
+            QPushButton {
+                background-color: #e4e9ed;
+                color: black;
+                padding: 5px 5px;  /* top/bottom, left/right padding */
+                text-align: left;   /* Align text to the left */
+                qproperty-alignment: AlignLeft; /* Ensure content alignment to the left */
+            }
+            QPushButton::icon {
+                margin-right: 10px; /* Space between icon and text */
+            }
+        """)
+        self.quit_button.setLayoutDirection(Qt.LeftToRight)
         self.quit_button.clicked.connect(self.btn_quit_action)
         buttons_layout.addWidget(self.quit_button)
 
@@ -103,7 +196,7 @@ class CameraStreamWidget(QWidget):
 
         # Add the buttons layout to the grid
         # Add buttons layout to the grid
-        layout.addLayout(buttons_layout, 1, 1, alignment=Qt.AlignLeft | Qt.AlignHCenter)  # Second row, second column
+        layout.addLayout(buttons_layout, 1, 1, alignment=Qt.AlignRight | Qt.AlignBottom)  # Second row, second column
 
         self.setLayout(layout)
 
@@ -111,7 +204,7 @@ class CameraStreamWidget(QWidget):
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_frames)
         self.timer.start(50)  # Adjust the timer interval to match the frame rate [ms]
-        
+
         # Sending the signal for starting the setup of the cameras
         time.sleep(1) # Wait for the GUI to be ready
         self.comm.put([Signal.setup()])
@@ -121,7 +214,7 @@ class CameraStreamWidget(QWidget):
 
         for camera_id in range(self.visual.num_cameras):
             try:
-                frame = self.visual.getLastFrame(camera_id)
+                frame = self.visual.get_last_frame(camera_id)
         
                 self.display_frame(frame, self.camera_labels[camera_id])
             except Exception as e:
@@ -141,10 +234,66 @@ class CameraStreamWidget(QWidget):
     def btn_run_action(self):
         """Action to execute when the run control button is clicked."""
         self.comm.put([Signal.run()])  # Starting the run of the cameras
+        self.run_button.setEnabled(False) # Disable the run button - only one run is supported
+        self.stop_button.setEnabled(True)  # Enable the stop button
+
+    def start_conversion(self):
+        """
+        Initiates the buffer conversion process and displays the progress dialog.
+        """
+        # Initialize buffer_progress and buffer_number
+        # For demonstration, assuming 3 cameras
+        # Replace this with actual data retrieval logic
+        
+        self.total_buffers = self.visual.get_number_buffer_conversion()
+
+        # Initialize and show the ProgressDialog
+        self.progress_dialog = ProgressDialog(self.total_buffers)
+        self.progress_dialog.show()
+        
+        # Start a timer to periodically update the progress dialog
+        self.progress_timer.start(500)  # Update every 1 second
+        
+        # Alternatively, if conversion is handled asynchronously, connect signals to update progress
+
+    def conversion_buffer_progress(self):
+        """
+        Retrieves the current buffer conversion progress and updates the progress dialog.
+        """
+        buffer_progress = self.visual.check_buffer_conversion_progress()
+        
+        if self.progress_dialog:
+            self.progress_dialog.update_progress(buffer_progress)
+        
+        # Check if all conversions are complete
+        all_complete = all(
+            done >= total for done, total in zip(buffer_progress, self.total_buffers)
+        )
+        
+        if all_complete:
+            self.progress_timer.stop()
+            if self.progress_dialog:
+                self.progress_dialog.close()
+                self.progress_dialog = None
+
+            # show a completion message
+            self.show_completion_message()
+    
+    def show_completion_message(self):
+        """
+        Displays a message indicating that the buffer conversion is complete.
+        """
+        from PyQt5.QtWidgets import QMessageBox
+        QMessageBox.information(self, "Conversion Complete", "All buffers have been successfully converted.")
 
     def btn_stop_action(self):
-        """Action to execute when the stop control button is clicked."""
-        self.comm.put([Signal.stop()])  # Stopping the cameras
+        """Action to execute when the Stop control button is clicked."""
+        self.comm.put([Signal.stop()])  # Stopping the run of the cameras
+        self.stop_button.setEnabled(False)  # Disable the stop button
+        self.run_button.setEnabled(True)  # Re-enable the run button
+        
+        # Start the conversion process
+        self.start_conversion()
 
     def btn_quit_action(self):
         """Action to execute when the quit control button is clicked."""

@@ -1,5 +1,6 @@
 import yaml
 import time
+import zmq
 from multiprocessing import Value, RawArray, Process
 
 import logging
@@ -38,6 +39,7 @@ class CameraReader(ManagedActor):
         # load the configuration file
         source_folder = Path(__file__).resolve().parent.parent
 
+        # load system configuration settings
         with open(f'{source_folder}/config/camera_config.yaml', 'r') as file:
             config = yaml.safe_load(file)
 
@@ -76,7 +78,7 @@ class CameraReader(ManagedActor):
 
     def runStep(self):
         if not self.start_camera_read:
-            self.camera_interface.start_sharing()
+            self.camera_interface.recording_started()
             self.start_camera_read = True
 
             start_time = time.perf_counter()

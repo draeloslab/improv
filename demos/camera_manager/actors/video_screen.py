@@ -60,21 +60,16 @@ class VideoScreen(ManagedActor):
 
         self.frame_w = camera_params['resolution']['width'] # frame width
         self.frame_h = camera_params['resolution']['height'] # frame height
-        
-        self.num_cameras = len(cameras_config)
-        self.camera_names = []
-        self.camera_ids = []
-        
-        for camera in cameras_config:
-            self.camera_names.append(camera['camera']['name'])
-            self.camera_ids.append(camera['camera']['serial_id'])
 
-        self.frame_rate_update = 60 # Update rate for the video stream
-        self.frame_i = self.frame_rate_update
+        self.num_cameras = len(cameras_config)
+
+        self.num_buffers_rec = [0 for _ in range(self.num_cameras)] # num of buffers recorded by each camera
+        self.num_buffers_progress = [0 for _ in range(self.num_cameras)] # num of buffers converted for each camera
+        self.buffer_conv_completed = [False for _ in range(self.num_cameras)] # flag to indicate if the buffer conversion is completed
 
         logger.info(f"Video GUI setup completed")
 
-    def getLastFrame(self, camera_id):
+    def get_last_frame(self, camera_id):
         frame_id = None
 
         # clear the queue
@@ -91,10 +86,52 @@ class VideoScreen(ManagedActor):
                 frame = cv2.imdecode(frame_enc, cv2.IMREAD_COLOR)
             else:
                 frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
+                frame[:,:] = [217, 30, 24]
         except Exception as e:
-            return np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
+            frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
 
         return frame
+
+    def get_number_buffer_conversion(self):
+        """Function to get the number of buffer files that need to be converted for each camera."""
+        
+        # Continue looping until all cameras have received their num_buffer_files
+        while not all(count > 0 for count in self.num_buffers_rec):
+            for camera_id in range(self.num_cameras):
+                # Only attempt to get messages for cameras that haven't received num_buffer_files yet
+                if self.num_buffers_rec[camera_id] == 0:
+                    try:
+                        msg = self.links[f"camera{camera_id}_msg_in"].get(timeout=0.25)
+                    except:
+                        msg = None
+                    
+                    if msg is not None:
+                        if msg['type'] == 'num_buffer_files':
+                            self.num_buffers_rec[camera_id] = msg['value']
+                        elif msg['type'] == 'buffer_conv_progress':
+                            self.num_buffers_progress[camera_id] = msg['value']
+                        elif msg['type'] == 'buffer_conv_done':
+                            self.buffer_conv_completed[camera_id] = True
+
+        return self.num_buffers_rec
+
+    def check_buffer_conversion_progress(self):
+        """Function to check the progress of the camera buffer data conversion."""
+        
+        # Continue looping until all cameras have received their num_buffer_files
+        for camera_id in range(self.num_cameras):
+            try:
+                msg = self.links[f"camera{camera_id}_msg_in"].get(timeout=0.5)
+            except:
+                msg = None
+            
+            if msg is not None:
+                if msg['type'] == 'buffer_conv_progress':
+                    self.num_buffers_progress[camera_id] = msg['value']
+                elif msg['type'] == 'buffer_conv_done':
+                    self.buffer_conv_completed[camera_id] = True
+
+        return self.num_buffers_progress
 
     def runStep(self): 
         pass

@@ -49,7 +49,7 @@ class TIS:
 
         self.camera_name = camera_name
 
-        self.sharing_on = False
+        self.recording_on = False
         self.stop_program = False
 
         # Gst.debug_set_default_threshold(Gst.DebugLevel.WARNING)
@@ -178,8 +178,8 @@ class TIS:
         return True
     
     # starting sharing the frames received from the camera
-    def start_sharing(self):
-        self.sharing_on = True
+    def recording_started(self):
+        self.recording_on = True
 
         self.total_start_time = time.perf_counter()
     
@@ -188,7 +188,7 @@ class TIS:
         frame_time = time.perf_counter()
         sample = appsink.get_property('last-sample')
 
-        if sample is not None and self.sharing_on:
+        if sample is not None:
             buf = sample.get_buffer()
 
             frame = self.__convert_to_numpy(buf.extract_dup(0, buf.get_size()), sample.get_caps())
@@ -212,7 +212,7 @@ class TIS:
                 logger.warning(f"[Camera {self.camera_name}] Could not put frame in the store | {e}")
                 pass
 
-            if self.frame_count % 600 == 0:               
+            if self.recording_on and self.frame_count % 600 == 0:               
                 total_time = time.perf_counter() - self.start_time
 
                 logger.info(f"[Camera {self.camera_name}] reader FPS: {round(self.frame_count / total_time,2)} - avg delay: {self.total_delay/self.frame_count:.4f} - max delay: {self.max_delay:.4f}")                
@@ -237,7 +237,7 @@ class TIS:
     def stop_pipeline(self):
         stop_time = time.perf_counter()
 
-        self.sharing_on = False
+        self.recording_on = False
         self.stop_program = True
         
         self.pipeline.set_state(Gst.State.PAUSED)
