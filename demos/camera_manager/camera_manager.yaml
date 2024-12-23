@@ -29,19 +29,19 @@ actors:
   # video savers: each video saver writes the frames readed to raw-video file
   VideoSaver0:
     # package: actors.video_saver # old video saver (slow - max 30fps)
-    package: actors.video_saver_multiproc
+    package: actors.video_saver
     class: VideoSaver
     camera_num: 0
 
   VideoSaver1:
     # package: actors.video_saver # old video saver (slow - max 30fps)
-    package: actors.video_saver_multiproc    
+    package: actors.video_saver    
     class: VideoSaver
     camera_num: 1
     
   VideoSaver2:
     # package: actors.video_saver # old video saver (slow - max 30fps)
-    package: actors.video_saver_multiproc
+    package: actors.video_saver
     class: VideoSaver
     camera_num: 2
 
@@ -54,6 +54,8 @@ connections:
 
   CameraReader2.q_out: [VideoSaver2.q_in, VideoScreen.camera2_in]
   VideoSaver2.msg_out: [VideoScreen.camera2_msg_in]
+
+  VideoScreen.msg_out: [VideoSaver0.msg_in, VideoSaver1.msg_in, VideoSaver2.msg_in]
 
 redis_config:
   port: 6379

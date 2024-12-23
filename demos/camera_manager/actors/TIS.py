@@ -205,23 +205,25 @@ class TIS:
                 if delay > self.max_delay:
                     self.max_delay = delay
 
-                self.total_delay += delay
-                self.frame_count += 1
-                self.total_frame_count += 1
             except Exception as e:
                 logger.warning(f"[Camera {self.camera_name}] Could not put frame in the store | {e}")
                 pass
 
-            if self.recording_on and self.frame_count % 600 == 0:               
-                total_time = time.perf_counter() - self.start_time
+            if self.recording_on:                
+                self.frame_count += 1
+                self.total_frame_count += 1
+                self.total_delay += delay
 
-                logger.info(f"[Camera {self.camera_name}] reader FPS: {round(self.frame_count / total_time,2)} - avg delay: {self.total_delay/self.frame_count:.4f} - max delay: {self.max_delay:.4f}")                
-                # logger.info(f"{frame.shape} - size on memory: {round(frame.nbytes/(1024**2),2)}MB")
+                if self.frame_count % 900 == 0:               
+                    total_time = time.perf_counter() - self.start_time
 
-                self.total_delay = 0
-                self.max_delay = 0
-                self.frame_count = 0
-                self.start_time = time.perf_counter()
+                    logger.info(f"[Camera {self.camera_name}] reader FPS: {round(self.frame_count / total_time,2)} - avg delay: {self.total_delay/self.frame_count:.4f} - max delay: {self.max_delay:.4f}")                
+                    # logger.info(f"{frame.shape} - size on memory: {round(frame.nbytes/(1024**2),2)}MB")
+
+                    self.total_delay = 0
+                    self.max_delay = 0
+                    self.frame_count = 0
+                    self.start_time = time.perf_counter()
         
         return Gst.FlowReturn.OK
 

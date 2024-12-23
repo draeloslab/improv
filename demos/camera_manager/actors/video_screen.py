@@ -92,6 +92,13 @@ class VideoScreen(ManagedActor):
 
         return frame
 
+    def start_buffer_conversion(self):
+        """Function to start the buffer data conversion for each camera."""
+
+        msg = {'type': 'video_conversion', 'value': True}
+        self.links[f"msg_out"].put(msg)
+        logger.info("buffer video_conversion message sent")
+
     def get_number_buffer_conversion(self):
         """Function to get the number of buffer files that need to be converted for each camera."""
         
@@ -112,6 +119,8 @@ class VideoScreen(ManagedActor):
                             self.num_buffers_progress[camera_id] = msg['value']
                         elif msg['type'] == 'buffer_conv_done':
                             self.buffer_conv_completed[camera_id] = True
+
+            time.sleep(0.25)
 
         return self.num_buffers_rec
 

@@ -6,7 +6,8 @@ import time
 from pathlib import Path
 from improv.actor import Signal
 from PyQt5.QtWidgets import (
-    QApplication, QWidget, QGridLayout, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QSizePolicy, QProgressBar, QDialog
+    QApplication, QWidget, QGridLayout, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, 
+    QSizePolicy, QProgressBar, QDialog, QMessageBox
 )
 from PyQt5.QtCore import QTimer, Qt, QSize
 from PyQt5.QtGui import QImage, QPixmap, QIcon, QScreen
@@ -126,67 +127,31 @@ class CameraStreamWidget(QWidget):
         buttons_layout = QHBoxLayout()
         buttons_layout.setSpacing(5)  # Add spacing between buttons
 
-        # Run button with green background and icon
-        self.run_button = QPushButton('Start recording', self)
-        self.run_button.setIcon(QIcon(f'{current_dir}/assets/icons/start_recording.png'))  # Replace with your icon path
-        self.run_button.setStyleSheet("""
-            QPushButton {
-                background-color: #1e824c;
-                color: white;
-                padding: 5px 5px;  /* top/bottom, left/right padding */
-                text-align: left;   /* Align text to the left */
-                qproperty-alignment: AlignLeft; /* Ensure content alignment to the left */
-            }
-            QPushButton::icon {
-                margin-right: 10px; /* Space between icon and text */
-            }
-        """)
-        self.run_button.setIconSize(QSize(24, 24))  # Set icon size
-        self.run_button.setLayoutDirection(Qt.LeftToRight)
-        self.run_button.clicked.connect(self.btn_run_action)
+        # Run button
+        self.run_btn = QPushButton('Start recording', self)
+        self.run_btn.setIcon(QIcon(f'{current_dir}/assets/icons/start_recording.png'))  # Replace with your icon path
+        self.run_btn.setStyleSheet(self.__get_button_style("#1e824c", "white"))
+        self.run_btn.setIconSize(QSize(24, 24))  # Set icon size
+        self.run_btn.clicked.connect(self.btn_run_action)
 
-        # Stop button with red background and icon
-        self.stop_button = QPushButton('Stop recording', self)
-        self.stop_button.setIcon(QIcon(f'{current_dir}/assets/icons/stop_recording.png'))  # Replace with your icon path
-        self.stop_button.setStyleSheet("""
-            QPushButton {
-                background-color: #d91e18;
-                color: white;
-                padding: 5px 5px;  /* top/bottom, left/right padding */
-                text-align: left;   /* Align text to the left */
-                qproperty-alignment: AlignLeft; /* Ensure content alignment to the left */
-            }
-            QPushButton::icon {
-                margin-right: 10px; /* Space between icon and text */
-            }
-        """)
-        self.stop_button.setIconSize(QSize(24, 24))  # Set icon size
-        self.stop_button.setLayoutDirection(Qt.LeftToRight)
-        self.stop_button.clicked.connect(self.btn_stop_action)
-        self.stop_button.setEnabled(False)  # Disable the stop button initially
+        # Stop button 
+        self.stop_btn = QPushButton('Stop recording', self)
+        self.stop_btn.setIcon(QIcon(f'{current_dir}/assets/icons/stop_recording.png'))  # Replace with your icon path
+        self.stop_btn.setStyleSheet(self.__get_button_style("#d91e18", "white"))
+        self.stop_btn.setIconSize(QSize(24, 24))  # Set icon size
+        self.stop_btn.clicked.connect(self.btn_stop_action)
+        self.stop_btn.setEnabled(False)  # Disable the stop button initially
 
-        # Quit button with black background and icon
+        # Quit button
         self.quit_button = QPushButton('Quit', self)
         self.quit_button.setIcon(QIcon(f'{current_dir}/assets/icons/quit.png'))  # Replace with your icon path
         self.quit_button.setIconSize(QSize(24, 24))  # Set icon size
-        self.quit_button.setStyleSheet("""
-            QPushButton {
-                background-color: #e4e9ed;
-                color: black;
-                padding: 5px 5px;  /* top/bottom, left/right padding */
-                text-align: left;   /* Align text to the left */
-                qproperty-alignment: AlignLeft; /* Ensure content alignment to the left */
-            }
-            QPushButton::icon {
-                margin-right: 10px; /* Space between icon and text */
-            }
-        """)
-        self.quit_button.setLayoutDirection(Qt.LeftToRight)
+        self.quit_button.setStyleSheet(self.__get_button_style("#e4e9ed", "black"))
         self.quit_button.clicked.connect(self.btn_quit_action)
 
         ## adding the elements to the layout
-        buttons_layout.addWidget(self.run_button)
-        buttons_layout.addWidget(self.stop_button)
+        buttons_layout.addWidget(self.run_btn)
+        buttons_layout.addWidget(self.stop_btn)
         buttons_layout.addWidget(self.quit_button)
         
         # Add the buttons layout to the grid layout in the first row, spanning two columns, centered
@@ -221,8 +186,6 @@ class CameraStreamWidget(QWidget):
 
     def display_frame(self, frame, label):
         """Convert frame to QImage and display it in QLabel."""
-        # Convert frame to RGB format
-        # rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         height, width, channel = frame.shape
         bytes_per_line = channel * width
         q_img = QImage(frame.data, width, height, bytes_per_line, QImage.Format_RGB888)
@@ -233,17 +196,16 @@ class CameraStreamWidget(QWidget):
     def btn_run_action(self):
         """Action to execute when the run control button is clicked."""
         self.comm.put([Signal.run()])  # Starting the run of the cameras
-        self.run_button.setEnabled(False) # Disable the run button - only one run is supported
-        self.stop_button.setEnabled(True)  # Enable the stop button
+        self.run_btn.setEnabled(False) # Disable the run button - only one run is supported
+        self.stop_btn.setEnabled(True)  # Enable the stop button
 
     def start_conversion(self):
         """
         Initiates the buffer conversion process and displays the progress dialog.
         """
-        # Initialize buffer_progress and buffer_number
-        # For demonstration, assuming 3 cameras
-        # Replace this with actual data retrieval logic
-        
+        logger.info("Handling buffer conversion click")
+        self.visual.start_buffer_conversion()
+
         self.total_buffers = self.visual.get_number_buffer_conversion()
 
         # Initialize and show the ProgressDialog
@@ -252,8 +214,6 @@ class CameraStreamWidget(QWidget):
         
         # Start a timer to periodically update the progress dialog
         self.progress_timer.start(500)  # Update every 1 second
-        
-        # Alternatively, if conversion is handled asynchronously, connect signals to update progress
 
     def conversion_buffer_progress(self):
         """
@@ -279,21 +239,55 @@ class CameraStreamWidget(QWidget):
             self.show_completion_message()
     
     def show_completion_message(self):
-        """
-        Displays a message indicating that the buffer conversion is complete.
-        """
-        from PyQt5.QtWidgets import QMessageBox
+        """ Displays a message indicating that the buffer conversion is complete. """
         QMessageBox.information(self, "Conversion Complete", "All buffers have been successfully converted.")
+
+        self.__quit_application()
 
     def btn_stop_action(self):
         """Action to execute when the Stop control button is clicked."""
         self.comm.put([Signal.stop()])  # Stopping the run of the cameras
-        self.stop_button.setEnabled(False)  # Disable the stop button
-        self.run_button.setEnabled(True)  # Re-enable the run button
+        self.stop_btn.setEnabled(False)  # Disable the stop button
+
+        # Create and configure the message box
+        msg_box = QMessageBox(self)
+        msg_box.setIcon(QMessageBox.Question)
+        msg_box.setWindowTitle("Convert Video")
+        msg_box.setText("Do you want to convert the video now?")
+        msg_box.setInformativeText("Video conversion can take some time for long recordings.")
+        msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        msg_box.setDefaultButton(QMessageBox.No)
+
+        # Execute the message box and capture the user's response
+        reply = msg_box.exec_()
+
+        if reply == QMessageBox.Yes:
+            self.start_conversion()
+        else:
+            self.__quit_application()
         
-        # Start the conversion process
-        self.start_conversion()
+    def btn_conversion_action(self):
+        """Action to execute when the Start Conversion control button is clicked."""
+        self.start_conversion() # Start the conversion process
 
     def btn_quit_action(self):
         """Action to execute when the quit control button is clicked."""
-        self.comm.put([Signal.quit()])  # Quitting the application
+        self.__quit_application()
+
+    def __quit_application(self):
+        """Quit the application."""
+        self.comm.put([Signal.quit()])
+
+    def __get_button_style(self, back_color, font_color):
+        """ Returns the CSS style for the buttons """
+        return f"""
+            QPushButton {{
+                background-color: {back_color};
+                color: {font_color};
+                padding: 5px 5px;  /* top/bottom, left/right padding */
+                text-align: left;   /* Align text to the left */
+            }}
+            QPushButton::icon {{
+                margin-right: 10px; /* Space between icon and text */
+            }}
+        """
