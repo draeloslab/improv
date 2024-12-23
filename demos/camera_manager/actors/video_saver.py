@@ -15,6 +15,7 @@ from multiprocessing import Pool, Process
 from redis import Redis
 from collections import deque
 from queue import Queue
+from .video_converter import VideoConverter
 
 import logging
 logger = logging.getLogger(__name__)
@@ -166,6 +167,18 @@ class VideoSaver(ManagedActor):
         if not Path(self.out_folder_buffer).exists():
             Path(self.out_folder_buffer).mkdir(parents=True, exist_ok=True)
 
+        self.output_video = os.path.join(self.out_folder_video, f"camera_video_{self.camera_num+1}.avi")
+
+        # video converter setup
+        self.video_converter = VideoConverter(
+            compression_quality = self.compression_quality,
+            fps = self.fps,
+            output_video = self.output_video,
+            out_folder_buffer = self.out_folder_buffer,
+            log_progress = True,
+            msg_out = self.links['msg_out']
+        )
+
         # control variables
         self.stop_program = False
         self.start_program = False
@@ -188,7 +201,6 @@ class VideoSaver(ManagedActor):
 
         # video conversion process (for saving the video at the end of the recording)
         self.video_conv_queue = Queue(maxsize=1000) # video conversion queue
-        self.output_video = os.path.join(self.out_folder_video, f"camera_video_{self.camera_num+1}.avi")
 
         self.wait_conversion_proc = threading.Thread(target=self.wait_conversion_process)
         self.convert_saved_frames_proc = threading.Thread(target=self.convert_saved_frames)
@@ -200,8 +212,6 @@ class VideoSaver(ManagedActor):
         if not self.start_program:
             self.start_program = True
             self.store_frame_proc.start()
-
-            logger.info(f"[Camera {self.camera_name}] wait_conversion_proc started")
 
     def stop(self):
         self.stop_program = True
@@ -224,7 +234,7 @@ class VideoSaver(ManagedActor):
         if self.conversion_started:
             # wait until the video conversion process has finished
             self.convert_saved_frames_proc.join()
-            self.writer_video_proc.join()
+            # self.writer_video_proc.join()
             logger.info(f"[Camera {self.camera_name}] video conversion completed")
 
     def wait_conversion_process(self):
@@ -256,98 +266,10 @@ class VideoSaver(ManagedActor):
 
     def save_video_process(self):        
         logger.info(f"[Camera {self.camera_name}] save_video_process started")
-        input_dict = {
-            '-pix_fmt': 'rgb24',
-            '-r': str(self.fps),
-            '-threads': '0'
-        }
-
-        video_compression_quality = self.__map_cv_quality_to_ffmpeg_q(self.compression_quality)
-
-        output_dict = {
-            '-c:v': 'mjpeg',                          # Use MJPEG codec
-            '-q:v': str(video_compression_quality),   # Quality level (lower is higher quality)
-            '-pix_fmt': 'yuvj420p',
-            '-r': str(self.fps),
-            '-threads': '0'
-        }
-
-        logger.info(f"[Camera {self.camera_name}] Saving video to {self.output_video}")
-
-        saving_error = False
-
-        try:
-            video_proc = FFmpegWriter(self.output_video, inputdict=input_dict, outputdict=output_dict)
-
-            while True:
-                frame = self.video_conv_queue.get()
-
-                if frame is None:
-                    break        
-
-                video_proc.writeFrame(frame)
-        except Exception as e:
-            logger.error(f"[Camera {self.camera_name}] Error writing frame to video | {e}")
-            saving_error = True
-
-        video_proc.close()
-
-        if not saving_error:
-            # Delete binary files after successful video creation
-            buffer_files = sorted(Path(self.out_folder_buffer).glob('buffer_*.bin'))
-
-            for buffer_file in buffer_files:
-                try:
-                    os.remove(buffer_file)
-                except Exception as e:
-                    logger.error(f"[Camera {self.camera_name}] Failed to delete {buffer_file} | {e}")
+        self.video_converter.save_video_process()
 
     def convert_saved_frames(self):
-        # Gather and sort all binary files
-        buffer_files = sorted(Path(self.out_folder_buffer).glob('buffer_*.bin'))
-
-        self.writer_video_proc.start()
-
-        msg = {'type': 'num_buffer_files', 'value': len(buffer_files)}
-        self.links['msg_out'].put(msg)
-
-        for idx, buffer_file in enumerate(buffer_files):
-            logger.info(f"[Camera {self.camera_name}] Processing {idx+1}/{len(buffer_files)}")
-
-            with open(buffer_file, 'rb') as f:                
-                while True:
-                    # Read the length of the compressed frame (4 bytes)
-                    length_bytes = f.read(4)
-
-                    if not length_bytes:
-                        break
-
-                    frame_length = struct.unpack('I', length_bytes)[0]
-
-                    # Read the compressed frame data
-                    frame_data = f.read(frame_length)
-
-                    if len(frame_data) != frame_length:
-                        logger.warning(f"[Camera {self.camera_name}] Unexpected frame length in {buffer_file}")
-                        break
-
-                    # Decompress the frame (assuming PNG compression)
-                    nparr = np.frombuffer(frame_data, np.uint8)
-                    frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-                    if frame is not None:
-                        self.video_conv_queue.put(frame)
-                    else:
-                        logger.warning(f"[Camera {self.camera_name}] Failed to decode frame in {buffer_file}")
-
-            msg = {'type': 'buffer_conv_progress', 'value': idx+1}
-            self.links['msg_out'].put(msg)
-
-        self.video_conv_queue.put(None)
-
-        # Signal the end of the video conversion
-        msg = {'type': 'video_conversion_done'}
-        self.links['msg_out'].put(msg)
+        self.video_converter.convert_saved_frames()
 
     # Function to map the OpenCV imwrite quality to FFmpeg quality
     def __map_cv_quality_to_ffmpeg_q(self, imwrite_quality):
