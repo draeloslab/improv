@@ -220,7 +220,8 @@ class VideoSaver(ManagedActor):
         logger.info(f"[Camera {self.camera_name}] save_video_process started")
         input_dict = {
             '-pix_fmt': 'rgb24',
-            '-r': str(self.fps)
+            '-r': str(self.fps),
+            '-threads': '0'
         }
 
         video_compression_quality = self.__map_cv_quality_to_ffmpeg_q(self.compression_quality)
@@ -229,7 +230,8 @@ class VideoSaver(ManagedActor):
             '-c:v': 'mjpeg',                          # Use MJPEG codec
             '-q:v': str(video_compression_quality),   # Quality level (lower is higher quality)
             '-pix_fmt': 'yuvj420p',
-            '-r': str(self.fps)
+            '-r': str(self.fps),
+            '-threads': '0'
         }
 
         logger.info(f"[Camera {self.camera_name}] Saving video to {self.output_video}")
@@ -261,6 +263,8 @@ class VideoSaver(ManagedActor):
                     os.remove(buffer_file)
                 except Exception as e:
                     logger.error(f"[Camera {self.camera_name}] Failed to delete {buffer_file} | {e}")
+
+        self.video_conv_queue.close()
 
     def convert_saved_frames(self):
         # Gather and sort all binary files

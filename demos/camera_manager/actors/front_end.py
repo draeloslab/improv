@@ -102,15 +102,15 @@ class CameraStreamWidget(QWidget):
 
         # Adjust window size to fit screen resolution
         self.setWindowTitle('Camera Streams')
-        self.setGeometry(0, 0, int(screen_width), int(screen_height))  # 80% of screen resolution
+        self.setGeometry(0, 0, int(screen_width), int(screen_height))
 
         # Layout to hold the camera labels
         layout = QGridLayout()
-        layout.setSpacing(1)  # Add some padding between widgets
+        layout.setSpacing(10)  # Add some padding between widgets
 
         # Calculate label size (half the screen width and height minus padding)
-        label_width = int((screen_width) // 2 - 25)
-        label_height = int((screen_height) // 2 - 30)
+        label_width = int((screen_width) // 2 - 80)
+        label_height = int((screen_height) // 2 - 60)
 
         # Create labels to show camera frames
         self.camera_labels = [QLabel(self) for _ in range(self.visual.num_cameras)]
@@ -122,14 +122,9 @@ class CameraStreamWidget(QWidget):
             label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
             label.setFixedSize(label_width, label_height)
 
-        # Add the three camera widgets
-        layout.addWidget(self.camera_labels[0], 0, 0)  # Top-left
-        layout.addWidget(self.camera_labels[1], 0, 1)  # Top-right
-        layout.addWidget(self.camera_labels[2], 1, 0)  # Bottom-left
-
         # Buttons column layout
-        buttons_layout = QVBoxLayout()
-        buttons_layout.setSpacing(10)  # Add spacing between buttons
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setSpacing(5)  # Add spacing between buttons
 
         # Run button with green background and icon
         self.run_button = QPushButton('Start recording', self)
@@ -149,7 +144,6 @@ class CameraStreamWidget(QWidget):
         self.run_button.setIconSize(QSize(24, 24))  # Set icon size
         self.run_button.setLayoutDirection(Qt.LeftToRight)
         self.run_button.clicked.connect(self.btn_run_action)
-        buttons_layout.addWidget(self.run_button)
 
         # Stop button with red background and icon
         self.stop_button = QPushButton('Stop recording', self)
@@ -169,7 +163,7 @@ class CameraStreamWidget(QWidget):
         self.stop_button.setIconSize(QSize(24, 24))  # Set icon size
         self.stop_button.setLayoutDirection(Qt.LeftToRight)
         self.stop_button.clicked.connect(self.btn_stop_action)
-        buttons_layout.addWidget(self.stop_button)
+        self.stop_button.setEnabled(False)  # Disable the stop button initially
 
         # Quit button with black background and icon
         self.quit_button = QPushButton('Quit', self)
@@ -189,14 +183,19 @@ class CameraStreamWidget(QWidget):
         """)
         self.quit_button.setLayoutDirection(Qt.LeftToRight)
         self.quit_button.clicked.connect(self.btn_quit_action)
+
+        ## adding the elements to the layout
+        buttons_layout.addWidget(self.run_button)
+        buttons_layout.addWidget(self.stop_button)
         buttons_layout.addWidget(self.quit_button)
+        
+        # Add the buttons layout to the grid layout in the first row, spanning two columns, centered
+        layout.addLayout(buttons_layout, 0, 0, 1, 2, alignment=Qt.AlignCenter)
 
-        # Add spacer to push buttons to the left or right if desired
-        buttons_layout.addStretch()
-
-        # Add the buttons layout to the grid
-        # Add buttons layout to the grid
-        layout.addLayout(buttons_layout, 1, 1, alignment=Qt.AlignRight | Qt.AlignBottom)  # Second row, second column
+        # Add the three camera widgets
+        layout.addWidget(self.camera_labels[0], 1, 0)  # Top-left
+        layout.addWidget(self.camera_labels[1], 1, 1)  # Top-right
+        layout.addWidget(self.camera_labels[2], 2, 0)  # Bottom-left
 
         self.setLayout(layout)
 
