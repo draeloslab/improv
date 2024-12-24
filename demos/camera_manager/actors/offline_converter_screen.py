@@ -1,3 +1,4 @@
+import os
 import time
 import cv2
 import threading
@@ -6,7 +7,7 @@ import numpy as np
 from pathlib import Path
 import subprocess
 from improv.actor import ManagedActor, Actor, Signal
-from .camera_front_end import CameraStreamWidget
+from .offline_converter_front_end import OfflineConversionWidget
 from PyQt5 import QtWidgets
 
 import logging
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 # Create a file handler
-log_file = "video_screen.log"
+log_file = "offline_conversion.log"
 file_handler = logging.FileHandler(log_file)
 file_handler.setLevel(logging.INFO)
 
@@ -29,19 +30,18 @@ class Visual(Actor):
     def setup(self, visual):
         self.visual = visual
         self.visual.setup()
-        logger.info("Running setup for " + self.name)
 
     def run(self):
         logger.info("Loading FrontEnd")        
         self.app = QtWidgets.QApplication([])
-        self.viewer = CameraStreamWidget(self.visual, self.q_comm, self.q_sig)
+        self.viewer = OfflineConversionWidget(self.visual, self.q_comm, self.q_sig)
         self.viewer.show()
         self.q_comm.put([Signal.ready()])
         self.visual.q_comm.put([Signal.ready()])
         self.app.exec_()
         logger.info("GUI ready")
 
-class VideoScreen(ManagedActor):
+class ConversionScreen(ManagedActor):
     def setup(self):
         # store init
         self._getStoreInterface()
@@ -50,6 +50,7 @@ class VideoScreen(ManagedActor):
 
         # load the configuration file
         source_folder = Path(__file__).resolve().parent.parent
+        home_dir = os.path.expanduser('~')
 
         with open(f'{source_folder}/config/camera_config.yaml', 'r') as file:
             config = yaml.safe_load(file)
@@ -57,52 +58,45 @@ class VideoScreen(ManagedActor):
         cameras_config = config['active_cameras']
         camera_params = config['camera_params']
 
-        self.frame_w = camera_params['resolution']['width'] # frame width
-        self.frame_h = camera_params['resolution']['height'] # frame height
-
         self.num_cameras = len(cameras_config)
 
         self.num_buffers_rec = [0 for _ in range(self.num_cameras)] # num of buffers recorded by each camera
         self.num_buffers_progress = [0 for _ in range(self.num_cameras)] # num of buffers converted for each camera
         self.buffer_conv_completed = [False for _ in range(self.num_cameras)] # flag to indicate if the buffer conversion is completed
 
+        # load the video configuration params
+        with open(f'{source_folder}/config/video_config.yaml', 'r') as file:
+            video_config = yaml.safe_load(file)
+
+        raw_chunks_path = video_config['raw_chunks_path']
+
+        self.default_video_folder = f"{home_dir}/{raw_chunks_path}"
+
         logger.info(f"Video GUI setup completed")
-
-    def get_last_frame(self, camera_id):
-        frame_id = None
-
-        # clear the queue
-        while not self.links[f"camera{camera_id}_in"].empty():
-            self.links[f"camera{camera_id}_in"].get_nowait()
-
-        try:
-            frame_id = self.links[f"camera{camera_id}_in"].get(timeout=0.1)
-
-            if frame_id is not None:
-                frame_enc = self.client.get(frame_id)
-
-                # uncompressing the frame
-                frame = cv2.imdecode(frame_enc, cv2.IMREAD_COLOR)
-            else:
-                frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
-                frame[:,:] = [217, 30, 24]
-        except Exception as e:
-            frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
-
-        return frame
 
     def start_buffer_conversion(self, buffer_path):
         """Function to start the buffer data conversion for each camera."""
-        msg = {'type': 'video_conversion', 'value': True}
+
+        msg = {'type': 'buffer_folder', 'value': buffer_path}
         self.links[f"msg_out"].put(msg)
 
+        time.sleep(0.5)
+
+        msg = {'type': 'video_conversion', 'value': True}
+        self.links[f"msg_out"].put(msg)
         logger.info("buffer video_conversion message sent")
+
+    def get_default_video_path(self):
+        """Function to get the default folder path for the buffer data conversion."""
+        return self.default_video_folder
 
     def get_number_buffer_conversion(self):
         """Function to get the number of buffer files that need to be converted for each camera."""
         
+        msg_received = [False for _ in range(self.num_cameras)]
+
         # Continue looping until all cameras have received their num_buffer_files
-        while not all(count > 0 for count in self.num_buffers_rec):
+        while not all(msg for msg in msg_received):
             for camera_id in range(self.num_cameras):
                 # Only attempt to get messages for cameras that haven't received num_buffer_files yet
                 if self.num_buffers_rec[camera_id] == 0:
@@ -113,13 +107,14 @@ class VideoScreen(ManagedActor):
                     
                     if msg is not None:
                         if msg['type'] == 'num_buffer_files':
+                            msg_received[camera_id] = True
                             self.num_buffers_rec[camera_id] = msg['value']
                         elif msg['type'] == 'buffer_conv_progress':
                             self.num_buffers_progress[camera_id] = msg['value']
                         elif msg['type'] == 'buffer_conv_done':
                             self.buffer_conv_completed[camera_id] = True
 
-            time.sleep(0.25)
+            time.sleep(0.5)
 
         return self.num_buffers_rec
 

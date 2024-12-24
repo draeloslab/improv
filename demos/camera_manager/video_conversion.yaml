@@ -1,0 +1,37 @@
+actors:
+  # gui class for displaying the video frames
+  GUI:
+    package: actors.offline_converter_screen
+    class: Visual
+    visual: ConversionScreen
+
+  # actor for starting the GUI
+  ConversionScreen:
+    package: actors.offline_converter_screen
+    class: ConversionScreen
+
+  # video converters: each video converter handle one camera video for the conversion
+  VideoConverter0:
+    package: actors.offline_video_converter
+    class: OfflineVideoConverter
+    camera_num: 0
+
+  VideoConverter1:
+    package: actors.offline_video_converter
+    class: OfflineVideoConverter
+    camera_num: 1
+  
+  VideoConverter2:
+    package: actors.offline_video_converter
+    class: OfflineVideoConverter
+    camera_num: 2
+
+connections:
+  VideoConverter0.msg_out: [ConversionScreen.camera0_msg_in]
+  VideoConverter1.msg_out: [ConversionScreen.camera1_msg_in]
+  VideoConverter2.msg_out: [ConversionScreen.camera2_msg_in]
+
+  ConversionScreen.msg_out: [VideoConverter0.msg_in, VideoConverter1.msg_in, VideoConverter2.msg_in]
+
+redis_config:
+  port: 6379

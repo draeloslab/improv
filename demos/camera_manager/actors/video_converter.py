@@ -45,7 +45,7 @@ class VideoConverter:
         self.output_video = output_video
         self.out_folder_buffer = Path(out_folder_buffer)
         self.log_progress = log_progress
-        self.msg_out = msg_out if log_progress else None
+        self.msg_out = msg_out
 
         self.video_conv_queue = Queue()
         self.video_proc = None
@@ -68,7 +68,7 @@ class VideoConverter:
         Saves frames from the video_conv_queue to the output video using FFmpegWriter.
         Deletes buffer files upon successful saving.
         """
-        logger.info(f"VideoConverter: save_video_process started for {self.output_video}")
+        logger.info(f"VideoConverter: save_video_process started for video: {self.output_video}")
 
         input_dict = {
             '-pix_fmt': 'rgb24',
@@ -86,7 +86,7 @@ class VideoConverter:
             '-threads': '0'
         }
 
-        logger.info(f"VideoConverter: Saving video to {self.output_video}")
+        frame_received = False
 
         try:
             self.video_proc = FFmpegWriter(self.output_video, inputdict=input_dict, outputdict=output_dict)
@@ -96,14 +96,18 @@ class VideoConverter:
 
                 if frame is None:
                     logger.info("VideoConverter: Received termination signal.")
-                    break        
+                    break      
+                else:
+                    self.video_proc.writeFrame(frame)
 
-                self.video_proc.writeFrame(frame)
+                    if not frame_received:
+                        frame_received = True
+                
         except Exception as e:
             logger.error(f"VideoConverter: Error writing frame to video | {e}")
             self.saving_error = True
         finally:
-            if self.video_proc:
+            if frame_received:
                 self.video_proc.close()
                 logger.info("VideoConverter: Video process closed.")
 
@@ -114,7 +118,6 @@ class VideoConverter:
             for buffer_file in buffer_files:
                 try:
                     os.remove(buffer_file)
-                    logger.info(f"VideoConverter: Deleted buffer file {buffer_file}")
                 except Exception as e:
                     logger.error(f"VideoConverter: Failed to delete {buffer_file} | {e}")
 
@@ -123,16 +126,17 @@ class VideoConverter:
         Converts saved binary frame files into video frames and queues them for saving.
         Sends progress messages if log_progress is True.
         """
-
         self.writer_video_proc = threading.Thread(target=self.save_video_process)
         self.writer_video_proc.start()
 
         # Gather and sort all binary files
         buffer_files = sorted(self.out_folder_buffer.glob('buffer_*.bin'))
 
-        if self.log_progress and self.msg_out:
+        if self.msg_out:
             msg = {'type': 'num_buffer_files', 'value': len(buffer_files)}
             self.msg_out.put(msg)
+        
+        if self.log_progress:
             logger.info(f"VideoConverter: Number of buffer files to process: {len(buffer_files)}")
 
         for idx, buffer_file in enumerate(buffer_files):
@@ -164,15 +168,19 @@ class VideoConverter:
                     else:
                         logger.warning(f"VideoConverter: Failed to decode frame in {buffer_file}")
 
-            if self.log_progress and self.msg_out:
+            if self.msg_out:
                 msg = {'type': 'buffer_conv_progress', 'value': idx+1}
                 self.msg_out.put(msg)
+            
+            if self.log_progress:
                 logger.info(f"VideoConverter: Completed processing buffer file {buffer_file}")
 
         # Signal the end of the video conversion
         self.video_conv_queue.put(None)
 
-        if self.log_progress and self.msg_out:
+        if self.msg_out:
             msg = {'type': 'video_conversion_done'}
             self.msg_out.put(msg)
+
+        if self.log_progress:
             logger.info("VideoConverter: Video conversion completed and done signal sent.")

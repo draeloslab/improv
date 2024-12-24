@@ -28,19 +28,16 @@ actors:
 
   # video savers: each video saver writes the frames readed to raw-video file
   VideoSaver0:
-    # package: actors.video_saver # old video saver (slow - max 30fps)
     package: actors.video_saver
     class: VideoSaver
     camera_num: 0
 
   VideoSaver1:
-    # package: actors.video_saver # old video saver (slow - max 30fps)
     package: actors.video_saver    
     class: VideoSaver
     camera_num: 1
     
   VideoSaver2:
-    # package: actors.video_saver # old video saver (slow - max 30fps)
     package: actors.video_saver
     class: VideoSaver
     camera_num: 2
