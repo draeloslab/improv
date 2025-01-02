@@ -658,6 +658,16 @@ class Nexus:
         else:
             return RedisStoreInterface(server_port_num=self.store_port)
 
+    def kill_redis_process(self):
+        # killing existing processes on the store port - otherwise Redis will not be able to start
+        logger.info("Kill redis process function called")
+
+        try:
+            # Run the command without requiring a password
+            subprocess.run(f"sudo lsof -t -i :{self.store_port} | xargs sudo kill -9", shell=True)
+        except Exception as e:
+            print(f"Error killing Redis process: {e}")
+
     def _startStoreInterface(self, size, attempts=20):
         """Start a subprocess that runs the plasma store
         Raises a RuntimeError exception size is undefined
@@ -701,9 +711,10 @@ class Nexus:
                 else Config.get_default_redis_port()
             )
             if self.config and self.config.redis_port_specified():
-                logger.info(
-                    "Attempting to connect to Redis on port {}".format(self.store_port)
-                )
+                logger.info( "Attempting to connect to Redis on port {}".format(self.store_port))
+
+                self.kill_redis_process() # kill existing and old redis process on the store_port
+                
                 # try with failure, incrementing port number
                 self.p_StoreInterface = self.start_redis(size)
                 time.sleep(3)
