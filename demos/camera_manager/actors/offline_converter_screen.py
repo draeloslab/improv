@@ -56,7 +56,6 @@ class ConversionScreen(ManagedActor):
             config = yaml.safe_load(file)
 
         cameras_config = config['active_cameras']
-        camera_params = config['camera_params']
 
         self.num_cameras = len(cameras_config)
 

@@ -91,7 +91,7 @@ class VideoScreen(ManagedActor):
 
         return frame
 
-    def start_buffer_conversion(self, buffer_path):
+    def start_buffer_conversion(self):
         """Function to start the buffer data conversion for each camera."""
         msg = {'type': 'video_conversion', 'value': True}
         self.links[f"msg_out"].put(msg)

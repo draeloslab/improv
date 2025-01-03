@@ -169,9 +169,15 @@ class VideoSaver(ManagedActor):
         self.output_video = os.path.join(self.out_folder_video, f"camera_video_{self.camera_num+1}.avi")
 
         # video converter setup
+        video_params = {
+            'frame_w': self.frame_w,
+            'frame_h': self.frame_h,
+            'fps': self.fps
+        }
+
         self.video_converter = VideoConverter(
             compression_quality = self.compression_quality,
-            fps = self.fps,
+            video_params = video_params,
             output_video = self.output_video,
             out_folder_buffer = self.out_folder_buffer,
             log_progress = True,

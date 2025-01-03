@@ -120,6 +120,7 @@ class OfflineConversionWidget(QWidget):
     def btn_start_conversion(self):
         self.visual.start_buffer_conversion(self.selected_folder)
         self.total_buffers = self.visual.get_number_buffer_conversion()
+        self.start_conversion_btn.setEnabled(False)
 
         logger.info(f"Total buffers received: {self.total_buffers}")
 
@@ -169,6 +170,8 @@ class OfflineConversionWidget(QWidget):
 
     def __quit_application(self):
         """Quit the application."""
+        self.comm.put([Signal.stop()])
+        time.sleep(1)
         self.comm.put([Signal.quit()])
         QApplication.instance().quit()
 

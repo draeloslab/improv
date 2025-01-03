@@ -37,11 +37,11 @@ class OfflineVideoConverter(ManagedActor):
     # Function to save chunks of frames to a video file
     def save_buffer_frames(self, buffer, num_buffer):
         try:
-            compressed_frames = [] # TODO: this could be a fixed vector for reducing memory usage
+            compressed_frames = [None] * len(buffer) # Preallocate list to reduce memory usage
             
-            for frame_id in buffer:
+            for i, frame_id in enumerate(buffer):
                 frame_enc = self.client.get(frame_id)
-                compressed_frames.append(frame_enc.tobytes())
+                compressed_frames[i] = frame_enc.tobytes()
 
                 # Set the expiration for the frame in the client
                 self.client.expire(frame_id, 5)
@@ -61,18 +61,6 @@ class OfflineVideoConverter(ManagedActor):
         except Exception as e:
             logger.error(f"Error saving frames | {e}")
 
-    def save_buffer_frames_loop(self):
-        while not self.stop_program or not self.save_queue.empty():
-            if self.start_program:
-                try:
-                    prev_buffer, num_buffer = self.save_queue.get(timeout=1)
-                    self.save_buffer_frames(prev_buffer, num_buffer)
-                    self.save_queue.task_done()
-                except:
-                    continue
-            else:
-                time.sleep(self.wait_time)
-
     def setup(self):
         # store init
         self._getStoreInterface()
@@ -85,6 +73,8 @@ class OfflineVideoConverter(ManagedActor):
             camera_config = yaml.safe_load(file)
 
         camera_params = camera_config['camera_params']  
+        self.frame_w = camera_params['resolution']['width'] # frame width
+        self.frame_h = camera_params['resolution']['height'] # frame height  
         self.fps = int(camera_params['fps'].split('/')[0]) # extract the fps value
 
         camera_config = camera_config['active_cameras'][self.camera_num]['camera']
@@ -100,15 +90,16 @@ class OfflineVideoConverter(ManagedActor):
         self.compression_quality = video_config['compression_quality']
 
         # control variables
-        self.stop_program = False
         self.start_program = False
         self.conversion_started = False
 
         self.wait_conversion_proc = threading.Thread(target=self.wait_conversion_process)
         self.convert_saved_frames_proc = threading.Thread(target=self.convert_saved_frames)
+        self.stop_program_event = threading.Event()
 
         self.start_program = True
         self.wait_conversion_proc.start()
+        self.convert_saved_frames_proc.start()
 
         logger.info(f"[Camera {self.camera_name}] saver setup completed")
 
@@ -116,58 +107,101 @@ class OfflineVideoConverter(ManagedActor):
         pass
 
     def stop(self):
-        self.stop_program = True
         self.start_program = False
+        self.stop_program_event.set()
         
         self.wait_conversion_proc.join()
 
         if self.conversion_started:
+            logger.info("Stop signal requested - quitting the conversion before the end")
+
             # wait until the video conversion process has finished
-            self.convert_saved_frames_proc.join()
-            logger.info(f"[Camera {self.camera_name}] video conversion completed")
+            if self.convert_saved_frames_proc.is_alive():
+                self.convert_saved_frames_proc.join()       # Wait for the process to terminate
+                logger.info("Conversion process has been terminated.")
+
+            logger.info(f"[Camera {self.camera_name}] video conversion killed")
 
     def wait_conversion_process(self):
         # wait until the user send the conversion start request
-        while not self.conversion_started and not self.stop_program:   
-            try:
-                msg = self.links["msg_in"].get(timeout=0.5)
-            except KeyboardInterrupt:
-                self.stop_program = True
-            except:
-                msg = None        
+        try:
+            while not self.conversion_started and not self.stop_program_event.is_set():   
+                try: 
+                    msg = self.links["msg_in"].get(timeout=0.5)
+                except KeyboardInterrupt:
+                    self.stop_program_event.set()
+                except:
+                    msg = None        
 
-            if msg is not None:
-                logger.info(f"[Camera {self.camera_name}] received message: {msg}")
+                if msg is not None:
+                    logger.info(f"[Camera {self.camera_name}] received message: {msg}")
 
-                if msg['type'] == 'buffer_folder':
-                    self.out_folder_buffer = msg['value'] + f"/camera_{self.camera_num}/"
-                    self.output_video = msg['value'] + f"/camera_video_{self.camera_num+1}.avi"
-                elif msg['type'] == 'video_conversion':
-                    if msg['value']:
-                        self.conversion_started = True
-            
-                        # start conversion
-                        logger.info(f"[Camera {self.camera_name}] video conversion started")
-                        self.convert_saved_frames_proc.start()
-                    else:
-                        program_quit = True
+                    if msg['type'] == 'buffer_folder':
+                        self.out_folder_buffer = msg['value'] + f"/camera_{self.camera_num}/"
+                        self.output_video = msg['value'] + f"/camera_video_{self.camera_num+1}.avi"
+                    elif msg['type'] == 'video_conversion':
+                        if msg['value']:
+                            self.conversion_started = True
+                
+                            # start conversion
+                            logger.info(f"[Camera {self.camera_name}] video conversion started")
+                        else:
+                            self.stop_program_event.set()
 
-            time.sleep(.5)
+                time.sleep(.5)
+        except Exception as e:
+            logger.error(f"Error waiting for conversion start | {e}")
+
+        logger.info(f"[Camera {self.camera_name}] waiting process terminated")
 
     def convert_saved_frames(self):
-        logger.info(f"[Camera {self.camera_name}] received from message the video file: {self.output_video}")
-        # video converter setup
-        self.video_converter = VideoConverter(
-            compression_quality = self.compression_quality,
-            fps = self.fps,
-            output_video = self.output_video,
-            out_folder_buffer = self.out_folder_buffer,
-            log_progress = False,
-            msg_out = self.links['msg_out']
-        )
+        """
+        Converts saved frames into a video file using the VideoConverter class.
+        
+        This method initializes the VideoConverter with the necessary parameters
+        and starts the conversion process. It logs the progress and handles any
+        exceptions that may occur during the conversion.
+        """
 
-        self.video_converter.convert_saved_frames()
+        # wait unitl conversion is started or the program is stopped
+        while not self.conversion_started and not self.stop_program_event.is_set():
+            time.sleep(0.5)
 
-    # Function to map the OpenCV imwrite quality to FFmpeg quality
+        if not self.stop_program_event.is_set():
+            try:
+                # video converter setup
+                video_params = {
+                    'frame_w': self.frame_w,
+                    'frame_h': self.frame_h,
+                    'fps': self.fps
+                }
+                
+                self.video_converter = VideoConverter(
+                    compression_quality = self.compression_quality,
+                    video_params = video_params,
+                    output_video = self.output_video,
+                    out_folder_buffer = self.out_folder_buffer,
+                    log_progress = False,
+                    msg_out = self.links['msg_out'],
+                    stop_program_event = self.stop_program_event
+                )
+
+                self.video_converter.convert_saved_frames()
+            except Exception as e:
+                logger.error(f"Error converting saved frames | {e}")
+
     def __map_cv_quality_to_ffmpeg_q(self, imwrite_quality):
+        """
+        Maps the OpenCV imwrite quality to FFmpeg quality.
+
+        This method converts the quality parameter used by OpenCV's imwrite function
+        to the corresponding quality parameter used by FFmpeg. The conversion ensures
+        that the quality value is within the valid range for FFmpeg.
+
+        Parameters:
+        imwrite_quality (int): Quality value used by OpenCV's imwrite function (0-100).
+
+        Returns:
+        int: Corresponding quality value for FFmpeg (2-31).
+        """
         return max(2, min(31, int(31 - (imwrite_quality * 29 / 100))))
