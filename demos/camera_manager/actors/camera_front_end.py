@@ -95,7 +95,7 @@ class CameraStreamWidget(QWidget):
         self.stop_btn.setStyleSheet(self.__get_button_style("#d91e18", "white"))
         self.stop_btn.setIconSize(QSize(24, 24))  # Set icon size
         self.stop_btn.clicked.connect(self.btn_stop_action)
-        self.stop_btn.setEnabled(False)  # Disable the stop button initially
+        self.stop_btn.hide()  # Disable the stop button initially
 
         # Quit button
         self.quit_button = QPushButton('Quit', self)
@@ -104,11 +104,22 @@ class CameraStreamWidget(QWidget):
         self.quit_button.setStyleSheet(self.__get_button_style("#e4e9ed", "black"))
         self.quit_button.clicked.connect(self.btn_quit_action)
 
+        # Initialize timer label
+        self.timer_label = QLabel("00:00:00", self)
+        self.timer_label.setAlignment(Qt.AlignCenter)
+        self.timer_label.setStyleSheet("font: bold 16px;")
+
+        # Initialize QTimer for the timer
+        self.record_timer = QTimer()
+        self.record_timer.timeout.connect(self.update_timer)
+        self.elapsed_seconds = 0
+
         ## adding the elements to the layout
+        buttons_layout.addWidget(self.timer_label)
         buttons_layout.addWidget(self.run_btn)
         buttons_layout.addWidget(self.stop_btn)
         buttons_layout.addWidget(self.quit_button)
-        
+
         # Add the buttons layout to the grid layout in the first row, spanning two columns, centered
         layout.addLayout(buttons_layout, 0, 0, 1, 2, alignment=Qt.AlignCenter)
 
@@ -148,11 +159,23 @@ class CameraStreamWidget(QWidget):
         scaled_pixmap = pixmap.scaled(label.size(), Qt.KeepAspectRatio)  # Keep aspect ratio
         label.setPixmap(scaled_pixmap)
 
+    def update_timer(self):
+        """Update the timer label every second."""
+        self.elapsed_seconds += 1
+        hours = self.elapsed_seconds // 3600
+        minutes = (self.elapsed_seconds % 3600) // 60
+        seconds = self.elapsed_seconds % 60
+        self.timer_label.setText(f"{hours:02d}:{minutes:02d}:{seconds:02d}")
+
     def btn_run_action(self):
         """Action to execute when the run control button is clicked."""
         self.comm.put([Signal.run()])  # Starting the run of the cameras
-        self.run_btn.setEnabled(False) # Disable the run button - only one run is supported
-        self.stop_btn.setEnabled(True)  # Enable the stop button
+        self.run_btn.hide() # Disable the run button - only one run is supported
+        self.stop_btn.show()  # Enable the stop button
+
+        # Reset and start the timer
+        self.elapsed_seconds = 0
+        self.record_timer.start(1000)  # Tick every second
 
     def start_conversion(self):
         """
@@ -203,6 +226,9 @@ class CameraStreamWidget(QWidget):
         """Action to execute when the Stop control button is clicked."""
         self.comm.put([Signal.stop()])  # Stopping the run of the cameras
         self.stop_btn.setEnabled(False)  # Disable the stop button
+
+        # Stop the timer
+        self.record_timer.stop()
 
         # Create and configure the message box
         msg_box = QMessageBox(self)

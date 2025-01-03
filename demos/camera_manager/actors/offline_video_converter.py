@@ -97,14 +97,16 @@ class OfflineVideoConverter(ManagedActor):
         self.convert_saved_frames_proc = threading.Thread(target=self.convert_saved_frames)
         self.stop_program_event = threading.Event()
 
-        self.start_program = True
         self.wait_conversion_proc.start()
-        self.convert_saved_frames_proc.start()
 
         logger.info(f"[Camera {self.camera_name}] saver setup completed")
 
     def runStep(self):      
-        pass
+        if not self.start_program:            
+            self.start_program = True
+            self.convert_saved_frames_proc.start()
+        else:
+            time.sleep(1)
 
     def stop(self):
         self.start_program = False
@@ -163,10 +165,6 @@ class OfflineVideoConverter(ManagedActor):
         exceptions that may occur during the conversion.
         """
 
-        # wait unitl conversion is started or the program is stopped
-        while not self.conversion_started and not self.stop_program_event.is_set():
-            time.sleep(0.5)
-
         if not self.stop_program_event.is_set():
             try:
                 # video converter setup
@@ -190,18 +188,4 @@ class OfflineVideoConverter(ManagedActor):
             except Exception as e:
                 logger.error(f"Error converting saved frames | {e}")
 
-    def __map_cv_quality_to_ffmpeg_q(self, imwrite_quality):
-        """
-        Maps the OpenCV imwrite quality to FFmpeg quality.
-
-        This method converts the quality parameter used by OpenCV's imwrite function
-        to the corresponding quality parameter used by FFmpeg. The conversion ensures
-        that the quality value is within the valid range for FFmpeg.
-
-        Parameters:
-        imwrite_quality (int): Quality value used by OpenCV's imwrite function (0-100).
-
-        Returns:
-        int: Corresponding quality value for FFmpeg (2-31).
-        """
-        return max(2, min(31, int(31 - (imwrite_quality * 29 / 100))))
+        logger.info(f"[Camera {self.camera_name}] conversion process terminated")
