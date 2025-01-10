@@ -3,6 +3,7 @@ import struct
 import numpy as np
 import cv2
 import threading
+import os
 from pathlib import Path
 from queue import Queue
 from skvideo.io import FFmpegWriter
@@ -86,21 +87,21 @@ class VideoConverter:
 
             output_dict = {
                 '-c:v': 'mjpeg',                          # Use MJPEG codec
-                '-q:v': str(video_compression_quality),   # Quality level (lower is higher quality)
+                '-q:v': str(video_compression_quality),
                 '-pix_fmt': 'yuvj420p',
                 '-r': str(self.fps),
                 '-threads': '0'
             }
 
             # video saving using ffmpeg
-            video_save_command = [
-                'ffmpeg', '-y', '-f', 'rawvideo', '-vcodec', 'rawvideo',
-                '-s', f'{self.frame_w}x{self.frame_h}', '-pix_fmt', 'rgb24', '-r', str(self.fps),
-                '-i', '-', '-an', '-vcodec', 'libx264', '-pix_fmt', 'yuv420p', self.output_video,
-                '-crf', str(video_compression_quality),  
-                '-preset', 'slow',
-                '-loglevel', 'error'  # Suppress all output except for errors
-            ]            
+            # video_save_command = [
+            #     'ffmpeg', '-y', '-f', 'rawvideo', '-vcodec', 'rawvideo',
+            #     '-s', f'{self.frame_w}x{self.frame_h}', '-pix_fmt', 'rgb24', '-r', str(self.fps),
+            #     '-i', '-', '-an', '-vcodec', 'libx264', '-pix_fmt', 'yuv420p', self.output_video,
+            #     '-crf', str(video_compression_quality),  
+            #     '-preset', 'slow',
+            #     '-loglevel', 'error'  # Suppress all output except for errors
+            # ]            
 
             # self.video_proc = subprocess.Popen(video_save_command, stdin=subprocess.PIPE)
 
@@ -141,11 +142,11 @@ class VideoConverter:
                 buffer_files = sorted(self.out_folder_buffer.glob('buffer_*.bin'))
                 logger.info(f"VideoConverter: Deleting buffer files: {len(buffer_files)} in folder {self.out_folder_buffer}")
 
-                # for buffer_file in buffer_files:
-                #     try:
-                #         os.remove(buffer_file)
-                #     except Exception as e:
-                #         logger.error(f"VideoConverter: Failed to delete {buffer_file} | {e}")
+                for buffer_file in buffer_files:
+                    try:
+                        os.remove(buffer_file)
+                    except Exception as e:
+                        logger.error(f"VideoConverter: Failed to delete {buffer_file} | {e}")
         except Exception as e:
             logger.error(f"VideoConverter: Error during video saving process | {e}")
 
@@ -154,16 +155,16 @@ class VideoConverter:
         Converts saved binary frame files into video frames and queues them for saving.
         Sends progress messages if log_progress is True.
         """
-        try:
-            # Gather and sort all binary files
-            buffer_files = sorted(self.out_folder_buffer.glob('buffer_*.bin'))
+        # Gather and sort all binary files
+        buffer_files = sorted(self.out_folder_buffer.glob('buffer_*.bin'))
 
-            msg = {'type': 'num_buffer_files', 'value': len(buffer_files)}
-            self.msg_out.put(msg)
-            
-            if self.log_progress:
-                logger.info(f"VideoConverter: Number of buffer files to process: {len(buffer_files)}")
+        msg = {'type': 'num_buffer_files', 'value': len(buffer_files)}
+        self.msg_out.put(msg)
+        
+        if self.log_progress:
+            logger.info(f"VideoConverter: Number of buffer files to process: {len(buffer_files)}")
 
+        if len(buffer_files) > 0:
             self.writer_video_proc = threading.Thread(target=self.save_video_process)
             self.writer_video_proc.start()
 
@@ -210,16 +211,15 @@ class VideoConverter:
                 
                 if self.log_progress:
                     logger.info(f"VideoConverter: Completed processing buffer file {buffer_file}")
-        except Exception as e:
-            logger.error(f"VideoConverter: Error during the process of conversion | {e}")
+
+            # Signal the end of the video conversion
+            self.video_conv_queue.put(None)
+
+            self.writer_video_proc.join()
+        else:
+            logger.warning("VideoConverter: No buffer files to process.")
 
         logger.info("VideoConverter: Conversion process completed.")
-
-        # Signal the end of the video conversion
-        if self.log_progress:
-            logger.info("VideoConverter: Video conversion completed and done signal sent.")
-
-        self.video_conv_queue.put(None)
 
         msg = {'type': 'video_conversion_done'}
         self.msg_out.put(msg)
