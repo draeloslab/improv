@@ -110,9 +110,9 @@ class VideoConverter:
             try:
                 self.video_proc = FFmpegWriter(self.output_video, inputdict=input_dict, outputdict=output_dict)
 
-                while True:
+                while True and not self.stop_program_event.is_set():
                     try:
-                        frame = self.video_conv_queue.get(timeout=10)  # Set timeout to 10 seconds
+                        frame = self.video_conv_queue.get(timeout=3)  # Set timeout to 10 seconds
                     except Exception as e:
                         logger.error("VideoConverter: Timeout while waiting for frame.")
                         self.saving_error = True
@@ -147,6 +147,8 @@ class VideoConverter:
                         os.remove(buffer_file)
                     except Exception as e:
                         logger.error(f"VideoConverter: Failed to delete {buffer_file} | {e}")
+            else:
+                logger.info("VideoConverter: Deleting buffer files skipped due to saving error or to program ended by user.")
         except Exception as e:
             logger.error(f"VideoConverter: Error during video saving process | {e}")
 
