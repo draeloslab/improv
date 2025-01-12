@@ -28,6 +28,8 @@ class CameraReader(ManagedActor):
         super().__init__(*args, **kwargs)
         
         self.camera_num = kwargs['camera_num']
+        self.logging_metrics = kwargs['logging_metrics']
+        self.benchmarking = kwargs['benchmarking'] if 'benchmarking' in kwargs else False
 
     def setup(self):
         """ Initializes the camera reading process """
@@ -67,7 +69,7 @@ class CameraReader(ManagedActor):
         # initializing each camera TIS interface and opening the device
         logger.info(f'Opening device: {camera_config}')
 
-        self.camera_interface = TIS(self.camera_name, self.client, self.q_out)
+        self.camera_interface = TIS(self.camera_name, self.client, self.q_out, self.logging_metrics, self.benchmarking)
         self.camera_interface.open_device(camera_config['serial_id'], shared_frame, self.frame_w, self.frame_h, self.fps, SinkFormats.RGB, showvideo=False)
         
         logger.info(f'Device {self.camera_name} opened')

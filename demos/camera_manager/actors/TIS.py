@@ -3,7 +3,7 @@ import numpy as np
 import cv2
 from enum import Enum
 from collections import namedtuple
-
+import pandas as pd
 import gi
 gi.require_version("Gst", "1.0")
 gi.require_version("Tcam", "1.0")
@@ -38,7 +38,16 @@ class SinkFormats(Enum):
     RGB = "RGB"
 
 class TIS:
-    def __init__(self, camera_name, client, q_out):
+    def __init__(self, camera_name, client, q_out, logging_metrics, benchmarking=False):
+        """
+            Initialize the camera interface object
+
+            Input:
+                camera_name: Name of the camera. Used for logging.
+                client: Store client interface.
+                q_out: Queue to store the data_id of the frames.
+                benchmarking: Flag to enable benchmarking storage into file, default is False.
+        """
         try:
             if not Gst.is_initialized():
                 Gst.init(())  # Usually better to call in the main function.
@@ -71,6 +80,14 @@ class TIS:
         # buffer processing management
         self.client = client
         self.q_out = q_out
+
+        self.logging_metrics = logging_metrics
+
+        # benchmarking
+        self.benchmarking = benchmarking
+
+        if self.benchmarking:
+            self.metrics = []
 
     def open_device(self, serial,
                     shared_frame,
@@ -161,6 +178,7 @@ class TIS:
         self.total_frame_count = 0
         self.frame_count = 0
         self.total_delay = 0
+        self.min_delay = 1000
         self.max_delay = 0
 
         self.image_data = []
@@ -204,6 +222,8 @@ class TIS:
 
                 if delay > self.max_delay:
                     self.max_delay = delay
+                elif delay < self.min_delay:
+                    self.min_delay = delay
 
             except Exception as e:
                 logger.warning(f"[Camera {self.camera_name}] Could not put frame in the store | {e}")
@@ -214,13 +234,19 @@ class TIS:
                 self.total_frame_count += 1
                 self.total_delay += delay
 
-                if self.frame_count % 900 == 0:               
+                if (self.logging_metrics or self.benchmarking) and self.frame_count % 600 == 0:               
                     total_time = time.perf_counter() - self.start_time
+                    fps = round(self.frame_count / total_time,2)
+                    avg_delay = self.total_delay / self.frame_count
 
-                    logger.info(f"[Camera {self.camera_name}] reader FPS: {round(self.frame_count / total_time,2)} - avg delay: {self.total_delay/self.frame_count:.4f} - max delay: {self.max_delay:.4f}")                
+                    logger.info(f"[Camera {self.camera_name}] reader FPS: {fps} - avg delay: {avg_delay:.4f} - max delay: {self.max_delay:.4f}")                
                     # logger.info(f"{frame.shape} - size on memory: {round(frame.nbytes/(1024**2),2)}MB")
 
+                    if self.benchmarking:
+                        self.metrics.append([total_time, fps, avg_delay, self.min_delay, self.max_delay])
+
                     self.total_delay = 0
+                    self.min_delay = 1000
                     self.max_delay = 0
                     self.frame_count = 0
                     self.start_time = time.perf_counter()
@@ -248,6 +274,9 @@ class TIS:
         recording_duration = stop_time - self.total_start_time
 
         logger.info(f"[Camera {self.camera_name}] reader stopped. Total frames: {self.total_frame_count} - Recording duration: {recording_duration:.2f}s ({round(recording_duration/60,1)} min)")
+
+        if self.benchmarking:
+            self.save_benchmark_metrics()
 
     def get_source(self):
         '''
@@ -308,3 +337,13 @@ class TIS:
             baseproperty.set_command()
         except Exception as error:
             raise RuntimeError(f"Failed to execute '{property_name}'") from error
+
+    def save_benchmark_metrics(self):
+        if len(self.metrics) > 0:
+            logger.info(f"[Camera {self.camera_name}] Saving benchmarking metrics to file.")
+            df = pd.DataFrame(self.metrics, columns=['timestamp', 'fps', 'avg_delay', 'min_delay', 'max_delay'])
+            df['camera_name'] = self.camera_name
+            filename = f"benchmarks/camera_{self.camera_name}_metrics.csv"
+            df.to_csv(filename, index=False)
+
+            logger.info(f"[Camera {self.camera_name}] Benchmarking metrics saved to {filename}")
