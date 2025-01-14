@@ -21,40 +21,53 @@ def load_benchmark_data(root_directory):
 
 def plot_benchmark_data(data):
     axis_fps = [59, 61]
-    axis_delay = [0, 0.03]
+    axis_delay = [0, 0.032]
+    target_fps = 60
+    target_delay = 1 / target_fps  # 1/fps
     sns.set(style="whitegrid")
     
     n_cameras = len(data)
-    fig, axs = plt.subplots(n_cameras, 2, figsize=(15, 5 * n_cameras), squeeze=False)
+    fig, axs = plt.subplots(n_cameras, 2, figsize=(15, 4.25 * n_cameras), squeeze=True)
     
     # Colors
     fps_color = 'blue'
     delay_color = 'red'
+    target_fps_color = 'green'
+    target_delay_color = 'green'
     
     for idx, (camera, df) in enumerate(data.items()):
         # Subplot 1: FPS over time
         axs[idx, 0].plot(df['cumulative_time'], df['fps'], color=fps_color, label='FPS')
-        
+        axs[idx, 0].axhline(y=target_fps, color=target_fps_color, linestyle='--', label='Target FPS')
         axs[idx, 0].set_ylabel('FPS')
         axs[idx, 0].set_ylim(axis_fps)
         axs[idx, 0].set_xlim([df['cumulative_time'].min(), df['cumulative_time'].max()])
-        axs[idx, 0].legend()
+
+        # hide x-axis labels for all but the last subplot
+        if idx < n_cameras - 1:
+            axs[idx, 0].set_xticklabels([])
 
         if idx == 0:
             axs[idx, 0].set_title(f'FPS Over Time')
+            axs[idx, 0].legend()
         elif idx == n_cameras - 1:
             axs[idx, 0].set_xlabel('Time (minutes)')
 
         # Subplot 2: Avg Delay over time with min and max delay shaded
         axs[idx, 1].plot(df['cumulative_time'], df['avg_delay'], color=delay_color, label='Avg Delay')
         axs[idx, 1].fill_between(df['cumulative_time'], df['min_delay'], df['max_delay'], color=delay_color, alpha=0.3, label='Min-Max Delay')
+        axs[idx, 1].axhline(y=target_delay, color=target_delay_color, linestyle='--', label='1/fps')
         axs[idx, 1].set_ylabel('Delay (s)')
         axs[idx, 1].set_ylim(axis_delay)
         axs[idx, 1].set_xlim([df['cumulative_time'].min(), df['cumulative_time'].max()])
-        axs[idx, 1].legend()
+
+        # hide x-axis labels for all but the last subplot
+        if idx < n_cameras - 1:
+            axs[idx, 1].set_xticklabels([])
 
         if idx == 0:
             axs[idx, 1].set_title(f'Average Delay Over Time')
+            axs[idx, 1].legend()
         elif idx == n_cameras - 1:
             axs[idx, 1].set_xlabel('Time (minutes)')
     
@@ -82,11 +95,13 @@ def plot_benchmark_data(data):
     
     # Subplot 1: FPS Violin Plot
     sns.violinplot(x='Camera', y='FPS', data=violin_df, ax=axs[0], palette=['blue'])
-    axs[0].set_title('FPS Distribution per Camera')
+    axs[0].axhline(y=target_fps, color=target_fps_color, linestyle='--', label='Target FPS')
+    axs[0].set_title('FPS Distribution per Camera')    
     axs[0].set_ylim(axis_fps)
     
     # Subplot 2: Avg Delay Violin Plot
     sns.violinplot(x='Camera', y='Avg Delay', data=violin_df, ax=axs[1], palette=['red'])
+    axs[1].axhline(y=target_delay, color=target_delay_color, linestyle='--', label='1/fps')
     axs[1].set_title('Average Delay Distribution per Camera')
     axs[1].set_ylim(axis_delay)
     
