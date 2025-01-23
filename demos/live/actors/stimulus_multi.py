@@ -60,12 +60,12 @@ class VisualStimulus(Actor):
 
         self.initial_angles = np.linspace(0,330,num=12) #np.array([5,10,8,4,3,9,2,1]) # np.linspace(0,360,endpoint=False, num=8)
         self.initial_vel = np.array([0.02, 0.04, 0.06, 0.08, 0.10, 0.12])
-        self.initial_posx = np.arange(205,1525,100)
-        self.initial_posy = np.arange(625,1285,100)
+        self.initial_posx = np.arange(250,1500,100)
+        self.initial_posy = np.arange(700,1200,100)
         self.initial_len = np.linspace(20,800, num=10).astype(int)
         self.initial_width = np.linspace(20,1600, num=10).astype(int)
         self.initial_shape = np.array([0,1])
-        self.initial_frequency = np.linspace(1,330, num=12)
+        self.initial_frequency = np.linspace(1,120, num=12).astype(int)
         random.shuffle(self.initial_angles)
         random.shuffle(self.initial_vel)
         random.shuffle(self.initial_posx)
@@ -382,7 +382,7 @@ class VisualStimulus(Actor):
 
             if self.params[4] == 0: #shape is ellipse
                 text = {'texture_size': 1600,
-                        'frequency': int(self.params[4]),
+                        'frequency': int(self.params[5]),
                         'center_x': int(self.params[0]),
                         'center_y': int(self.params[1]),
                         'width': int(self.params[3]),
@@ -394,7 +394,7 @@ class VisualStimulus(Actor):
             
             if self.params[4] == 1: #shape is a rectangle
                 text = {'texture_size': 1600,
-                        'frequency': int(self.params[4]),
+                        'frequency': int(self.params[5]),
                         'center_x': int(self.params[0]),
                         'center_y': int(self.params[1]),
                         'width': int(self.params[3]),
