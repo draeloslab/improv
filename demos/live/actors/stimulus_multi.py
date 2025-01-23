@@ -60,8 +60,8 @@ class VisualStimulus(Actor):
 
         self.initial_angles = np.linspace(0,330,num=12) #np.array([5,10,8,4,3,9,2,1]) # np.linspace(0,360,endpoint=False, num=8)
         self.initial_vel = np.array([0.02, 0.04, 0.06, 0.08, 0.10, 0.12])
-        self.initial_posx = np.arange(250,1500,100)
-        self.initial_posy = np.arange(700,1200,100)
+        self.initial_posx = np.arange(405,1525,100)
+        self.initial_posy = np.arange(625,1285,100)
         self.initial_len = np.linspace(20,800, num=10).astype(int)
         self.initial_width = np.linspace(20,1600, num=10).astype(int)
         self.initial_shape = np.array([0,1])
