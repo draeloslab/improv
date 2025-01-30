@@ -34,33 +34,6 @@ class OfflineVideoConverter(ManagedActor):
 
         self.camera_num = kwargs['camera_num']
 
-    # Function to save chunks of frames to a video file
-    def save_buffer_frames(self, buffer, num_buffer):
-        try:
-            compressed_frames = [None] * len(buffer) # Preallocate list to reduce memory usage
-            
-            for i, frame_id in enumerate(buffer):
-                frame_enc = self.client.get(frame_id)
-                compressed_frames[i] = frame_enc.tobytes()
-
-                # Set the expiration for the frame in the client
-                self.client.expire(frame_id, 5)
-
-            # Define the output file path
-            file_name = f'buffer_{num_buffer:05d}.bin'
-            file_path = os.path.join(self.out_folder_buffer, file_name)
-            
-            # Save all compressed frames to the binary file
-            with open(file_path, 'wb') as f:
-                for cf in compressed_frames:
-                    # Write the length of the compressed frame
-                    f.write(len(cf).to_bytes(4, byteorder='little'))
-                    # Write the compressed frame data
-                    f.write(cf)
-
-        except Exception as e:
-            logger.error(f"Error saving frames | {e}")
-
     def setup(self):
         # store init
         self._getStoreInterface()
