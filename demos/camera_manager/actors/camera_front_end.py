@@ -65,8 +65,12 @@ class CameraStreamWidget(QWidget):
         layout.setSpacing(10)  # Add some padding between widgets
 
         # Calculate label size (half the screen width and height minus padding)
-        label_width = int((screen_width) // 2 - 80)
-        label_height = int((screen_height) // 2 - 60)
+        if self.visual.num_cameras > 1:
+            label_width = int((screen_width) // 2 - 80)
+            label_height = int((screen_height) // 2 - 60)
+        else:
+            label_width = int(screen_width - 35)
+            label_height = int(screen_height - 140)
 
         # Create labels to show camera frames
         self.camera_labels = [QLabel(self) for _ in range(self.visual.num_cameras)]
@@ -123,10 +127,9 @@ class CameraStreamWidget(QWidget):
         # Add the buttons layout to the grid layout in the first row, spanning two columns, centered
         layout.addLayout(buttons_layout, 0, 0, 1, 2, alignment=Qt.AlignCenter)
 
-        # Add the three camera widgets
-        layout.addWidget(self.camera_labels[0], 1, 0)  # Top-left
-        layout.addWidget(self.camera_labels[1], 1, 1)  # Top-right
-        layout.addWidget(self.camera_labels[2], 2, 0)  # Bottom-left
+        # Add the cameras widgets
+        for i, label in enumerate(self.camera_labels):
+            layout.addWidget(self.camera_labels[i], i // 2 + 1, i % 2)    
 
         self.setLayout(layout)
 
@@ -148,7 +151,10 @@ class CameraStreamWidget(QWidget):
         
                 self.display_frame(frame, self.camera_labels[camera_id])
             except Exception as e:
-                logger.error(f"Error: {e}")
+                logger.error(f"Error: {e} - camera_id: {camera_id}")
+
+                if frame is not None:
+                    logger.info(f"Frame shape: {frame.shape}")
 
     def display_frame(self, frame, label):
         """Convert frame to QImage and display it in QLabel."""

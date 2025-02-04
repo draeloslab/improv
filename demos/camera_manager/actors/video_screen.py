@@ -41,7 +41,12 @@ class Visual(Actor):
         self.app.exec_()
         logger.info("GUI ready")
 
-class VideoScreen(ManagedActor):
+class VideoScreen(ManagedActor):    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        self.num_cameras = kwargs['num_active_cameras']
+
     def setup(self):
         # store init
         self._getStoreInterface()
@@ -54,13 +59,10 @@ class VideoScreen(ManagedActor):
         with open(f'{source_folder}/config/camera_config.yaml', 'r') as file:
             config = yaml.safe_load(file)
 
-        cameras_config = config['active_cameras']
         camera_params = config['camera_params']
 
         self.frame_w = camera_params['resolution']['width'] # frame width
         self.frame_h = camera_params['resolution']['height'] # frame height
-
-        self.num_cameras = len(cameras_config)
 
         self.num_buffers_rec = [0 for _ in range(self.num_cameras)] # num of buffers recorded by each camera
         self.num_buffers_progress = [0 for _ in range(self.num_cameras)] # num of buffers converted for each camera
