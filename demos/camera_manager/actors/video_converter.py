@@ -83,27 +83,13 @@ class VideoConverter:
                 '-r': str(self.fps)
             }
 
-            video_compression_quality = self.__map_cv_quality_to_ffmpeg_q(self.compression_quality)
-
             output_dict = {
-                '-c:v': 'mjpeg',                          # Use MJPEG codec
-                '-q:v': str(video_compression_quality),
-                '-pix_fmt': 'yuvj420p',
+                '-c:v': 'libx264',     # Use H.264 codec
+                '-preset': 'slow',     # Use a slower preset for better compression
+                '-pix_fmt': 'yuv420p',
                 '-r': str(self.fps),
                 '-threads': '0'
-            }
-
-            # video saving using ffmpeg
-            # video_save_command = [
-            #     'ffmpeg', '-y', '-f', 'rawvideo', '-vcodec', 'rawvideo',
-            #     '-s', f'{self.frame_w}x{self.frame_h}', '-pix_fmt', 'rgb24', '-r', str(self.fps),
-            #     '-i', '-', '-an', '-vcodec', 'libx264', '-pix_fmt', 'yuv420p', self.output_video,
-            #     '-crf', str(video_compression_quality),  
-            #     '-preset', 'slow',
-            #     '-loglevel', 'error'  # Suppress all output except for errors
-            # ]            
-
-            # self.video_proc = subprocess.Popen(video_save_command, stdin=subprocess.PIPE)
+            }        
 
             frame_received = False
 
@@ -123,7 +109,6 @@ class VideoConverter:
                         break      
                     else:
                         self.video_proc.writeFrame(frame)
-                        # self.video_proc.stdin.write(frame.tobytes())
 
                         if not frame_received:
                             frame_received = True                
@@ -133,8 +118,6 @@ class VideoConverter:
             finally:
                 if frame_received:
                     self.video_proc.close()
-                    # self.video_proc.stdin.close()
-                    # self.video_proc.wait()
                     logger.info("VideoConverter: Video process closed.")
 
             if not self.saving_error and not self.stop_program_event.is_set():

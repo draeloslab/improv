@@ -160,7 +160,7 @@ class VideoSaver(ManagedActor):
         if not Path(self.out_folder_buffer).exists():
             Path(self.out_folder_buffer).mkdir(parents=True, exist_ok=True)
 
-        self.output_video = os.path.join(self.out_folder_video, f"camera_video_{self.camera_num+1}.avi")
+        self.output_video = os.path.join(self.out_folder_video, f"camera_video_{self.camera_num+1}.mp4")
 
         # video converter setup
         video_params = {

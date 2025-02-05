@@ -113,7 +113,7 @@ class OfflineVideoConverter(ManagedActor):
 
                     if msg['type'] == 'buffer_folder':
                         self.out_folder_buffer = msg['value'] + f"/camera_{self.camera_num}/"
-                        self.output_video = msg['value'] + f"/camera_video_{self.camera_num+1}.avi"
+                        self.output_video = msg['value'] + f"/camera_video_{self.camera_num+1}.mp4"
                     elif msg['type'] == 'video_conversion':
                         if msg['value']:
                             self.conversion_started = True
