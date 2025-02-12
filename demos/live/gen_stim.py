@@ -1,12 +1,12 @@
 import numpy as np
 from itertools import product
 
-x1 = np.linspace(0,330,num=12) 
+x1 = np.arange(0, 331, 30)
 x2 = np.array([0.02, 0.04, 0.06, 0.08, 0.10, 0.12]) 
 x3 = np.arange(405,1525,100)
 x4 = np.arange(625,1285,100)
-x5 = np.linspace(20,800, num=10).astype(int)
-x6 = np.linspace(20,1600, num=10).astype(int)
+x5 = np.arange(20, 401, 40)
+x6 = np.arange(20, 801, 80)
 x7 = np.array([0,1])
 x8 = np.linspace(1,120, num=12).astype(int)
 
