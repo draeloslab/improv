@@ -63,6 +63,12 @@ actors:
     before_amount: 5
     after_amount: 10
 
+    # Optimimzer:
+    # package: actors.bayes_opt
+    # class: BayesOpt
+    # config_file: bayes_opt_params.yaml
+    
+
 connections:
   Acquirer.q_out: [Processor.q_in, Visual.raw_frame_queue]
   Processor.q_out: [Analysis.q_in]
@@ -70,6 +76,7 @@ connections:
   Acquirer.stim_queue: [Analysis.input_stim_queue, Visual.stim_in]
   Analysis.stim_out: [Stimulus.q_in]
   Stimulus.q_out: [Visual.optim_in]
+  # Optimizer.q_out: 
 
 redis_config:
   port: 6379
