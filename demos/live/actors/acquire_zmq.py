@@ -17,11 +17,6 @@ from datetime import datetime as dt
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-# logging.basicConfig(
-#     format='%(asctime)s - %(levelname)s - %(message)s',
-#     datefmt='%Y-%m-%d %H:%M:%S',
-#     level=logging.INFOss
-# )
 
 class ZMQAcquirer(Actor):
 
@@ -328,9 +323,9 @@ class ZMQAcquirer(Actor):
                 self.stimmed.append([self.frame_num, angle, vel, center_x, center_y, length, width, shape, freq])
                
                 if shape == 0:
-                    logger.info('Stimulus: {} Ellipse of length {} and width {} at angle {} with velocity {} at intial position {} at frame {}'.format(freq, length, width, angle, vel, center_x, center_y, self.frame_num))
+                    logger.info('Stimulus: {} Ellipse of length {} and width {} at angle {} with velocity {} at intial position ({},{}) at frame {}'.format(freq, length, width, angle, vel, center_x, center_y, self.frame_num))
                 else:
-                    logger.info('Stimulus: {} Rectangle of length {} and width {} at angle {} with velocity {} at intial position {} at frame {}'.format(freq, length, width, angle, vel, center_x, center_y, self.frame_num))
+                    logger.info('Stimulus: {} Rectangle of length {} and width {} at angle {} with velocity {} at intial position ({},{}) at frame {}'.format(freq, length, width, angle, vel, center_x, center_y, self.frame_num))
 
             logger.info('Number of stimuli: {}'.format(self.stim_count))
             # self.stimsendtimes.append([sendtime])

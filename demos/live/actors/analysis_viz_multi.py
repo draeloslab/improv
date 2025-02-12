@@ -28,7 +28,6 @@ class VizStimAnalysis(Actor):
         # TODO: same as behaviorAcquisition, need number of stimuli here. Make adaptive later
         self.num_stim = 12 
         self.frame = 0
-        # self.curr_stim = 0 #start with zeroth stim unless signaled otherwise
         self.stim = {}
         self.stimStart = -1
         self.currentStim = None
@@ -52,12 +51,6 @@ class VizStimAnalysis(Actor):
         self.allStims = {}
         self.estsAvg = None
 
-        # self.x_angle = np.linspace(0,350,num=15)
-        # self.x_vel = [0.02, 0.06, 0.1] #np.around(np.linspace(0.02, 0.1, num=4), decimals=2)
-        # self.x_freq = np.array([20, 40, 60] ) #32 #[0, 32] #np.arange(5,80,5)
-        # self.x_contrast = np.arange(5)
-        # logger.info('self.stimuli {}'.format(self.stimuli))
-
         self.x_angle = self.stimuli[0]
         self.x_vel = self.stimuli[1]
         self.initial_posx = self.stimuli[2]
@@ -66,8 +59,6 @@ class VizStimAnalysis(Actor):
         self.width = self.stimuli[5]
         self.shape = self.stimuli[6]
         self.freq = self.stimuli[7]
-        # self.x_freq = self.stimuli[2]
-        # self.x_contrast = self.stimuli[3]
 
         self.counters = {}
         self.counters['angle'] = np.ones((self.x_angle.shape[0],2))
@@ -78,8 +69,6 @@ class VizStimAnalysis(Actor):
         self.counters['width'] = np.ones((self.width.shape[0], 2))
         self.counters['shape'] = np.ones((self.shape.shape[0], 2))
         self.counters['freq'] = np.ones((self.freq.shape[0], 2))
-        # self.counters['freq'] =  np.ones((self.x_freq.shape[0],2))
-        # self.counters['contrast'] =  np.ones((self.x_contrast.shape[0],2))
 
         self.ys = {}
         self.ys['angle'] = np.zeros((1, self.x_angle.shape[0], 2))
@@ -90,10 +79,6 @@ class VizStimAnalysis(Actor):
         self.ys['width'] = np.zeros((1, self.width.shape[0], 2))
         self.ys['shape'] = np.zeros((1, self.shape.shape[0], 2))
         self.ys['freq'] = np.zeros((1, self.freq.shape[0], 2))
-
-        # self.ys['freq'] = np.zeros((1, self.x_freq.shape[0], 2))
-        # self.ys['contrast'] = np.zeros((1, self.x_contrast.shape[0], 2))
-
         self.y_results = {}
         self.y_results['angle'] = None
         self.y_results['vel'] = None
@@ -103,8 +88,6 @@ class VizStimAnalysis(Actor):
         self.y_results['width'] = None
         self.y_results['shape'] = None
         self.y_results['freq'] = None
-        # self.y_results['freq'] = None
-        # self.y_results['contrast'] = None
 
         self.xs = {}
         self.xs['angle'] = 0
@@ -115,11 +98,6 @@ class VizStimAnalysis(Actor):
         self.xs['width'] = 0
         self.xs['shape'] = 0
         self.xs['freq'] = 0
-        # self.xs['freq'] = 0
-        # self.xs['contrast'] = 0
-
-        # self.all_y = np.zeros((500, self.x_angle.shape[0],self.x_angle.shape[0]))
-        # self.stim_count = np.zeros((self.x_angle.shape[0],self.x_angle.shape[0]))
         self.all_y = np.zeros((500, self.x_angle.shape[0],self.x_vel.shape[0],self.initial_posx.shape[0], self.initial_posy.shape[0],self.len.shape[0],self.width.shape[0],self.shape.shape[0],self.freq.shape[0]))
         self.stim_count = np.zeros((self.x_angle.shape[0],self.x_vel.shape[0],self.initial_posx.shape[0], self.initial_posy.shape[0],self.len.shape[0],self.width.shape[0],self.shape.shape[0],self.freq.shape[0]))
 
@@ -156,7 +134,6 @@ class VizStimAnalysis(Actor):
         print('Stims ------------------------------')
         print(self.allStims)
         np.save('output/used_stims.npy', np.array(stim))
-        # np.savetxt('output/used_stims.txt', self.currStimID)
 
     def runStep(self):
         ''' Take numpy estimates and frame_number
@@ -194,9 +171,9 @@ class VizStimAnalysis(Actor):
             try: 
                 ## stim format: stim, stimonOff, angle, vel, freq, contrast
                 # logger.info('ANALYSIS - inside try block ------------')
-                logger.info('before update stim start: {}'.format(self.links['input_stim_queue'].get(timeout=0.0001)))
+                # logger.info('before update stim start: {}'.format(self.links['input_stim_queue'].get(timeout=0.0001)))
                 sig = self.links['input_stim_queue'].get(timeout=0.0001)
-                logger.info('sig after: {}'.format(sig))
+                # logger.info('sig after: {}'.format(sig))
                 self.updateStim_start(sig)
                 logger.info('we called updatedStim_start')
                 self.stimText = list(sig.values())
@@ -260,7 +237,7 @@ class VizStimAnalysis(Actor):
         stimID = self.IDstim(int(whichStim))
 
         # logger.info('FRAME in updateStim start: {}'.format(frame))
-        # logger.info('STIM in updateStim start: {}'.format(stim))
+        logger.info('STIM in updateStim start: {}'.format(stim))
         angle = stim[frame][0]
         vel = stim[frame][1]
         posx = stim[frame][2]
@@ -272,9 +249,9 @@ class VizStimAnalysis(Actor):
         # freq = stim[frame][4]
         # contrast = stim[frame][5]
 
+        # logger.info('LENGTH: {}'.format(length))
+        # logger.info('Self.len: {}'.format(self.len))
         self.xs['angle'] = np.argwhere(angle==self.x_angle)[0]
-        # print(stim)
-        # print(self.x_vel)
         self.xs['vel'] = np.argwhere(vel==self.x_vel)[0]
         self.xs['posx'] = np.argwhere(posx==self.initial_posx)[0]
         self.xs['posy'] = np.argwhere(posy==self.initial_posy)[0]
@@ -282,10 +259,6 @@ class VizStimAnalysis(Actor):
         self.xs['width'] = np.argwhere(width==self.width)[0]
         self.xs['shape'] = np.argwhere(shape==self.shape)[0]
         self.xs['freq'] = np.argwhere(freq==self.freq)[0]
-        
-        # self.xs['freq'] = np.argwhere(freq==self.x_freq)[0]
-        # self.xs['contrast'] = np.argwhere(contrast==self.x_contrast)[0]
-
         logger.info('xs: {}'.format(self.xs))
         self.stim_count[int(self.xs['angle']), int(self.xs['vel']), int(self.xs['posx']), int(self.xs['posy']), 
                         int(self.xs['length']), int(self.xs['width']), int(self.xs['shape']),
@@ -296,12 +269,6 @@ class VizStimAnalysis(Actor):
 
         if stimID not in self.allStims.keys():
             self.allStims.update({stimID:[]})
-
-                # # account for stimuli we haven't yet seen
-                # if stimID not in self.stimStart.keys():
-                #     self.stimStart.update({stimID:None})
-        # determine if this is a new stimulus trial
-        # if abs(stim[frame][1])>1 :
         curStim = 1 #on
         self.allStims[stimID].append(frame)
         # else:
@@ -466,7 +433,7 @@ class VizStimAnalysis(Actor):
                     # self.counters['contrast'][self.xc, 0] += 1
             # logger.info('frame_number: {}'.format(self.frame))
             # logger.info('frame {}, stimStart: {} + self.after_amount: {}'.format(self.frame, self.stimStart, self.after_amount))
-            if self.frame == self.stimStart + self.after_amount:
+            if self.frame == self.stimStart + self.after_amount: #FIXME
                 logger.info('appending to X: {}'.format(list(self.xs.values())))
                 self.stimX.append(list(self.xs.values()))
                 self.stimY.append(np.mean(ests[:,self.frame-self.after_amount:self.frame],1))
