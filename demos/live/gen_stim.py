@@ -1,5 +1,6 @@
 import numpy as np
 from itertools import product
+import random
 
 x1 = np.arange(0, 331, 30)
 x2 = np.array([0.02, 0.04, 0.06, 0.08, 0.10, 0.12]) 
@@ -10,12 +11,41 @@ x6 = np.arange(20, 801, 80)
 x7 = np.array([0,1])
 x8 = np.linspace(1,120, num=12).astype(int)
 
-# labels = ['angle', 'vel']
+
 labels = ['angle', 'vel', 'init_posx', 'init_posy', 'length', 'width', 'shape', 'frequency']
-# labels = ['direction', 'spatial_freq', 'speed', 'contrast']
+stim = np.array([x1,x2,x3,x4,x5,x6,x7,x8], dtype=object)
 
-# np.save('stimuli.npy', np.array([x1,x2], dtype=object)) #,x3,x4])
+initial_stim_count = 8
+initial_stim = []
+# if random initial stim:
+for _ in range(initial_stim_count):
+    random_stim = []
+    for param in stim:
+        random_stim.append(random.choice(param))
+    initial_stim.append(random_stim)
 
-np.save('stimuli.npy', np.array([x1,x2,x3,x4,x5,x6,x7,x8], dtype=object)) #,x3,x4])
-np.save('labels.npy', labels)
+stimuli = {
+    'stimuli': stim,
+    'labels': labels,
+    'initial_stim': initial_stim, 
+}
 
+class Translator():
+    def __init__(self, stim_space):
+        self.stim_space = stim_space
+
+    def param_to_idx(self, stimuli):
+        # translation from parameter space to index space
+        indices = []
+        for stim in stimuli:
+            indices.append(np.where(param == value)[0][0] for param, value in zip(self.stim_space, stim))
+        
+        return indices
+
+    def idx_to_param(self, indices):
+        # translation from index space to parameter spacez
+        parameters = []
+        for idx in indices:
+            parameters.append([self.stim_space[i][idx[i]] for i in range(len(idx))])
+        
+        return parameters

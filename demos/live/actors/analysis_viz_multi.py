@@ -251,6 +251,7 @@ class VizStimAnalysis(Actor):
 
         # logger.info('LENGTH: {}'.format(length))
         # logger.info('Self.len: {}'.format(self.len))
+        # NOTE: this translation from parameter to index space should be done by stimulus class? 
         self.xs['angle'] = np.argwhere(angle==self.x_angle)[0]
         self.xs['vel'] = np.argwhere(vel==self.x_vel)[0]
         self.xs['posx'] = np.argwhere(posx==self.initial_posx)[0]
@@ -345,14 +346,6 @@ class VizStimAnalysis(Actor):
             # print('------------------Grew:', self.ests.shape)
             for key in self.ys.keys():
                 self.ys[key] = np.pad(self.ys[key], ((0,diff),(0,0),(0,0)), mode='constant')
-            # self.y_angle = np.pad(self.y_angle, ((0,diff),(0,0),(0,0)), mode='constant')
-            # self.y_vel = np.pad(self.y_vel, ((0,diff),(0,0),(0,0)), mode='constant')
-            # self.y_freq = np.pad(self.y_freq, ((0,diff),(0,0),(0,0)), mode='constant')
-            # self.y_contrast = np.pad(self.y_contrast, ((0,diff),(0,0),(0,0)), mode='constant')
-
-        # self.before_amount = 5
-        # self.after_amount = 20
-        # logger.info('currentStim is: {}'.format(self.currentStim))
         if self.currentStim is not None:
             # print('Computing for ', self.currentStim, ' starting at ', self.stimStart, ' but current  ', self.frame)
 
@@ -377,15 +370,7 @@ class VizStimAnalysis(Actor):
                         print(((self.counters[key][ind,1]*self.ys[key][:,ind,1] + mean_val[:,None])/(self.counters[key][ind,1]+1)).shape)
 
                     self.counters[key][ind, 1] += self.before_amount
-                    
-                # self.y_angle[:,self.xa,1] = (self.counters['angle'][self.xa,1]*self.y_angle[:,self.xa,1] + mean_val)/(self.counter[self.xa,1]+1)
-                # self.counters['angle'][self.xa, 1] += 10
-                # self.y_vel[:,self.xv,1] = (self.counters['vel'][self.xv,1]*self.y_vel[:,self.xv,1] + mean_val)/(self.counter[self.xv,1]+1)
-                # self.counters['vel'][self.xv, 1] += 10
-                # self.y_freq[:,self.xf,1] = (self.counters['freq'][self.xf,1]*self.y_freq[:,self.xf,1] + mean_val)/(self.counter[self.xf,1]+1)
-                # self.counters['freq'][self.xf, 1] += 10
-                # self.y_contrast[:,self.xc,1] = (self.counters['contrast'][self.xc,1]*self.y_contrast[:,self.xc,1] + mean_val)/(self.counter[self.xc,1]+1)
-                # self.counters['contrast'][self.xc, 1] += 10
+
 
             elif self.frame in range(self.stimStart+1, self.stimStart+2):
                 val = ests[:,self.frame-1]
@@ -404,15 +389,6 @@ class VizStimAnalysis(Actor):
                         print(((self.counters[key][ind,1]*self.ys[key][:,ind,1] + mean_val)/(self.counters[key][ind,1]+1)).shape)
                     self.counters[key][ind, 1] += 1
 
-                # self.y_angle[:,self.xa,1] = (self.counters['angle'][self.xa,1]*self.y_angle[:,self.xa,1] + val)/(self.counters['angle'][self.xa,1]+1)
-                # self.counters['angle'][self.xa, 1] += 1
-                # self.y_vel[:,self.xv,1] = (self.counters['vel'][self.xv,1]*self.y_vel[:,self.xv,1] + val)/(self.counters['vel'][self.xv,1]+1)
-                # self.counters['vel'][self.xv, 1] += 1
-                # self.y_freq[:,self.xf,1] = (self.counters['freq'][self.xf,1]*self.y_freq[:,self.xf,1] + val)/(self.counters['freq'][self.xf,1]+1)
-                # self.counters['freq'][self.xf, 1] += 1
-                # self.y_contrast[:,self.xc,1] = (self.counters['contrast'][self.xc,1]*self.y_contrast[:,self.xc,1] + val)/(self.counters['contrast'][self.xc,1]+1)
-                # self.counters['contrast'][self.xc, 1] += 1
-
             elif self.frame in range(self.stimStart+2, self.stimStart+self.after_amount):
                 val = ests[:,self.frame-1]
                 self.ests[:,self.currentStim,0] = (self.counter[self.currentStim,0]*self.ests[:,self.currentStim,0] + val)/(self.counter[self.currentStim,0]+1)
@@ -423,16 +399,6 @@ class VizStimAnalysis(Actor):
                     self.ys[key][:,ind,0] = (self.counters[key][ind,0]*self.ys[key][:,ind,0] + val[:,None])/(self.counters[key][ind,0]+1)
                     self.counters[key][ind, 0] += 1
 
-                    # self.y_angle[:,self.xa,0] = (self.counters['angle'][self.xa,0]*self.y_angle[:,self.xa,0] + val)/(self.counters['angle'][self.xa,0]+1)
-                    # self.counters['angle'][self.xa, 0] += 1
-                    # self.y_vel[:,self.xv,0] = (self.counters['vel'][self.xv,0]*self.y_vel[:,self.xv,0] + val)/(self.counters['vel'][self.xv,0]+1)
-                    # self.counters['vel'][self.xv, 0] += 1
-                    # self.y_freq[:,self.xf,0] = (self.counters['freq'][self.xf,0]*self.y_freq[:,self.xf,0] + val)/(self.counters['freq'][self.xf,0]+1)
-                    # self.counters['freq'][self.xf, 0] += 1
-                    # self.y_contrast[:,self.xc,0] = (self.counters['contrast'][self.xc,0]*self.y_contrast[:,self.xc,0] + val)/(self.counters['contrast'][self.xc,0]+1)
-                    # self.counters['contrast'][self.xc, 0] += 1
-            # logger.info('frame_number: {}'.format(self.frame))
-            # logger.info('frame {}, stimStart: {} + self.after_amount: {}'.format(self.frame, self.stimStart, self.after_amount))
             if self.frame == self.stimStart + self.after_amount: #FIXME
                 logger.info('appending to X: {}'.format(list(self.xs.values())))
                 self.stimX.append(list(self.xs.values()))
@@ -458,8 +424,6 @@ class VizStimAnalysis(Actor):
             self.y_results[key] = np.where(np.isnan(self.y_results[key]), 0, self.y_results[key])
             self.y_results[key][self.y_results[key] == np.inf] = 0
             self.y_results[key][self.y_results[key]<0] = 0
-
-        # self.all_y[:, self.xs['angle'], self.xs['vel']] =  
 
         self.stimtime.append(time.time()-t)
 
