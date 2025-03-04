@@ -18,8 +18,11 @@ logger.setLevel(logging.INFO)
 
 
 class BayesOpt(Actor):
-    def __init__(self, *args, config_file=None, **kwargs):
+    def __init__(self, *args, stimuli=None, config_file=None, **kwargs):
         super().__init__(*args, **kwargs)
+
+        self.stimuli = np.load(stimuli, allow_pickle=True)
+        self.d = self.stimuli.shape[0]
 
         self.config_file = config_file
 
@@ -34,7 +37,11 @@ class BayesOpt(Actor):
 
 
     def setup(self):
-        pass
+    
+        self.stop_sending = False
+        self.initial = True
+        self.counter = 0
+        self.initial_length = 8
 
     def stop(self):
         '''Triggered at Run
@@ -84,12 +91,17 @@ class BayesOpt(Actor):
         if self.stop_sending:
             pass
 
-        elif self.initial:
-            # sends signal to Stimulus actor to send request pstim to display initial stimuli
-            # we're deciding here what the initial stimuli displayed are
-            # 
-            stim_flag = 'initial'
+        if self.counter > self.initial_length:
+            self.initial = False
+            logger.info('Done with initial stimuli, starting optimization')
 
+        elif self.initial:
+            # displays initial stimulus 
+            # counts to make sure that we only send correct number of initial stim
+            
+            initial_ind = self.stimuli['initial_stim']
+            self.links['stim_out'].put(initial_ind)
+            
         
         elif self.newN:
             # skipping random flag? as that will be it's separate optimizer actor
@@ -134,15 +146,15 @@ class BayesOpt(Actor):
         else:
             # need to update the GP
             # if self.prepared_frame is None: ??
-            X = np.zeros(2) # FIXME: should it be np.zeros(d)
-            #FIXME: see previous FIXME comment 
-            X[0] = self.GP_stimuli[0][int(self.X[0,-1])]
-            X[1] = self.GP_stimuli[1][int(self.X[1,-1])]
+            X = np.zeros(self.d) 
+            for i in range(self.d):
+                X[i] = self.GP_stimuli[i][int(self.X[i,-1])]
+            # X[1] = self.GP_stimuli[1][int(self.X[1,-1])]
 
             logger.info('optim {} , update GP with {}, {}'.format( self.nID, X, self.y0[self.nID, -1]))
             self.optim.update_GP(np.squeeze(X), self.y0[self.nID,-1])
 
-            curr_unc = np.diagonal(self.optim.sigma.reshape((72,72))).reshape((12,6))
+            curr_unc = np.diagonal(self.optim.sigma.reshape((72,72))).reshape((12,6)) # FIXME
             curr_est = self.optim.f.reshape((12,6))
             self.saved_GP_unc.append(curr_unc)
             self.saved_GP_est.append(curr_est)
@@ -158,7 +170,7 @@ class BayesOpt(Actor):
             self.stopping[self.test_count] = stopCrit
             self.test_count += 1
 
-            if stopCrit < 3.0e-4: #6.0e-4: #8e-2: #0.37/2.05
+            if stopCrit < 3.0e-4: #FIXME: add to yaml file
                 peak = self.stim_star[np.argmax(self.optim.f)]
                 logger.info('Satisfied with this neuron, moving to next. Est peak: {}'.format(peak))
                 # self.nID += 1
