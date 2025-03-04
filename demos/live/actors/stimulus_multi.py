@@ -25,7 +25,7 @@ class VisualStimulus(Actor):
         np.random.seed(self.seed)
 
         self.prepared_frame = None
-        self.random_flag = False
+        self.random_flag = False 
         self.params = []
         
         self.stimuli = np.load(stimuli, allow_pickle=True)
@@ -33,7 +33,6 @@ class VisualStimulus(Actor):
 
         self.initial = True
         self.newN = False
-        self.circ_size = 10
 
         self.stim_choice = []
         self.GP_stimuli = []
@@ -80,25 +79,25 @@ class VisualStimulus(Actor):
         random.shuffle(self.all_angles)
 
         ### Optimizer
-        maxS = self.stim_choice #np.array([l[-1] for l in self.stim_choice])
-        gamma = (1 / maxS) / 2
-        print(gamma)
-        var = 0.5 #1e-1
-        nu = 1 #0.5 #1e-1
-        eta = 5e-2 #8e-2 #-1e-2
+        # maxS = self.stim_choice #np.array([l[-1] for l in self.stim_choice])
+        # gamma = (1 / maxS) / 2
+        # print(gamma)
+        # var = 0.5 #1e-1
+        # nu = 1 #0.5 #1e-1
+        # eta = 5e-2 #8e-2 #-1e-2
         d = 8
 
-        gp_copy = self.GP_stimuli.copy()
-        xs = np.meshgrid(*gp_copy) #,x3,x4])
-        x_star = np.empty(xs[0].shape + (d,))
-        for i in range(d):
-            x_star[...,i] = xs[i]
+        # gp_copy = self.GP_stimuli.copy()
+        # xs = np.meshgrid(*gp_copy) #,x3,x4])
+        # x_star = np.empty(xs[0].shape + (d,))
+        # for i in range(d):
+        #     x_star[...,i] = xs[i]
 
-        self.x_star = x_star.reshape(-1, d)      #shape (a,d) where a is all possible test points
-        print('Number of possible test points to optimize over: ', self.x_star.shape[0])
+        # self.x_star = x_star.reshape(-1, d)      #shape (a,d) where a is all possible test points
+        # print('Number of possible test points to optimize over: ', self.x_star.shape[0])
 
-        self.optim = Optimizer(gamma[:d], var, nu, eta, self.x_star)
-        #FIXME
+        # self.optim = Optimizer(gamma[:d], var, nu, eta, self.x_star)
+
         init_T = 4
         self.X0 = np.zeros((d, init_T))
         self.X = self.X0.copy()
@@ -231,7 +230,6 @@ class VisualStimulus(Actor):
             # pass
             if self.prepared_frame is None:
                 self.prepared_frame = self.initial_frame()
-                # logger.info('got circ size {}'.format(self.circ_size))
                 # logger.info(self.prepared_frame)
                 # self.prepared_frame.pop('load')
             if (time.time() - self.timer) >= self.total_stim_time:
@@ -372,17 +370,6 @@ class VisualStimulus(Actor):
 
     def send_frame(self, stim):
 
-        # circ_size = self.circ_size
-
-        # if stim is not None:
-        #     text = {'texture_size': 1024, 
-        #             'circle_center': (-80,-20),
-        #             'circle_radius': circ_size,
-        #             'texture_name':'gray_circle',
-        #             'bg_intensity': 255,
-        #             'fg_intensity': 0,
-        #             }
-
         # logger.info('PARMS INSIDE SEND FRAME {}'.format(params))
 
         if stim is not None:
@@ -446,8 +433,7 @@ class VisualStimulus(Actor):
         # angle = 270
         # vel = 0.05
         # freq = 33
-
-        # self.circ_size = circle_size
+        
         self.params = params
         stat_t = 0
         stim_t = stat_t + 5
@@ -507,7 +493,6 @@ class VisualStimulus(Actor):
         
         stim = self.create_frame(angle, vel, [posx, posy, length, width, shape, freq]) #, 0.14)
         self.timer = time.time()
-        self.circ_size = angle
         return stim
 
 
