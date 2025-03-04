@@ -21,11 +21,6 @@ class VisualStimulus(Actor):
         self.displayed_stim_num = 0
         self.stop_sending = False
 
-        self.seed = 42 #1337 #81 #1337 #7419 #FIXME
-        np.random.seed(self.seed)
-
-        self.prepared_frame = None
-        self.random_flag = False 
         self.params = []
         
         self.stimuli = np.load(stimuli, allow_pickle=True)
@@ -81,33 +76,31 @@ class VisualStimulus(Actor):
         # need to log stimuli requests
        
 
-        
-
     def send_frame(self, stim):
 
         # logger.info('PARMS INSIDE SEND FRAME {}'.format(params))
 
         if stim is not None:
 
-            if self.params[4] == 0: #shape is ellipse
+            if self.params[7] == 0: #shape is ellipse
                 text = {'texture_size': 1600,
-                        'frequency': int(self.params[5]),
-                        'center_x': int(self.params[0]),
-                        'center_y': int(self.params[1]),
-                        'width': int(self.params[3]),
-                        'length': int(self.params[2]),
+                        'frequency': int(self.params[8]),
+                        'center_x': int(self.params[3]),
+                        'center_y': int(self.params[4]),
+                        'width': int(self.params[6]),
+                        'length': int(self.params[5]),
                         'texture_name': 'gray_ellipse',
                         'bg_intensity': 200,
                         'fg_intensity': 50,
                         }
             
-            if self.params[4] == 1: #shape is a rectangle
+            if self.params[7] == 1: #shape is a rectangle
                 text = {'texture_size': 1600,
-                        'frequency': int(self.params[5]),
-                        'center_x': int(self.params[0]),
-                        'center_y': int(self.params[1]),
-                        'width': int(self.params[3]),
-                        'length': int(self.params[2]),
+                        'frequency': int(self.params[8]),
+                        'center_x': int(self.params[3]),
+                        'center_y': int(self.params[4]),
+                        'width': int(self.params[6]),
+                        'length': int(self.params[5]),
                         'texture_name': 'gray_rectangle',
                         'bg_intensity': 200,
                         'fg_intensity': 50,
@@ -123,46 +116,26 @@ class VisualStimulus(Actor):
         else:
             logger.error('Tried to send a None frame')
 
-    # def send_move(self, z):
-    #     self._socket.send_string('move', zmq.SNDMORE)
-    #     self._socket.send_pyobj(z)
-    #     logger.info('sent move command')
-
-    # def create_chosen_stim(self, ind):
-    #     xt = self.stim_star[ind]
-    #     angle = xt[0]
-    #     vel = xt[1]
-    #     posx = xt[2]
-    #     posy = xt[3]
-    #     length = xt[4]
-    #     width = xt[5]
-    #     shape = xt[6]
-    #     freq = xt[7]
-
-    #     logger.info('create chosen stim xt: '.format(xt))
-    #     stim = self.create_frame(angle, vel, [posx, posy, length, width, shape, freq])
-    #     return stim
-
-    def create_frame(self, angle, vel, params):
+    def create_frame(self, params):
         self.params = params
         stat_t = 0
         stim_t = stat_t + 5
         self.total_stim_time = stim_t
     
-        if self.params[4] == 0: #ellipse:
+        if self.params[7] == 0: #ellipse:
             stim = {
                     'stim_name': 'moving_gray_ellipse',
-                    'angle': int(angle),
-                    'velocity': vel,
+                    'angle': self.params[0],
+                    'velocity': self.params[1],
                     'stationary_time': stat_t,
                     'duration': stim_t,
                     'hold_after': float(stat_t),
                         }
-        elif self.params[4] == 1: #rectangle:
+        elif self.params[7] == 1: #rectangle:
             stim = {
                     'stim_name': 'moving_gray_rectangle',
-                    'angle': int(angle),
-                    'velocity': vel,
+                    'angle': self.params[0],
+                    'velocity': self.params[1],
                     'stationary_time': stat_t,
                     'duration': stim_t,
                     'hold_after': float(stim_t),
@@ -171,49 +144,3 @@ class VisualStimulus(Actor):
         
         self.timer = time.time()
         return stim 
-
-    # def initial_frame(self):
-    #     # logger.info('self.inital_pos {}'.format(self.initial_pos))
-    #     if self.which_angle%8 == 0:
-    #         random.shuffle(self.initial_angles)
-    #         random.shuffle(self.initial_vel)
-    #         random.shuffle(self.initial_posx)
-    #         random.shuffle(self.initial_posy)
-    #         random.shuffle(self.initial_len)
-    #         random.shuffle(self.initial_width)
-    #         random.shuffle(self.initial_shape)
-    #         random.shuffle(self.initial_frequency)
-    #     angle = self.initial_angles[self.which_angle%8] #self.stim_sets[0][self.which_angle%len(self.stim_sets[0])]
-    #     vel = self.initial_vel[self.which_angle%6]
-    #     posx = self.initial_posx[self.which_angle%len(self.initial_posx)]
-    #     posy = self.initial_posy[self.which_angle%len(self.initial_posy)]
-    #     length = self.initial_len[self.which_angle%len(self.initial_len)]
-    #     width = self.initial_width[self.which_angle%len(self.initial_width)]
-    #     shape = self.initial_shape[self.which_angle%len(self.initial_shape)]
-    #     freq = self.initial_frequency[self.which_angle%len(self.initial_frequency)]
-
-        
-    #     self.which_angle += 1
-    #     if self.which_angle >= self.initial_length: 
-    #         self.initial = False
-    #         self.stop_sending = False
-    #         self.newN = True
-    #         self.which_angle = 0
-    #         logger.info('Done with initial frames, starting random set')
-        
-    #     stim = self.create_frame(angle, vel, [posx, posy, length, width, shape, freq]) #, 0.14)
-    #     self.timer = time.time()
-    #     return stim
-
-
-    # def random_frame(self):
-    #     ## grid choice
-    #     snum = int(self.stim_choice[0] / 2)
-    #     grid = np.argwhere(self.grid_choice==self.grid_ind[self.displayed_stim_num%(snum**2)])[0] #self.which_angle%24 #self.which_angle%24 #np.argwhere(self.grid_choice==self.grid_ind[self.displayed_stim_num%(36*36)])[0]
-    #     angle = self.stimuli[0][grid[0]] #self.all_angles[grid] #self.stimuli[0][grid[0]]
-    #     # angle2 = self.stimuli[0][grid[1]] #TODO: i need to change these? 
-
-    #     stim = self.create_frame(angle) #, angle2)
-    #     self.timer = time.time()
-    #     return stim
-
