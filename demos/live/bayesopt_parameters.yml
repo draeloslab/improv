@@ -1,0 +1,47 @@
+General:
+  seed: 42
+  init_T: 4
+  max_tests: 100
+  stopping_crit: 0.37
+  algorithm: manual # options are manual, botorch
+  method: online    # options are online, offline
+  data_folder: './data/burgess/'
+  dataset: 'AC02_002'
+
+Neurons:
+  N: 10
+  tc_type: 'indep'
+  constraint: 'simulate'
+  SimPop: 'pseudo' # gaussian OR pseudo
+  fr: 15.3  #frame rate 
+
+Stimuli:
+  d: 3
+  x1_range: 4 # funkiness
+  x2_range: 2 # orientation
+  x3_range: 2 # contrast
+  pre_stim_window: 20
+  stim_extension: 30
+
+Optimizer:
+  gamma: 1
+  var: 0.5
+  nu: 1e-1
+  eta: 1e-2
+  x1_kernel: 'rbf'
+  x2_kernel: 'linear'
+  x3_kernel: 'linear'
+  
+# Evaluation:
+  # t: 0
+  # cn: 0
+  # nt: 0
+  # Pr_list: []
+  # mse_allN: []
+  # mse_final: []
+  # wrong: 0
+  # wrong_list: []
+  # stopping_allN: []
+  # max_allN: []
+  # n_X0: []
+  # loc_list: []
