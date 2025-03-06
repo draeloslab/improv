@@ -27,9 +27,9 @@ class BayesOpt(Actor):
         self.config_file = config_file
 
         self.params = yaml.safe_load(open(self.config_file, 'r'))
-        config = Config(self.params)
+        self.config = Config(self.params)
 
-        self.optim = Optimizer(config.gamma[:config.d], config.var, config.eta, config.x_star)
+        self.optim = Optimizer(self.config.gamma[:self.config.d], self.config.var, self.config.eta, self.sconfig.x_star)
 
         self.optimized_n = []
         self.goback_neurons = []
@@ -40,6 +40,7 @@ class BayesOpt(Actor):
     
         self.stop_sending = False
         self.initial = True
+        self.newN = False
         self.counter = 0
         self.initial_length = 8
 
@@ -91,8 +92,10 @@ class BayesOpt(Actor):
         if self.stop_sending:
             pass
 
+        self.counter += 1
         if self.counter > self.initial_length:
             self.initial = False
+            self.newN = True
             logger.info('Done with initial stimuli, starting optimization')
 
         elif self.initial:
@@ -170,7 +173,7 @@ class BayesOpt(Actor):
             self.stopping[self.test_count] = stopCrit
             self.test_count += 1
 
-            if stopCrit < 3.0e-4: #FIXME: add to yaml file
+            if stopCrit < self.config.stopping_crit:
                 peak = self.stim_star[np.argmax(self.optim.f)]
                 logger.info('Satisfied with this neuron, moving to next. Est peak: {}'.format(peak))
                 # self.nID += 1
