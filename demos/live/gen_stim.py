@@ -30,7 +30,7 @@ stimuli = {
     'initial_stim': initial_stim, 
 }
 
-class Translator():
+class StimulusSpace():
     def __init__(self, stim_space):
         self.stim_space = stim_space
 
