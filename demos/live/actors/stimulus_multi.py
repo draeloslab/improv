@@ -79,24 +79,24 @@ class VisualStimulus(Actor):
         random.shuffle(self.all_angles)
 
         ### Optimizer
-        # maxS = self.stim_choice #np.array([l[-1] for l in self.stim_choice])
-        # gamma = (1 / maxS) / 2
-        # print(gamma)
-        # var = 0.5 #1e-1
-        # nu = 1 #0.5 #1e-1
-        # eta = 5e-2 #8e-2 #-1e-2
+        maxS = self.stim_choice #np.array([l[-1] for l in self.stim_choice])
+        gamma = (1 / maxS) / 2
+        print(gamma)
+        var = 0.5 #1e-1
+        nu = 1 #0.5 #1e-1
+        eta = 5e-2 #8e-2 #-1e-2
         d = 8
 
-        # gp_copy = self.GP_stimuli.copy()
-        # xs = np.meshgrid(*gp_copy) #,x3,x4])
-        # x_star = np.empty(xs[0].shape + (d,))
-        # for i in range(d):
-        #     x_star[...,i] = xs[i]
+        gp_copy = self.GP_stimuli.copy()
+        xs = np.meshgrid(*gp_copy) #,x3,x4])
+        x_star = np.empty(xs[0].shape + (d,))
+        for i in range(d):
+            x_star[...,i] = xs[i]
 
-        # self.x_star = x_star.reshape(-1, d)      #shape (a,d) where a is all possible test points
-        # print('Number of possible test points to optimize over: ', self.x_star.shape[0])
+        self.x_star = x_star.reshape(-1, d)      #shape (a,d) where a is all possible test points
+        print('Number of possible test points to optimize over: ', self.x_star.shape[0])
 
-        # self.optim = Optimizer(gamma[:d], var, nu, eta, self.x_star)
+        self.optim = Optimizer(gamma[:d], var, nu, eta, self.x_star)
 
         init_T = 4
         self.X0 = np.zeros((d, init_T))
