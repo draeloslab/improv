@@ -24,22 +24,9 @@ actors:
     red_chan_image: output/red_channel_image.npy
     init_filename: output/initialization.h5
     init_frame: 60
-
-  # Acquirer:
-  #   package: demos.sample_actors.acquire
-  #   class: FileAcquirer
-  #   ip: 127.0.0.1
-  #   ports: [5010]
-  #   # pstim_connection: [127.0.0.1, 5010]
-  #   # image_connection: [IP, 5011]
-  #   output: output/
-  #   init_filename: output/initialization.h5
-  #   filename: data/TSeries-10052023-2009_WFD_MovingSpot-011_dataset.h5
-  #   init_frame: 60
-  #   framerate: 7.5
     
   Stimulus:
-    package: actors.stimulus_multi
+    package: actors.stimulus_spots
     class: VisualStimulus
     ip: '*'
     port: 5006 
@@ -57,7 +44,7 @@ actors:
     class: CaimanVisualStim
     
   Analysis:
-    package: actors.analysis_viz_multi
+    package: actors.analysis_viz
     class: VizStimAnalysis
     stimuli: stimuli.npy
     before_amount: 5
@@ -74,9 +61,9 @@ connections:
   Processor.q_out: [Analysis.q_in]
   Analysis.q_out: [Visual.q_in]
   Acquirer.stim_queue: [Analysis.input_stim_queue, Visual.stim_in]
-  Analysis.stim_out: [Optimizer.q_in]
-  Optimizer.stim_out: [Stimulus.stim_in] # this link is for sending next stim index
-  Optimizer.q_out: [Visual.optim_in]
+  Analysis.stim_out: [Stimulus.q_in]
+  # Optimizer.stim_out: [Stimulus.stim_in] # this link is for sending next stim index
+  Stimulus.q_out: [Visual.optim_in]
   # need a link for sending stim_flag from optimizer to stimulus (initial flag)
 
 redis_config:

@@ -31,7 +31,8 @@ class VisualStimulus(Actor):
 
         self.initial = True
         self.newN = False
-        self.circ_size = 10
+        self.vel = 0.15
+        self.frequency = 20 # mulitples of 4
 
         self.stim_choice = []
         self.GP_stimuli = []
@@ -56,10 +57,11 @@ class VisualStimulus(Actor):
         self.grid_choice = np.reshape(self.grid_choice, (snum,)) #snum))
         self.grid_ind = np.arange(snum) #**2)
 
-        self.initial_angles = np.linspace(1, 10, num=10) # np.linspace(0,360,endpoint=False, num=8)
-        self.initial_vel = np.array([0.02, 0.04, 0.06, 0.08, 0.10, 0.12])
+        
+        self.initial_angles = np.arange(0, 331, 30) #np.linspace(1, 10, num=10) # np.linspace(0,360,endpoint=False, num=8)
+        self.initial_size = np.linspace(50, 400, num=15) # np.array([0.02, 0.04, 0.06, 0.08, 0.10, 0.12])
         random.shuffle(self.initial_angles)
-        random.shuffle(self.initial_vel)
+        random.shuffle(self.initial_size)
         self.which_angle = 0
         self.all_angles = self.stim_sets[0]
         random.shuffle(self.all_angles)
@@ -124,16 +126,6 @@ class VisualStimulus(Actor):
             self.grid_choice = np.reshape(self.grid_choice, (snum,snum))
             print(self.grid_choice)
             self.grid_ind = np.arange(snum**2)
-
-        # context = zmq.Context()
-        
-        # print('Starting setup')
-        # self._socket = context.socket(zmq.PUB)
-        # send_IP =  self.ip
-        # send_port = self.port
-        # self._socket.bind('tcp://' + str(send_IP)+":"+str(send_port))
-        # self.stimulus_topic = 'stim'
-        # print('Done setup VisStim')
 
 
     def setup(self):
@@ -359,17 +351,17 @@ class VisualStimulus(Actor):
                 self.prepared_frame = None
 
     def send_frame(self, stim):
-
-        circ_size = self.circ_size
-
         if stim is not None:
-            text = {'texture_size': 1024, 
-                    'circle_center': (35,35),
-                    'circle_radius': circ_size,
-                    'texture_name':'gray_circle',
-                    'bg_intensity': 200, #255,#0,
-                    'fg_intensity': 50, #0,#255,
-                    }
+            text = {'texture_size': 1600,
+                        'frequency': self.frequency,
+                        'center_x': 800,
+                        'center_y': 1000,
+                        'width': int(self.size), 
+                        'length': int(self.size),
+                        'texture_name': 'gray_ellipse',
+                        'bg_intensity': 200,
+                        'fg_intensity': 50,
+                        }
 
             stimulus = {'stimulus': stim, 'texture': text}
             self._socket.send_string(self.stimulus_topic, zmq.SNDMORE)
@@ -392,21 +384,17 @@ class VisualStimulus(Actor):
         stim = self.create_frame(angle, angle2)
         return stim
 
-    def create_frame(self, circle_size, vel, angle=0):
+    def create_frame(self, angle, size):
         ### Static or common stimulus params are set here
-        # angle = 270
-        # vel = 0.04
-
-        self.circ_size = circle_size
-
-        stat_t = 10 #0
-        stim_t = stat_t + 25
+        self.size = size
+        stat_t = 0 #0
+        stim_t = stat_t + 15
         self.total_stim_time = stim_t
     
         stim = {
-                'stim_name': 'circle_radius',
-                'angle': angle,
-                'velocity': vel,
+                'stim_name': 'gray_circle',
+                'angle': int(angle),
+                'velocity': self.vel,
                 'stationary_time': stat_t,
                 'duration': stim_t,
                 'hold_after': float(stim_t),
@@ -418,9 +406,9 @@ class VisualStimulus(Actor):
     def initial_frame(self):
         if self.which_angle%6 == 0:
             random.shuffle(self.initial_angles)
-            random.shuffle(self.initial_vel)
+            random.shuffle(self.initial_size)
         angle = self.initial_angles[self.which_angle%8] #self.stim_sets[0][self.which_angle%len(self.stim_sets[0])]
-        vel = self.initial_vel[self.which_angle%6]
+        size = self.initial_size[self.which_angle%6]
 
         self.which_angle += 1
         if self.which_angle >= self.initial_length: 
@@ -430,7 +418,7 @@ class VisualStimulus(Actor):
             self.which_angle = 0
             logger.info('Done with initial frames, starting random set')
         
-        stim = self.create_frame(angle, vel)
+        stim = self.create_frame(angle, size)
         self.timer = time.time()
         self.circ_size = angle
         return stim
