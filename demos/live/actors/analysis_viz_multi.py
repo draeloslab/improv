@@ -249,8 +249,8 @@ class VizStimAnalysis(Actor):
         # freq = stim[frame][4]
         # contrast = stim[frame][5]
 
-        # logger.info('LENGTH: {}'.format(length))
-        # logger.info('Self.len: {}'.format(self.len))
+        logger.info('LENGTH: {}'.format(length))
+        logger.info('Self.len: {}'.format(self.len))
         # NOTE: this translation from parameter to index space should be done by stimulus class? 
         self.xs['angle'] = np.argwhere(angle==self.x_angle)[0]
         self.xs['vel'] = np.argwhere(vel==self.x_vel)[0]

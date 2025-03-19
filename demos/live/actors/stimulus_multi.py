@@ -51,7 +51,7 @@ class VisualStimulus(Actor):
         self.stim_choice = np.array(self.stim_choice)
 
         snum = self.stim_choice[0]
-        print('Number of possible stimuli is :', snum)
+        logger.info('Number of possible stimuli is : {}'.format(snum))
         self.grid_choice = np.arange(snum) #**2)
         np.random.shuffle(self.grid_choice)
         self.grid_choice = np.reshape(self.grid_choice, (snum,)) #snum))
@@ -65,7 +65,7 @@ class VisualStimulus(Actor):
         self.initial_len = np.arange(20, 401, 40)
         self.initial_width = np.arange(20, 801, 80)
         self.initial_shape = np.array([0,1])
-        self.initial_frequency = np.arange(1,101,3)
+        self.initial_frequency = np.linspace(1,120, num=12).astype(int)
         random.shuffle(self.initial_angles)
         random.shuffle(self.initial_vel)
         random.shuffle(self.initial_posx)
@@ -81,7 +81,7 @@ class VisualStimulus(Actor):
         ### Optimizer
         maxS = self.stim_choice #np.array([l[-1] for l in self.stim_choice])
         gamma = (1 / maxS) / 2
-        print(gamma)
+        logger.info('gamma: {}'.format(gamma))
         var = 0.5 #1e-1
         nu = 1 #0.5 #1e-1
         eta = 5e-2 #8e-2 #-1e-2
@@ -94,7 +94,7 @@ class VisualStimulus(Actor):
             x_star[...,i] = xs[i]
 
         self.x_star = x_star.reshape(-1, d)      #shape (a,d) where a is all possible test points
-        print('Number of possible test points to optimize over: ', self.x_star.shape[0])
+        logger.info('Number of possible test points to optimize over: {}'.format(self.x_star.shape[0]))
 
         self.optim = Optimizer(gamma[:d], var, nu, eta, self.x_star)
 
@@ -108,7 +108,7 @@ class VisualStimulus(Actor):
         self.maxT = 20
 
         ## random sampling for initialization
-        self.initial_length = 10 #16*2 #16*3
+        self.initial_length = 20 #16*2 #16*3
 
         self.optimized_n = []
 
@@ -125,7 +125,7 @@ class VisualStimulus(Actor):
         self.stim_star = x_star.reshape(-1, d)
         
 
-        print(self.stim_choice, self.GP_stimuli)
+        logger.info('stim_choice: {}, GP_stimuli: {}'.format(self.stim_choice, self.GP_stimuli))
 
         self.stopping_list = []
         self.peak_list = []
@@ -230,7 +230,7 @@ class VisualStimulus(Actor):
             # pass
             if self.prepared_frame is None:
                 self.prepared_frame = self.initial_frame()
-                # logger.info(self.prepared_frame)
+                # logger.info('initial set: {}'.format(self.prepared_frame))
                 # self.prepared_frame.pop('load')
             if (time.time() - self.timer) >= self.total_stim_time:
                 # logger.info(self.prepared_frame)
@@ -244,6 +244,7 @@ class VisualStimulus(Actor):
                 
                 if self.prepared_frame is None:
                     self.prepared_frame = self.random_frame()
+                    # logger.info('random set: {}'.format(self.prepared_frame))
                 if (time.time() - self.timer) >= self.total_stim_time:
                         # self.random_frame()
                     self.send_frame(self.prepared_frame)
@@ -370,7 +371,8 @@ class VisualStimulus(Actor):
 
     def send_frame(self, stim):
 
-        # logger.info('PARMS INSIDE SEND FRAME {}'.format(params))
+        logger.info('PARAMS INSIDE SEND FRAME {}'.format(self.params))
+        logger.info('length inside send_frame: {}'.format(self.params[2]))
 
         if stim is not None:
 
@@ -398,7 +400,7 @@ class VisualStimulus(Actor):
                         'fg_intensity': 50,
                         }
                 
-            # logger.info('texture: {}'.format(text))
+            logger.info('texture: {}'.format(text))
             stimulus = {'stimulus': stim, 'texture': text}
             self._socket.send_string(self.stimulus_topic, zmq.SNDMORE)
             self._socket.send_pyobj(stimulus)
@@ -435,6 +437,7 @@ class VisualStimulus(Actor):
         # freq = 33
         
         self.params = params
+        logger.info('params inside create_frame: {}'.format(self.params))
         stat_t = 0
         stim_t = stat_t + 5
         self.total_stim_time = stim_t
@@ -446,7 +449,7 @@ class VisualStimulus(Actor):
                     'velocity': vel,
                     'stationary_time': stat_t,
                     'duration': stim_t,
-                    'hold_after': float(stat_t),
+                    'hold_after': float(stim_t),
                         }
         elif self.params[4] == 1: #rectangle:
             stim = {
@@ -481,8 +484,10 @@ class VisualStimulus(Actor):
         width = self.initial_width[self.which_angle%len(self.initial_width)]
         shape = self.initial_shape[self.which_angle%len(self.initial_shape)]
         freq = self.initial_frequency[self.which_angle%len(self.initial_frequency)]
+        # logger.info('getting initial length: {}'.format(self.which_angle%len(self.initial_len)))
 
-        
+        logger.info('length iniside initial_frame: {}'.format(length))
+
         self.which_angle += 1
         if self.which_angle >= self.initial_length: 
             self.initial = False
@@ -503,7 +508,9 @@ class VisualStimulus(Actor):
         angle = self.stimuli[0][grid[0]] #self.all_angles[grid] #self.stimuli[0][grid[0]]
         # angle2 = self.stimuli[0][grid[1]]
 
+
         stim = self.create_frame(angle) #, angle2)
+        logger.info('random_frame stim: {}'.format(stim))
         self.timer = time.time()
         return stim
 

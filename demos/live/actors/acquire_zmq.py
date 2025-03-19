@@ -301,12 +301,12 @@ class ZMQAcquirer(Actor):
                 logger.info('Stimulus: Circle radius {} with velocity {} at frame {}'.format(size, vel, self.frame_num))
             
             
-            elif msg_dict['texture']['texture_name'] == 'gray_ellipse':
-                size = float(msg_dict['texture']['length'])
-                angle = float(msg_dict['angle'])
-                self.links['stim_queue'].put({self.frame_num:[angle, size]})
-                # self.stimmed.append([self.frame_num, size, vel])
-                logger.info('Stimulus: Circle radius {} at angle {} deg at frame {}'.format(size/2, angle, self.frame_num))
+            # elif msg_dict['texture']['texture_name'] == 'gray_ellipse':
+            #     size = float(msg_dict['texture']['length'])
+            #     angle = float(msg_dict['angle'])
+            #     self.links['stim_queue'].put({self.frame_num:[angle, size]})
+            #     # self.stimmed.append([self.frame_num, size, vel])
+            #     logger.info('Stimulus: Circle radius {} at angle {} deg at frame {}'.format(size/2, angle, self.frame_num))
             else:
                 logger.info('collecting stimulus -- ')
                 try:
