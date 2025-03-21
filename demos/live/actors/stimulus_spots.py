@@ -76,7 +76,7 @@ class VisualStimulus(Actor):
         d = 2
 
         gp_copy = self.GP_stimuli.copy()
-        xs = np.meshgrid(*gp_copy) #,x3,x4])
+        xs = np.meshgrid(*gp_copy, indexing='ij') #,x3,x4])
         x_star = np.empty(xs[0].shape + (d,))
         for i in range(d):
             x_star[...,i] = xs[i]
@@ -95,14 +95,14 @@ class VisualStimulus(Actor):
         self.maxT = 20
 
         ## random sampling for initialization
-        self.initial_length = 10 #16*2 #16*3
+        self.initial_length = 12 #16*2 #16*3
 
         self.optimized_n = []
 
         self.saved_GP_est = []
         self.saved_GP_unc = []
 
-        xs = np.meshgrid(*self.stimuli) #,x3,x4])
+        xs = np.meshgrid(*self.stimuli, indexing='ij') #,x3,x4])
         x_star = np.empty(xs[0].shape + (d,))
         for i in range(d):
             x_star[...,i] = xs[i]
@@ -174,6 +174,8 @@ class VisualStimulus(Actor):
             Y = self.client.get(ids[1])
             stim = self.client.get(ids[2])
 
+            # logger.info('X, Y: {}, {}'.format(X, Y))
+
             tmpX = np.squeeze(np.array(X)).T
             # logger.info(f'{tmpX.shape}, {len(Y)}----------------------------------------------------')
             sh = len(tmpX.shape)
@@ -189,7 +191,6 @@ class VisualStimulus(Actor):
                 for i,j in enumerate(Y):
                     b[i][:len(j)] = j
                 self.y0 = b.T
-                # logger.info('X, Y shapes: {}, {}'.format(self.X.shape, self.y0.shape))
             except:
                 pass
             
@@ -261,8 +262,9 @@ class VisualStimulus(Actor):
                     self.newN = False
                     self.stopping = np.zeros(self.maxT)
 
-                    curr_unc = np.diagonal(self.optim.sigma.reshape((60,60))).reshape((10,6))
-                    curr_est = self.optim.f.reshape((10,6))
+                    
+                    curr_unc = np.diagonal(self.optim.sigma).reshape((self.stim_choice[0],self.stim_choice[1]))
+                    curr_est = self.optim.f.reshape((self.stim_choice[0],self.stim_choice[1]))
                     self.saved_GP_unc.append(curr_unc)
                     self.saved_GP_est.append(curr_est)
 
@@ -295,8 +297,8 @@ class VisualStimulus(Actor):
                 logger.info('optim {} , update GP with {}, {}'.format( self.nID, X, self.y0[self.nID, -1]))
                 self.optim.update_GP(np.squeeze(X), self.y0[self.nID,-1])
 
-                curr_unc = np.diagonal(self.optim.sigma.reshape((60,60))).reshape((10,6))
-                curr_est = self.optim.f.reshape((10,6))
+                curr_unc = np.diagonal(self.optim.sigma).reshape((self.stim_choice[0],self.stim_choice[1]))
+                curr_est = self.optim.f.reshape((self.stim_choice[0],self.stim_choice[1]))
                 self.saved_GP_unc.append(curr_unc)
                 self.saved_GP_est.append(curr_est)
                 # except:
@@ -316,7 +318,7 @@ class VisualStimulus(Actor):
                 self.test_count += 1
 
                 
-                if stopCrit < 3.0e-4: #6.0e-4: #8e-2: #0.37/2.05
+                if stopCrit < 3.0e-4: #6.0e-4: #8e-2: #0.37/2.05 #FIXME
                     peak = self.stim_star[np.argmax(self.optim.f)]
                     logger.info('Satisfied with this neuron, moving to next. Est peak: {}'.format(peak))
                     # self.nID += 1
@@ -388,7 +390,7 @@ class VisualStimulus(Actor):
         ### Static or common stimulus params are set here
         self.size = size
         stat_t = 0 #0
-        stim_t = stat_t + 15
+        stim_t = stat_t + 5
         self.total_stim_time = stim_t
     
         stim = {

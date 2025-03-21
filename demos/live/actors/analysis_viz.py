@@ -86,8 +86,11 @@ class VizStimAnalysis(Actor):
         # self.xs['freq'] = 0
         # self.xs['contrast'] = 0
 
-        self.all_y = np.zeros((500, self.x_angle.shape[0],self.x_angle.shape[0]))
-        self.stim_count = np.zeros((self.x_angle.shape[0],self.x_angle.shape[0]))
+        #FIXME: hardcoded to choose the param with longer length?
+        # self.all_y = np.zeros((500, self.x_angle.shape[0],self.x_angle.shape[0]))
+        # self.stim_count = np.zeros((self.x_angle.shape[0],self.x_angle.shape[0]))
+        self.all_y = np.zeros((500, self.x_size.shape[0],self.x_size.shape[0]))
+        self.stim_count = np.zeros((self.x_size.shape[0],self.x_size.shape[0]))
 
         self.stimX = []
         self.stimY = []

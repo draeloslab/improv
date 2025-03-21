@@ -146,6 +146,7 @@ class ZMQAcquirer(Actor):
             elif isinstance(msg, str):
                 # logger.info('pandastim raw msg: {}'.format(msg))
                 msg_dict, category = self._msg_unpacker(msg)
+                # logger.info('pstim msg: {}'.format(msg_dict))
                 tag = 'stim'
                 
             # logger.info('Receiving microscope image--')
@@ -301,12 +302,13 @@ class ZMQAcquirer(Actor):
                 logger.info('Stimulus: Circle radius {} with velocity {} at frame {}'.format(size, vel, self.frame_num))
             
             
-            # elif msg_dict['texture']['texture_name'] == 'gray_ellipse':
-            #     size = float(msg_dict['texture']['length'])
-            #     angle = float(msg_dict['angle'])
-            #     self.links['stim_queue'].put({self.frame_num:[angle, size]})
-            #     # self.stimmed.append([self.frame_num, size, vel])
-            #     logger.info('Stimulus: Circle radius {} at angle {} deg at frame {}'.format(size/2, angle, self.frame_num))
+            elif msg_dict['stimulus']['stim_name'] == 'gray_circle':
+                logger.info('Collecting stimulus ..... ')
+                size = float(msg_dict['texture']['length'])
+                angle = float(msg_dict['stimulus']['angle'])
+                self.links['stim_queue'].put({self.frame_num:[angle, size]})
+                # self.stimmed.append([self.frame_num, size, vel])
+                logger.info('Stimulus: Circle radius {} at angle {} deg at frame {}'.format(size/2, angle, self.frame_num))
             else:
                 logger.info('collecting stimulus -- ')
                 try:
@@ -325,6 +327,7 @@ class ZMQAcquirer(Actor):
                 else:
                     shape = int(1)
 
+                logger.info('pstim message length received: {}'.format(length))
                 logger.info('sending stim queue')
                 self.links['stim_queue'].put({self.frame_num:[angle, vel, center_x, center_y, length, width, shape, freq]})
                 self.stimmed.append([self.frame_num, angle, vel, center_x, center_y, length, width, shape, freq])

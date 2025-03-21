@@ -11,7 +11,7 @@ actors:
     port: 5007
     output: output/
     init_filename: output/initialization.h5
-    filename: data/AC02_001_dataset.h5
+    filename: data/sample_stream0.h5
     init_frame: 60
     framerate: 15
 
@@ -26,7 +26,7 @@ actors:
     init_frame: 60
     
   Stimulus:
-    package: actors.stimulus_multi
+    package: actors.stimulus_spots #_multi
     class: VisualStimulus
     ip: '*'
     port: 5006 
@@ -44,7 +44,7 @@ actors:
     class: CaimanVisualStim
     
   Analysis:
-    package: actors.analysis_viz_multi
+    package: actors.analysis_viz #_multi
     class: VizStimAnalysis
     stimuli: stimuli.npy
     before_amount: 5
