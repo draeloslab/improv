@@ -58,10 +58,15 @@ class VisualStimulus(Actor):
         self.grid_ind = np.arange(snum) #**2)
 
         
-        self.initial_angles = np.arange(0, 331, 30) #np.linspace(1, 10, num=10) # np.linspace(0,360,endpoint=False, num=8)
-        self.initial_size = np.linspace(50, 400, num=15) # np.array([0.02, 0.04, 0.06, 0.08, 0.10, 0.12])
+        self.initial_angles = np.arange(0, 331, 30, dtype=int) #np.linspace(1, 10, num=10) # np.linspace(0,360,endpoint=False, num=8)
+        self.initial_size = np.linspace(50, 400, num=15, dtype=int) # np.array([0.02, 0.04, 0.06, 0.08, 0.10, 0.12])
+        self.initial_vel = np.array([0.02, 0.04, 0.06, 0.08, 0.10, 0.12]) 
+        self.initial_freq = np.insert(np.arange(4, 101,8, dtype=int),0,1)
+        
         random.shuffle(self.initial_angles)
         random.shuffle(self.initial_size)
+        random.shuffle(self.initial_vel)
+        random.shuffle(self.initial_freq)
         self.which_angle = 0
         self.all_angles = self.stim_sets[0]
         random.shuffle(self.all_angles)
@@ -73,7 +78,7 @@ class VisualStimulus(Actor):
         var = 0.5 #1e-1
         nu = 1 #0.5 #1e-1
         eta = 5e-2 #8e-2 #-1e-2
-        d = 2
+        d = len(self.stim_choice)
 
         gp_copy = self.GP_stimuli.copy()
         xs = np.meshgrid(*gp_copy, indexing='ij') #,x3,x4])
@@ -263,8 +268,8 @@ class VisualStimulus(Actor):
                     self.stopping = np.zeros(self.maxT)
 
                     
-                    curr_unc = np.diagonal(self.optim.sigma).reshape((self.stim_choice[0],self.stim_choice[1]))
-                    curr_est = self.optim.f.reshape((self.stim_choice[0],self.stim_choice[1]))
+                    curr_unc = np.diagonal(self.optim.sigma).reshape((self.stim_choice))
+                    curr_est = self.optim.f.reshape((self.stim_choice))
                     self.saved_GP_unc.append(curr_unc)
                     self.saved_GP_est.append(curr_est)
 
@@ -286,19 +291,20 @@ class VisualStimulus(Actor):
         else:
             
             if self.prepared_frame is None:
-                X = np.zeros(2)
+                X = np.zeros(4)
                 # print('self.X from analysis is ', self.X[:,-1])
                 # print('going back further', self.X)
                 # print('GP_stimuli', self.GP_stimuli[0])
                 # try:
                 X[0] = self.GP_stimuli[0][int(self.X[0,-1])]
                 X[1] = self.GP_stimuli[1][int(self.X[1,-1])]
-                # X[2] = self.GP_stimuli[2][int(self.X[2,-1])]
+                X[2] = self.GP_stimuli[2][int(self.X[2,-1])]
+                X[3] = self.GP_stimuli[3][int(self.X[3,-1])]
                 logger.info('optim {} , update GP with {}, {}'.format( self.nID, X, self.y0[self.nID, -1]))
                 self.optim.update_GP(np.squeeze(X), self.y0[self.nID,-1])
 
-                curr_unc = np.diagonal(self.optim.sigma).reshape((self.stim_choice[0],self.stim_choice[1]))
-                curr_est = self.optim.f.reshape((self.stim_choice[0],self.stim_choice[1]))
+                curr_unc = np.diagonal(self.optim.sigma).reshape((self.stim_choice))
+                curr_est = self.optim.f.reshape((self.stim_choice))
                 self.saved_GP_unc.append(curr_unc)
                 self.saved_GP_est.append(curr_est)
                 # except:
@@ -355,7 +361,7 @@ class VisualStimulus(Actor):
     def send_frame(self, stim):
         if stim is not None:
             text = {'texture_size': 1600,
-                        'frequency': self.frequency,
+                        'frequency': int(self.freq),
                         'center_x': 800,
                         'center_y': 1000,
                         'width': int(self.size), 
@@ -383,20 +389,25 @@ class VisualStimulus(Actor):
         xt = self.stim_star[ind]
         angle = xt[0]
         angle2 = xt[1]
-        stim = self.create_frame(angle, angle2)
+        angle3 = xt[2]
+        angle4 = xt[3]
+
+        stim = self.create_frame(angle, angle2, angle3, angle4)
         return stim
 
-    def create_frame(self, angle, size):
+    def create_frame(self, angle, size, vel, freq):
         ### Static or common stimulus params are set here
         self.size = size
+        self.freq = freq
+
         stat_t = 0 #0
-        stim_t = stat_t + 5
+        stim_t = stat_t + 10
         self.total_stim_time = stim_t
     
         stim = {
                 'stim_name': 'gray_circle',
                 'angle': int(angle),
-                'velocity': self.vel,
+                'velocity': vel,
                 'stationary_time': stat_t,
                 'duration': stim_t,
                 'hold_after': float(stim_t),
@@ -409,8 +420,12 @@ class VisualStimulus(Actor):
         if self.which_angle%6 == 0:
             random.shuffle(self.initial_angles)
             random.shuffle(self.initial_size)
+            random.shuffle(self.initial_vel)
+            random.shuffle(self.initial_freq)
         angle = self.initial_angles[self.which_angle%8] #self.stim_sets[0][self.which_angle%len(self.stim_sets[0])]
         size = self.initial_size[self.which_angle%6]
+        vel = self.initial_vel[self.which_angle%len(self.initial_vel)]
+        freq = self.initial_freq[self.which_angle%len(self.initial_freq)]
 
         self.which_angle += 1
         if self.which_angle >= self.initial_length: 
@@ -420,9 +435,9 @@ class VisualStimulus(Actor):
             self.which_angle = 0
             logger.info('Done with initial frames, starting random set')
         
-        stim = self.create_frame(angle, size)
+        stim = self.create_frame(angle, size, vel, freq)
         self.timer = time.time()
-        self.circ_size = angle
+
         return stim
 
 
@@ -431,9 +446,11 @@ class VisualStimulus(Actor):
         snum = int(self.stim_choice[0] / 2)
         grid = np.argwhere(self.grid_choice==self.grid_ind[self.displayed_stim_num%(snum**2)])[0] #self.which_angle%24 #self.which_angle%24 #np.argwhere(self.grid_choice==self.grid_ind[self.displayed_stim_num%(36*36)])[0]
         angle = self.stimuli[0][grid[0]] #self.all_angles[grid] #self.stimuli[0][grid[0]]
-        angle2 = self.stimuli[0][grid[1]]
+        angle2 = self.stimuli[1][grid[1]]
+        angle3 = self.stimuli[2][grid[2]]
+        angle4 = self.stimuli[3][grid[3]]
 
-        stim = self.create_frame(angle, angle2)
+        stim = self.create_frame(angle, angle2, angle3, angle4)
         self.timer = time.time()
         return stim
 

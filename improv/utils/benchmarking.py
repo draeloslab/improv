@@ -86,7 +86,7 @@ if len(sys.argv) > 1:
 else:
     dataset = input('Enter dataset: ')
 
-path = './improv/demos/live/output_' + dataset 
+path = '../improv/demos/live/output_' + dataset 
 
 process_frame = np.loadtxt(path + '/timing/process_frame_time.txt')
 analysis_frame = np.loadtxt(path + '/timing/analysis_frame_time.txt')

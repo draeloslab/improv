@@ -306,9 +306,11 @@ class ZMQAcquirer(Actor):
                 logger.info('Collecting stimulus ..... ')
                 size = float(msg_dict['texture']['length'])
                 angle = float(msg_dict['stimulus']['angle'])
-                self.links['stim_queue'].put({self.frame_num:[angle, size]})
+                vel = float(msg_dict['stimulus']['velocity'])
+                freq = float(msg_dict['texture']['frequency'])
+                self.links['stim_queue'].put({self.frame_num:[angle, size, vel, freq]})
                 # self.stimmed.append([self.frame_num, size, vel])
-                logger.info('Stimulus: Circle radius {} at angle {} deg at frame {}'.format(size/2, angle, self.frame_num))
+                logger.info('Stimulus: {} Circle radius {} at angle {} deg at with velocity {} frame {}'.format(int(freq), size/2, int(angle), vel, self.frame_num))
             else:
                 logger.info('collecting stimulus -- ')
                 try:
