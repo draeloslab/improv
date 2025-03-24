@@ -66,6 +66,8 @@ class ZMQAcquirer(Actor):
         self.frameF = False
         self.align_flag = True
 
+        self.frame_microscope = 0
+
         if not os.path.exists(self.init_filename):
 
             ## Save initial set of frames to output/initialization.h5
@@ -134,15 +136,24 @@ class ZMQAcquirer(Actor):
             print('error: {}'.format(e))
 
     def get_message(self, timeout=0.001):
-
+        time_before_frame = time.perf_counter()
         #  try receiving microscope message: 
         try:
             msg = self.socket.recv_pyobj(flags=0)
+            # logger.info('raw message: {}'.format(msg))
+            
+            
+            # logger.info('Average time per frame: {}'.format(round(delta_t, 2)))
+            # logger.info('Receiving raw frame message')
             if isinstance(msg, dict):
+                time_after_frame = time.perf_counter()
+                delta_t = (time_after_frame - time_before_frame) #* 1000
+                # self.frame_microscope += 1
                 msg_dict = msg
                 message_data = msg_dict['data']
                 finalthing = np.array(message_data)
                 tag = msg_dict['type']
+                logger.info('Average frame rate received (single): {}'.format(round(1/delta_t, 2)))
             elif isinstance(msg, str):
                 # logger.info('pandastim raw msg: {}'.format(msg))
                 msg_dict, category = self._msg_unpacker(msg)
