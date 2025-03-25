@@ -95,7 +95,7 @@ class VizStimAnalysis(Actor):
         # self.all_y = np.zeros((500, self.x_angle.shape[0],self.x_angle.shape[0]))
         # self.stim_count = np.zeros((self.x_angle.shape[0],self.x_angle.shape[0]))
         self.all_y = np.zeros((500, self.x_angle.shape[0],self.x_size.shape[0], self.x_vel.shape[0], self.x_freq.shape[0]))
-        self.stim_count = np.zeros((self.x_size.shape[0],self.x_size.shape[0], self.x_vel.shape[0], self.x_freq.shape[0]))
+        self.stim_count = np.zeros((self.x_angle.shape[0],self.x_size.shape[0], self.x_vel.shape[0], self.x_freq.shape[0]))
 
         self.stimX = []
         self.stimY = []

@@ -58,10 +58,10 @@ class VisualStimulus(Actor):
         self.grid_ind = np.arange(snum) #**2)
 
         
-        self.initial_angles = np.arange(0, 331, 30, dtype=int) #np.linspace(1, 10, num=10) # np.linspace(0,360,endpoint=False, num=8)
-        self.initial_size = np.linspace(50, 400, num=15, dtype=int) # np.array([0.02, 0.04, 0.06, 0.08, 0.10, 0.12])
+        self.initial_angles = np.linspace(0, 360, num=9, dtype=int)[:-1] #np.arange(0, 331, 30, dtype=int) #np.linspace(1, 10, num=10) # np.linspace(0,360,endpoint=False, num=8)
+        self.initial_size = np.linspace(50, 400, num=5, dtype=int) # np.array([0.02, 0.04, 0.06, 0.08, 0.10, 0.12])
         self.initial_vel = np.array([0.02, 0.04, 0.06, 0.08, 0.10, 0.12]) 
-        self.initial_freq = np.insert(np.arange(4, 101,8, dtype=int),0,1)
+        self.initial_freq = np.array([1, 3, 10, 20], dtype=int) #np.insert(np.arange(4, 101,8, dtype=int),0,1)
         
         random.shuffle(self.initial_angles)
         random.shuffle(self.initial_size)
@@ -422,8 +422,8 @@ class VisualStimulus(Actor):
             random.shuffle(self.initial_size)
             random.shuffle(self.initial_vel)
             random.shuffle(self.initial_freq)
-        angle = self.initial_angles[self.which_angle%8] #self.stim_sets[0][self.which_angle%len(self.stim_sets[0])]
-        size = self.initial_size[self.which_angle%6]
+        angle = self.initial_angles[self.which_angle%len(self.initial_angles)] #self.stim_sets[0][self.which_angle%len(self.stim_sets[0])]
+        size = self.initial_size[self.which_angle%len(self.initial_size)]
         vel = self.initial_vel[self.which_angle%len(self.initial_vel)]
         freq = self.initial_freq[self.which_angle%len(self.initial_freq)]
 
