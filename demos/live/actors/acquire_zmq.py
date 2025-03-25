@@ -153,7 +153,7 @@ class ZMQAcquirer(Actor):
                 message_data = msg_dict['data']
                 finalthing = np.array(message_data)
                 tag = msg_dict['type']
-                logger.info('Average frame rate received (single): {}'.format(round(1/delta_t, 2)))
+                # logger.info('Average frame rate received (single): {}'.format(round(1/delta_t, 2)))
             elif isinstance(msg, str):
                 # logger.info('pandastim raw msg: {}'.format(msg))
                 msg_dict, category = self._msg_unpacker(msg)

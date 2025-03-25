@@ -20,7 +20,7 @@ class VisualStimulus(Actor):
         self.displayed_stim_num = 0
         self.stop_sending = False
 
-        self.seed = 42 #1337 #81 #1337 #7419
+        self.seed = 7 #42 #1337 #81 #1337 #7419
         np.random.seed(self.seed)
 
         self.prepared_frame = None
@@ -97,10 +97,10 @@ class VisualStimulus(Actor):
 
         self.nID = None
         self.conf = None
-        self.maxT = 20
+        self.maxT = 10
 
         ## random sampling for initialization
-        self.initial_length = 12 #16*2 #16*3
+        self.initial_length = 8 #16*2 #16*3
 
         self.optimized_n = []
 
@@ -432,6 +432,7 @@ class VisualStimulus(Actor):
             self.initial = False
             self.stop_sending = False
             self.newN = True
+            # self.random_flag=True
             self.which_angle = 0
             logger.info('Done with initial frames, starting random set')
         
@@ -443,6 +444,7 @@ class VisualStimulus(Actor):
 
     def random_frame(self):
         ## grid choice
+        logger.info('Running random stimuli...')
         snum = int(self.stim_choice[0] / 2)
         grid = np.argwhere(self.grid_choice==self.grid_ind[self.displayed_stim_num%(snum**2)])[0] #self.which_angle%24 #self.which_angle%24 #np.argwhere(self.grid_choice==self.grid_ind[self.displayed_stim_num%(36*36)])[0]
         angle = self.stimuli[0][grid[0]] #self.all_angles[grid] #self.stimuli[0][grid[0]]
@@ -530,7 +532,7 @@ class Optimizer():
     def max_acq(self):
         test_pt = np.argmax(self.ucb())
         
-        if self.test_count[test_pt] > 5:
+        if self.test_count[test_pt] > 3:
             test_pt = np.random.choice(np.arange(self.x_star.shape[0]))
             print('choosing random stim instead')
         self.test_count[test_pt] += 1
