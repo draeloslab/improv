@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import pickle 
 import re
 import ast
+import struct
 from datetime import datetime as dt
 
 import logging; logger = logging.getLogger(__name__)
@@ -41,7 +42,7 @@ class ZMQAcquirer(Actor):
         for port in self.ports:
             self.socket.connect("tcp://"+str(self.ip)+":"+str(port))
             logger.info('Connected to '+str(self.ip)+':'+str(port))
-        self.socket.connect("tcp://localhost:5010")
+        self.socket.connect("tcp://localhost:6010")
         # logger.info('Connected to '+str(self.ip)+':'+str(port))
         self.socket.setsockopt(zmq.SUBSCRIBE, b'')
 
@@ -65,8 +66,7 @@ class ZMQAcquirer(Actor):
         self.stimF = False
         self.frameF = False
         self.align_flag = True
-
-        self.frame_microscope = 0
+        self.counter_img_number = 0  # TODO: delete after use
 
         if not os.path.exists(self.init_filename):
 
@@ -136,33 +136,81 @@ class ZMQAcquirer(Actor):
             print('error: {}'.format(e))
 
     def get_message(self, timeout=0.001):
-        time_before_frame = time.perf_counter()
         #  try receiving microscope message: 
         try:
-            msg = self.socket.recv_pyobj(flags=0)
-            # logger.info('raw message: {}'.format(msg))
-            
-            
-            # logger.info('Average time per frame: {}'.format(round(delta_t, 2)))
-            # logger.info('Receiving raw frame message')
-            if isinstance(msg, dict):
-                time_after_frame = time.perf_counter()
-                delta_t = (time_after_frame - time_before_frame) #* 1000
-                # self.frame_microscope += 1
-                msg_dict = msg
-                message_data = msg_dict['data']
-                finalthing = np.array(message_data)
-                tag = msg_dict['type']
-                # logger.info('Average frame rate received (single): {}'.format(round(1/delta_t, 2)))
-            elif isinstance(msg, str):
-                # logger.info('pandastim raw msg: {}'.format(msg))
-                msg_dict, category = self._msg_unpacker(msg)
-                # logger.info('pstim msg: {}'.format(msg_dict))
-                tag = 'stim'
-                
-            # logger.info('Receiving microscope image--')
+            # BUG: 031925, recv_pyobj may not work
+            # msg = self.socket.recv_pyobj(flags=0)
+            msg_obj = self.socket.recv()
+            # is_maybe_pickle = msg_obj and msg_obj[:1] == b'\x80' 
+            is_matlab = msg_obj.startswith(b'image')
         except Exception as e:
-            logger.info('error: {}'.format(e))
+            logger.info('error from receiving: {}'.format(e))
+        
+        # if it's an pyobj
+        if not is_matlab:
+            try:
+                msg = pickle.loads(msg_obj)
+                if isinstance(msg, dict):
+                    logger.info("dictionary raw msg: {}".format(msg))
+                    msg_dict = msg
+                    message_data = msg_dict['data']
+                    finalthing = np.array(message_data)
+                    tag = msg_dict['type']
+                    
+                elif isinstance(msg, str):
+                    # logger.info('pandastim raw msg: {}'.format(msg))
+                    msg_dict, category = self._msg_unpacker(msg)
+                    tag = 'stim'
+                else:
+                    logger.info("hey this is from the inside of pyobj we don't know what the type is")
+            except pickle.UnpicklingError:
+                pass
+            except Exception as e:
+                logger.info('error from pickle load: {} - {}'.format({type(e).__name__}, e))
+
+        # if it's from matlab
+        else:
+            try:
+                msg_body = msg_obj[5:]  # strip the header 'image'
+                timestamp = struct.unpack('d', msg_body[:8])[0]  # double (8 bytes)
+                timestamp = dt.utcfromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+                frame_bytes = msg_body[8:]
+                image_array = np.frombuffer(frame_bytes, dtype=np.uint8)#.reshape((512, 796))
+                # logger.info('image_array_size: {}'.format(image_array.size))
+                if image_array.size == 512 * 796 * 2:
+                    self.counter_img_number += 1
+                    msg = image_array.view(np.uint16).reshape((512, 796))  # TODO: dim hard coded, maybe move into params. 
+                    # logger.info('hey do i have correct image?')
+                if isinstance(msg, np.ndarray):  # is it ok to add this here?
+                    finalthing = msg
+                    tag = "scanbox_img"
+                    logger.info('Image {} received from matlab at time {}'.format(self.counter_img_number, timestamp))
+                # else:
+                #     logger.info("yo this is np from buffer we don't know what the type is")
+            except Exception as e:
+                logger.info('error from np buffer: {}'.format(e))
+        # try:
+        #     # image_bytes = self.socket.recv()
+        #     # image_array = np.frombuffer(image_bytes, dtype=np.uint8)
+        #     # msg = image_array.view(np.uint16).reshape((512, 796))  # TODO: dim hard coded, maybe move into params. 
+            
+        #     # TODO: add pickle here to parse object?
+        #     if isinstance(msg, dict):
+        #         msg_dict = msg
+        #         message_data = msg_dict['data']
+        #         finalthing = np.array(message_data)
+        #         tag = msg_dict['type']
+        #     elif isinstance(msg, str):
+        #         logger.info('pandastim raw msg: {}'.format(msg))
+        #         msg_dict, category = self._msg_unpacker(msg)
+        #         tag = 'stim'
+        #     elif isinstance(msg, np.ndarray):  # is it ok to add this here?
+        #         finalthing = msg
+        #         tag = "scanbox_img"  # not sure
+                
+        #     # logger.info('Receiving microscope image--')
+        # except Exception as e:
+        #     logger.info('error from parsing: {}'.format(e))
 
         # try receiving pandastim message:
         # try:
@@ -311,8 +359,7 @@ class ZMQAcquirer(Actor):
                 self.links['stim_queue'].put({self.frame_num:[size, vel]})
                 # self.stimmed.append([self.frame_num, size, vel])
                 logger.info('Stimulus: Circle radius {} with velocity {} at frame {}'.format(size, vel, self.frame_num))
-            
-            
+
             elif msg_dict['stimulus']['stim_name'] == 'gray_circle':
                 logger.info('Collecting stimulus ..... ')
                 size = float(msg_dict['texture']['length'])
@@ -340,7 +387,6 @@ class ZMQAcquirer(Actor):
                 else:
                     shape = int(1)
 
-                logger.info('pstim message length received: {}'.format(length))
                 logger.info('sending stim queue')
                 self.links['stim_queue'].put({self.frame_num:[angle, vel, center_x, center_y, length, width, shape, freq]})
                 self.stimmed.append([self.frame_num, angle, vel, center_x, center_y, length, width, shape, freq])
