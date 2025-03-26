@@ -135,3 +135,6 @@ improv/_version.py
 output/
 output_*
 .npy
+
+.ipynb
+.ipynb_checkpoints
