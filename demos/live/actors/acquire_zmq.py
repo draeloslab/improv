@@ -14,6 +14,7 @@ import re
 import ast
 import struct
 from datetime import datetime as dt
+import cv2
 
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -143,6 +144,7 @@ class ZMQAcquirer(Actor):
             msg_obj = self.socket.recv()
             # is_maybe_pickle = msg_obj and msg_obj[:1] == b'\x80' 
             is_matlab = msg_obj.startswith(b'image')
+            # logger.info("is this from matlab>>>>>>{}".format(is_matlab))
         except Exception as e:
             logger.info('error from receiving: {}'.format(e))
         
@@ -158,9 +160,10 @@ class ZMQAcquirer(Actor):
                     tag = msg_dict['type']
                     
                 elif isinstance(msg, str):
-                    # logger.info('pandastim raw msg: {}'.format(msg))
+                    logger.info('pandastim raw msg: {}'.format(msg))
                     msg_dict, category = self._msg_unpacker(msg)
                     tag = 'stim'
+                    # logger.info("the tag is (pandastim) {}".format(tag))
                 else:
                     logger.info("hey this is from the inside of pyobj we don't know what the type is")
             except pickle.UnpicklingError:
@@ -171,20 +174,22 @@ class ZMQAcquirer(Actor):
         # if it's from matlab
         else:
             try:
+                # logger.info("before us trying pickling ahah")
                 msg_body = msg_obj[5:]  # strip the header 'image'
                 timestamp = struct.unpack('d', msg_body[:8])[0]  # double (8 bytes)
                 timestamp = dt.utcfromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
                 frame_bytes = msg_body[8:]
-                image_array = np.frombuffer(frame_bytes, dtype=np.uint8)#.reshape((512, 796))
+                image_array = np.frombuffer(frame_bytes, dtype=np.uint8)
+                image_array = image_array.view('<u2').reshape((796, 512)) #np.frombuffer(frame_bytes, dtype=np.uint8)#.reshape((512, 796))
                 # logger.info('image_array_size: {}'.format(image_array.size))
-                if image_array.size == 512 * 796 * 2:
+                if image_array.size == 512 * 796 :#* 2:
                     self.counter_img_number += 1
-                    msg = image_array.view(np.uint16).reshape((512, 796))  # TODO: dim hard coded, maybe move into params. 
+                    msg = image_array.T #image_array.view(np.uint16).reshape((512, 796))  # TODO: dim hard coded, maybe move into params. 
                     # logger.info('hey do i have correct image?')
                 if isinstance(msg, np.ndarray):  # is it ok to add this here?
                     finalthing = msg
                     tag = "scanbox_img"
-                    logger.info('Image {} received from matlab at time {}'.format(self.counter_img_number, timestamp))
+                    # logger.info('Image {} received from matlab at time {}'.format(self.counter_img_number, timestamp))
                 # else:
                 #     logger.info("yo this is np from buffer we don't know what the type is")
             except Exception as e:
@@ -286,6 +291,7 @@ class ZMQAcquirer(Actor):
             logger.info('Image frame(s) size is {}'.format(array.shape))
             if array.shape[0] == 2:
                 logger.info('Acquiring also in the red channel')
+        # logger.info("collecting arrays like this:{}".format(array))
         self.saveArray.append(array)
         if array.shape[0] == 2:
             self.saveArrayRedChan.append(array[1])
