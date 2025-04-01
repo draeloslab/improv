@@ -147,6 +147,7 @@ class VisualStimulus(Actor):
 
         self.timer = time.time()
         self.total_times = []
+        self.total_times_update = []
         self.timestamp = []
         self.stimmed = []
         self.frametimes = []
@@ -165,11 +166,19 @@ class VisualStimulus(Actor):
         np.save('output/peak_list.npy', np.array(self.peak_list))
         # print(self.optim_f_list)
         np.save('output/optim_f_list.npy', np.array(self.optim_f_list))
+        try:
+            np.savetxt('output/timing/stimulus_frame_time.txt', np.array(self.total_times))
+            np.savetxt('output/timing/stimulus_frame_time_udpates.txt', np.array(self.total_times_update))
+        except:
+            logger.info("having trouble saving stimulus_frame_time rip")
+            pass
 
-        print('Stimulus complete, avg time per frame: ', np.mean(self.total_times))
-        print('Stim got through ', self.frame_num, ' frames')
+        logger.info('Stimulus complete, avg time per frame: {}'.format(np.mean(self.total_times)))
+        logger.info('Stimulus complete, avg time per frame update: {}'.format(np.mean(self.total_times_update)))
+        # logger.info('Stim got through {} frames'.format(self.frame_num))
         
     def runStep(self):
+        t = time.time()  # added to track timings?
         ### Get data from analysis actor
         try:
             ids = self.q_in.get(timeout=0.0001)
@@ -228,7 +237,7 @@ class VisualStimulus(Actor):
         elif self.newN:
             # # ## doing random stims
             if self.random_flag:
-                
+                t = time.time()
                 if self.prepared_frame is None:
                     self.prepared_frame = self.random_frame()
                     # self.prepared_frame.pop('load')
@@ -238,6 +247,7 @@ class VisualStimulus(Actor):
                     self.prepared_frame = None
 
             else:
+                t = time.time()
                 # print(self.optimized_n, set(self.optimized_n))
                 nonopt = np.array(list(set(np.arange(self.y0.shape[0]))-set(self.optimized_n)))
                 logger.info('nonopt is {}, number of neurons '.format(nonopt,self.y0.shape[0]))
@@ -281,7 +291,7 @@ class VisualStimulus(Actor):
                     ids.append(self.client.put(curr_unc)) #, 'unc'))
                     # ids.append(self.client.put(self.conf, 'conf'))
                     self.q_out.put(ids)
-                
+                self.total_times.append(time.time() - t)
                 # else:
                 #     self.initial = True
                 #     print('----------------- done with this plane, moving to next')
@@ -289,7 +299,7 @@ class VisualStimulus(Actor):
 
         ### update GP, suggest next stim
         else:
-            
+            t = time.time()
             if self.prepared_frame is None:
                 X = np.zeros(4)
                 # print('self.X from analysis is ', self.X[:,-1])
@@ -302,7 +312,6 @@ class VisualStimulus(Actor):
                 X[3] = self.GP_stimuli[3][int(self.X[3,-1])]
                 logger.info('optim {} , update GP with {}, {}'.format( self.nID, X, self.y0[self.nID, -1]))
                 self.optim.update_GP(np.squeeze(X), self.y0[self.nID,-1])
-
                 curr_unc = np.diagonal(self.optim.sigma).reshape((self.stim_choice))
                 curr_est = self.optim.f.reshape((self.stim_choice))
                 self.saved_GP_unc.append(curr_unc)
@@ -322,7 +331,7 @@ class VisualStimulus(Actor):
                 logger.info('----------- stopCrit: {}'.format(stopCrit))
                 self.stopping[self.test_count] = stopCrit
                 self.test_count += 1
-
+                self.total_times_update.append(time.time() - t)
                 
                 if stopCrit < 3.0e-4: #6.0e-4: #8e-2: #0.37/2.05 #FIXME
                     peak = self.stim_star[np.argmax(self.optim.f)]
@@ -357,6 +366,9 @@ class VisualStimulus(Actor):
             if (time.time() - self.timer) >= self.total_stim_time:
                 self.send_frame(self.prepared_frame)
                 self.prepared_frame = None
+        
+        # self.total_times.append(time.time() - t)
+        
 
     def send_frame(self, stim):
         if stim is not None:

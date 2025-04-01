@@ -160,7 +160,7 @@ class ZMQAcquirer(Actor):
                     tag = msg_dict['type']
                     
                 elif isinstance(msg, str):
-                    logger.info('pandastim raw msg: {}'.format(msg))
+                    # logger.info('pandastim raw msg: {}'.format(msg))
                     msg_dict, category = self._msg_unpacker(msg)
                     tag = 'stim'
                     # logger.info("the tag is (pandastim) {}".format(tag))
@@ -180,7 +180,7 @@ class ZMQAcquirer(Actor):
                 timestamp = dt.utcfromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
                 frame_bytes = msg_body[8:]
                 image_array = np.frombuffer(frame_bytes, dtype=np.uint8)
-                image_array = image_array.view('<u2').reshape((796, 512)) #np.frombuffer(frame_bytes, dtype=np.uint8)#.reshape((512, 796))
+                image_array =  65535 - image_array.view('<u2').reshape((796, 512)) #np.frombuffer(frame_bytes, dtype=np.uint8)#.reshape((512, 796))
                 # logger.info('image_array_size: {}'.format(image_array.size))
                 if image_array.size == 512 * 796 :#* 2:
                     self.counter_img_number += 1
@@ -373,7 +373,7 @@ class ZMQAcquirer(Actor):
                 vel = float(msg_dict['stimulus']['velocity'])
                 freq = float(msg_dict['texture']['frequency'])
                 self.links['stim_queue'].put({self.frame_num:[angle, size, vel, freq]})
-                # self.stimmed.append([self.frame_num, size, vel])
+                self.stimmed.append([self.frame_num, angle, size, vel, freq])
                 logger.info('Stimulus: {} Circle radius {} at angle {} deg at with velocity {} frame {}'.format(int(freq), size/2, int(angle), vel, self.frame_num))
             else:
                 logger.info('collecting stimulus -- ')
