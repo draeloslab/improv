@@ -1,5 +1,5 @@
 data:
-  fr: 15 #2.2
+  fr: 15 #15 #2.2
   decay_time: 0.5 #1.5
   fnames: ['output/initialization.h5']
 

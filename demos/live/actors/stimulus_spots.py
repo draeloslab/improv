@@ -6,6 +6,7 @@ from improv.actor import Actor
 from queue import Empty
 from scipy.stats import norm
 import random
+from datetime import datetime as dt
 
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -147,6 +148,7 @@ class VisualStimulus(Actor):
 
         self.timer = time.time()
         self.total_times = []
+        self.total_times_update = []
         self.timestamp = []
         self.stimmed = []
         self.frametimes = []
@@ -165,11 +167,19 @@ class VisualStimulus(Actor):
         np.save('output/peak_list.npy', np.array(self.peak_list))
         # print(self.optim_f_list)
         np.save('output/optim_f_list.npy', np.array(self.optim_f_list))
-
-        print('Stimulus complete, avg time per frame: ', np.mean(self.total_times))
-        print('Stim got through ', self.frame_num, ' frames')
+        try:
+            np.savetxt('output/timing/stimulus_frame_time.txt', np.array(self.total_times))
+            np.savetxt('output/timing/stimulus_frame_time_udpates.txt', self.total_times_update, fmt="%s")
+        except:
+            logger.info("having trouble saving stimulus_frame_time rip")
+            pass
+        logger.info('Stimulus complete, avg time per frame: {}'.format(np.mean(self.total_times)))
+        # logger.info('Stimulus complete, avg time per frame update: {}'.format(np.mean(self.total_times_update)))
+        # logger.info('Stim got through {} frames'.format(self.frame_num))
         
     def runStep(self):
+        # logger.info('Starting stimulus actor runstep')
+        t = time.time()  # added to track timings?
         ### Get data from analysis actor
         try:
             ids = self.q_in.get(timeout=0.0001)
@@ -177,7 +187,7 @@ class VisualStimulus(Actor):
             # X, Y, stim, _ = self.client.get(ids)
             X = self.client.get(ids[0])
             Y = self.client.get(ids[1])
-            stim = self.client.get(ids[2])
+            frame_num = self.client.get(ids[2])
 
             # logger.info('X, Y: {}, {}'.format(X, Y))
 
@@ -228,7 +238,7 @@ class VisualStimulus(Actor):
         elif self.newN:
             # # ## doing random stims
             if self.random_flag:
-                
+                # t = time.time()
                 if self.prepared_frame is None:
                     self.prepared_frame = self.random_frame()
                     # self.prepared_frame.pop('load')
@@ -238,6 +248,7 @@ class VisualStimulus(Actor):
                     self.prepared_frame = None
 
             else:
+                # t = time.time()
                 # print(self.optimized_n, set(self.optimized_n))
                 nonopt = np.array(list(set(np.arange(self.y0.shape[0]))-set(self.optimized_n)))
                 logger.info('nonopt is {}, number of neurons '.format(nonopt,self.y0.shape[0]))
@@ -281,7 +292,7 @@ class VisualStimulus(Actor):
                     ids.append(self.client.put(curr_unc)) #, 'unc'))
                     # ids.append(self.client.put(self.conf, 'conf'))
                     self.q_out.put(ids)
-                
+                # self.total_times.append((frame_num, time.time() - t))
                 # else:
                 #     self.initial = True
                 #     print('----------------- done with this plane, moving to next')
@@ -289,7 +300,7 @@ class VisualStimulus(Actor):
 
         ### update GP, suggest next stim
         else:
-            
+            t_update = time.time()
             if self.prepared_frame is None:
                 X = np.zeros(4)
                 # print('self.X from analysis is ', self.X[:,-1])
@@ -302,7 +313,6 @@ class VisualStimulus(Actor):
                 X[3] = self.GP_stimuli[3][int(self.X[3,-1])]
                 logger.info('optim {} , update GP with {}, {}'.format( self.nID, X, self.y0[self.nID, -1]))
                 self.optim.update_GP(np.squeeze(X), self.y0[self.nID,-1])
-
                 curr_unc = np.diagonal(self.optim.sigma).reshape((self.stim_choice))
                 curr_est = self.optim.f.reshape((self.stim_choice))
                 self.saved_GP_unc.append(curr_unc)
@@ -322,7 +332,8 @@ class VisualStimulus(Actor):
                 logger.info('----------- stopCrit: {}'.format(stopCrit))
                 self.stopping[self.test_count] = stopCrit
                 self.test_count += 1
-
+                # logger.info("Stimulus runStep append GP update at frame {}".format(frame_num))
+                self.total_times_update.append([dt.now(), time.time() - t_update])
                 
                 if stopCrit < 3.0e-4: #6.0e-4: #8e-2: #0.37/2.05 #FIXME
                     peak = self.stim_star[np.argmax(self.optim.f)]
@@ -357,6 +368,9 @@ class VisualStimulus(Actor):
             if (time.time() - self.timer) >= self.total_stim_time:
                 self.send_frame(self.prepared_frame)
                 self.prepared_frame = None
+        
+        self.total_times.append(time.time() - t)
+        
 
     def send_frame(self, stim):
         if stim is not None:
@@ -558,32 +572,37 @@ class Optimizer():
 
 
 def kernel(x, x_j, variance, gamma):
-    ## x shape: (T, d) (# tests, # dimensions)
-    K = np.zeros((x.shape[0], x_j.shape[0]))
-    # period = 24 ##FIXME
 
-    for i in range(x.shape[0]):
-        # K[:,i] = self.variance * rbf_kernel(x[:,i], x_j[:,i], gamma = self.gamma[i])
-        for j in range(x_j.shape[0]):
-            ## first dimension is direction
-            # dist = np.abs(x[i,0] - x_j[j,0])
-            # # print(dist)
-            # # if dist > 12:
-            # #     dist = 24 - dist
-            # # print(dist)
-            # K[i,j] = np.exp(-gamma[0]*((dist)**2))
-            # K[i,j] *= variance * np.exp(-gamma[1:].dot((x[i,1:]-x_j[j,1:])**2))
+    # ## x shape: (T, d) (# tests, # dimensions)
+    # K = np.zeros((x.shape[0], x_j.shape[0]))
+    # # period = 24 ##FIXME
 
-            ## binocular
-            # dist1 = np.sin(np.pi * np.abs(x[i,0] - x_j[j,0]) / period)
-            # dist2 = np.sin(np.pi * np.abs(x[i,1] - x_j[j,1]) / period)
+    # for i in range(x.shape[0]):
+    #     # K[:,i] = self.variance * rbf_kernel(x[:,i], x_j[:,i], gamma = self.gamma[i])
+    #     for j in range(x_j.shape[0]):
+    #         ## first dimension is direction
+    #         # dist = np.abs(x[i,0] - x_j[j,0])
+    #         # # print(dist)
+    #         # # if dist > 12:
+    #         # #     dist = 24 - dist
+    #         # # print(dist)
+    #         # K[i,j] = np.exp(-gamma[0]*((dist)**2))
+    #         # K[i,j] *= variance * np.exp(-gamma[1:].dot((x[i,1:]-x_j[j,1:])**2))
 
-            dist1 = np.abs(x[i,0] - x_j[j,0])
-            dist2 = np.abs(x[i,1] - x_j[j,1])
+    #         ## binocular
+    #         # dist1 = np.sin(np.pi * np.abs(x[i,0] - x_j[j,0]) / period)
+    #         # dist2 = np.sin(np.pi * np.abs(x[i,1] - x_j[j,1]) / period)
 
-            K[i,j] = np.exp(-gamma[0]*(dist1**2))
-            K[i,j] *= variance * np.exp(-gamma[1]*(dist2**2))
+    #         dist1 = np.abs(x[i,0] - x_j[j,0])
+    #         dist2 = np.abs(x[i,1] - x_j[j,1])
 
+    #         K[i,j] = np.exp(-gamma[0]*(dist1**2))
+    #         K[i,j] *= variance * np.exp(-gamma[1]*(dist2**2))
+
+    # new ways to compute kernel
+    dist = x[:, None, :] - x_j[None, :, :]
+    ws_dist = np.sum(gamma * (dist**2), axis =2)
+    K = variance *np.exp(-ws_dist)
             
     return K
 
@@ -600,4 +619,3 @@ def update_GP_ext(X_t, x_t1, A, x_star, eta, y, y_t1, k_star, variance, gamma):
     # import pdb; pdb.set_trace()
 
     return k_t, u, phi, f, sigma 
-

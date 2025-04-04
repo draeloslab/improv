@@ -11,7 +11,7 @@ actors:
   #   port: 5007
   #   output: output/
   #   init_filename: output/initialization.h5
-  #   filename: data/sample_stream0.h5
+  #   filename: data/data_032525_ds3.h5
   #   init_frame: 60
   #   framerate: 15
 
