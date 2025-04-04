@@ -457,14 +457,14 @@ class VizStimAnalysis(Actor):
             # activity = np.zeros((len(self.coords),self.C.shape[0]))
             for i,c in enumerate(self.coords):
                 #c = np.array(c)
-                pixels = c[~np.isnan(c).any(axis=1)].astype(int)
-                #TODO: Compute all colors simultaneously! then index in...
                 try:
+                    pixels = c[~np.isnan(c).any(axis=1)].astype(int)
+                    #TODO: Compute all colors simultaneously! then index in...
                     tc = self._tuningColor(i, color[pixels[:,1], pixels[:,0]])
                     tc_list.append(tc)
                     cv2.fillConvexPoly(color, pixels, tc)
                 except Exception as e:
-                    # logger.error('Error in fill poly: {}'.format(e)).
+                    logger.error('Error in fill poly: {}'.format(e))
                     pass
                 
                 
