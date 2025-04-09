@@ -8,6 +8,8 @@ from scipy.stats import norm
 import random
 from itertools import product
 
+from gen_stim_test import StimulusSpace
+
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -23,8 +25,11 @@ class VisualStimulus(Actor):
 
         self.params = []
         
-        self.stimuli = np.load(stimuli, allow_pickle=True)
-        np.save('output/generated_stimuli.npy', self.stimuli)
+        # self.stimuli = np.load(stimuli, allow_pickle=True)
+        self.stimuli_space = StimulusSpace()
+        self.stim_space = self.stimuli_space.stim_space
+        np.save('output/generated_stimuli.npy', self.stim_space['stimuli'])
+
 
     def setup(self):
         context = zmq.Context()
@@ -61,17 +66,18 @@ class VisualStimulus(Actor):
         # Listen to request from Optimizer actor? 
         try: 
             # time benchmark
-            indices = self.links['stim_in'].get(timeout=0.0001)
+            indices = self.links['stim_ind_in'].get(timeout=0.0001)
+            # logger.info('Indices received from Optimizer Actor: {}'.format(indices))
+
+            parameters = self.stimuli_space.idx_to_param(indices) # use the stimulus translator class
+            # logger.info('Parameters to send: {}'.format(parameters))
+            stim = self.create_frame(parameters)
+            self.send_frame(stim)
+        
         except Empty as e:
             pass
         except Exception as e:
             logger.info('Error in receiving stimulus indices from optimizer: {}'.format(e))
-
-        
-        # translate to parameter space
-        parameters = self.stimuli[indices] # use the stimulus translator class
-        stim = self.create_frame(parameters)
-        self.send_frame(stim)
 
         # need to log stimuli requests
        
@@ -81,32 +87,19 @@ class VisualStimulus(Actor):
         # logger.info('PARMS INSIDE SEND FRAME {}'.format(params))
 
         if stim is not None:
-
-            if self.params[7] == 0: #shape is ellipse
-                text = {'texture_size': 1600,
-                        'frequency': int(self.params[8]),
-                        'center_x': int(self.params[3]),
-                        'center_y': int(self.params[4]),
-                        'width': int(self.params[6]),
-                        'length': int(self.params[5]),
-                        'texture_name': 'gray_ellipse',
-                        'bg_intensity': 200,
-                        'fg_intensity': 50,
-                        }
-            
-            if self.params[7] == 1: #shape is a rectangle
-                text = {'texture_size': 1600,
-                        'frequency': int(self.params[8]),
-                        'center_x': int(self.params[3]),
-                        'center_y': int(self.params[4]),
-                        'width': int(self.params[6]),
-                        'length': int(self.params[5]),
-                        'texture_name': 'gray_rectangle',
-                        'bg_intensity': 200,
-                        'fg_intensity': 50,
-                        }
+            text = {'texture_size': 1600,
+                    'frequency': int(4),
+                    'center_x': 800,
+                    'center_y': 1000,
+                    'width': int(100), #int(self.size), 
+                    'length': int(100), #int(self.size),
+                    'texture_name': 'gray_ellipse',
+                    'bg_intensity': 200,
+                    'fg_intensity': 50,
+                    }
                 
             stimulus = {'stimulus': stim, 'texture': text}
+            # logger.info('Stimuli requested: {}'.format(stimulus))
             # TODO: add timestamp (includes time and stimulus request)
             self._socket.send_string(self.stimulus_topic, zmq.SNDMORE)
             self._socket.send_pyobj(stimulus)
@@ -117,30 +110,22 @@ class VisualStimulus(Actor):
             logger.error('Tried to send a None frame')
 
     def create_frame(self, params):
-        self.params = params
+        # self.params = params
         stat_t = 0
-        stim_t = stat_t + 5
+        stim_t = stat_t + 10
         self.total_stim_time = stim_t
-    
-        if self.params[7] == 0: #ellipse:
-            stim = {
-                    'stim_name': 'moving_gray_ellipse',
-                    'angle': self.params[0],
-                    'velocity': self.params[1],
-                    'stationary_time': stat_t,
-                    'duration': stim_t,
-                    'hold_after': float(stat_t),
-                        }
-        elif self.params[7] == 1: #rectangle:
-            stim = {
-                    'stim_name': 'moving_gray_rectangle',
-                    'angle': self.params[0],
-                    'velocity': self.params[1],
-                    'stationary_time': stat_t,
-                    'duration': stim_t,
-                    'hold_after': float(stim_t),
-                        }
 
-        
+        # self.size = params[2] # or whatever, ya know?
+        # self.frequency = params[3]
+
+        stim = {
+                'stim_name': 'gray_circle',
+                'angle': int(params[0]),
+                'velocity': params[1],
+                'stationary_time': stat_t,
+                'duration': stim_t,
+                'hold_after': float(stim_t),
+                    }
+
         self.timer = time.time()
         return stim 

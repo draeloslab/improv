@@ -153,7 +153,7 @@ class ZMQAcquirer(Actor):
             try:
                 msg = pickle.loads(msg_obj)
                 if isinstance(msg, dict):
-                    logger.info("dictionary raw msg: {}".format(msg))
+                    # logger.info("dictionary raw msg: {}".format(msg))
                     msg_dict = msg
                     message_data = msg_dict['data']
                     finalthing = np.array(message_data)
@@ -368,13 +368,13 @@ class ZMQAcquirer(Actor):
 
             elif msg_dict['stimulus']['stim_name'] == 'gray_circle':
                 logger.info('Collecting stimulus ..... ')
-                size = float(msg_dict['texture']['length'])
+                # size = float(msg_dict['texture']['length'])
                 angle = float(msg_dict['stimulus']['angle'])
                 vel = float(msg_dict['stimulus']['velocity'])
-                freq = float(msg_dict['texture']['frequency'])
-                self.links['stim_queue'].put({self.frame_num:[angle, size, vel, freq]})
-                self.stimmed.append([self.frame_num, angle, size, vel, freq])
-                logger.info('Stimulus: {} Circle radius {} at angle {} deg at with velocity {} frame {}'.format(int(freq), size/2, int(angle), vel, self.frame_num))
+                # freq = float(msg_dict['texture']['frequency'])
+                self.links['stim_queue'].put({self.frame_num:[angle, vel]})
+                self.stimmed.append([self.frame_num, angle, vel])
+                logger.info('Stimulus: Circle at angle {} deg at with velocity {} frame {}'.format(int(angle), vel, self.frame_num))
             else:
                 logger.info('collecting stimulus -- ')
                 try:
