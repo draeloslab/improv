@@ -115,7 +115,7 @@ class RedisStoreInterface(StoreInterface):
             # TODO key twice every time. we still need a better solution for
             # TODO this, but it will work now singlethreaded most of the time.
 
-            self.client.set(object_key, pickle.dumps(object, protocol=5), nx=True)
+            self.client.set(object_key, pickle.dumps(object, protocol=5), nx=True, ex=5)
         except Exception:
             logger.error("Could not store object {}".format(object_key))
             logger.error(traceback.format_exc())
