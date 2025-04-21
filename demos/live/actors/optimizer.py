@@ -9,6 +9,7 @@ from scipy.stats import norm
 import random
 from itertools import product
 import yaml
+from datetime import datetime as dt
 
 # from BayesOpt.model.config import Config
 # from BayesOpt.model.optimizer import Optimizer
@@ -27,6 +28,7 @@ class BayesOpt(Actor):
         self.stimuli_space = StimulusSpace()
         self.stim_space = self.stimuli_space.stim_space
         self.stimuli = self.stim_space['stimuli']
+        self.total_stim_time = self.stim_space['total_stim_time']
         self.d = self.stimuli.shape[0]
         self.initial_length = self.stimuli_space.initial_stim_count
         logger.info('Stimuli info: Num of Stimuli Parameters: {}, Num of Initial Stim: {}'.format(self.d, self.initial_length))
@@ -99,6 +101,7 @@ class BayesOpt(Actor):
             x_star[...,i] = xs[i]
 
         self.stim_star = x_star.reshape(-1, self.d)
+        logger.info('stim_star: {}'.format(self.stim_star))
 
 
     def setup(self):
@@ -107,6 +110,7 @@ class BayesOpt(Actor):
         self.initial = True
         self.newN = False
         self.counter = 0
+        self.timer = time.time()
 
         # logger.info('Optimizer Links: {}'.format(self.getLinks()))
         
@@ -128,54 +132,67 @@ class BayesOpt(Actor):
         # logger.info('Stim got through {} frames'.format(self.frame_num))
 
     def runStep(self):
-
+        # self.timer = time.time()
         try:
-            ids = self.q_in.get(timeout=0.001) # aquiring from Analysis actor 
-            # logger.info('ids from anaylsis stim out: {}'.format(ids))
+            ids = self.q_in.get(timeout=0.0001)
 
+            # X, Y, stim, _ = self.client.get(ids)
             X = self.client.get(ids[0])
             Y = self.client.get(ids[1])
-            logger.info('X and Y is receiving: {}, {}'.format(len(X), len(Y)))
+            # frame_num = self.client.get(ids[2]) # maybe (sometimes this try block "fails" and so the frame num isn't recorded?)
+
+            # logger.info('X, Y: {}, {}'.format(X, Y))
+
             tmpX = np.squeeze(np.array(X)).T
+            # logger.info(f'{tmpX.shape}, {len(Y)}----------------------------------------------------')
             sh = len(tmpX.shape)
             if sh > 1:
                 self.X = tmpX.copy()
                 if tmpX.shape[1] > 4:
                     self.X = tmpX[:, -tmpX.shape[1]:]
+                # print('self.X DIRECT from analysis is ', X, 'and self.X is ', self.X[:,-1])
+            # print(self.X)
 
             try:
                 b = np.zeros([len(Y),len(max(Y,key = lambda x: len(x)))])
                 for i,j in enumerate(Y):
                     b[i][:len(j)] = j
                 self.y0 = b.T
-            except Exception as e:
-                logger.info('X, Y shapes: {}, {}'.format(self.X.shape, self.y0.shape))
+            except:
                 pass
-        
+            
+
         except Empty as e:
             pass
         except Exception as e:
-            logger.info('Error in BayesOpt Actor get: {}'.format(e))
+            print('Error in stimulus_spots get: {}'.format(e))
         
         if self.stop_sending:
             pass
 
-        if self.counter >= self.initial_length:
-            self.initial = False
-            self.newN = True
+        # if self.counter >= self.initial_length:
+        #     self.initial = False
+        #     self.newN = True
 
-        elif self.initial:
+        elif self.initial: # NOTE: consider moving initial stimuli in stimulus actor since it's just reading from a list from gen_stim
             # displays initial stimulus 
-            # counts to make sure that we only send correct number of initial stim
+            # internally counts to make sure that we only send correct number of initial stim
             
-            self.counter += 1
-            initial_ind = self.stim_space['initial_stim'][self.counter-1]
-            self.links['stim_ind_out'].put(initial_ind)
-            time.sleep(10)
+            initial_ind, flag = self.stimuli_space.initial_stim(self.stimuli, self.counter)
+            # logger.info('delta time in optimizer: {}'.format(time.time() - self.timer))
+            if (time.time() - self.timer) >= self.total_stim_time:
+                self.links['stim_ind_out'].put([dt.now(), initial_ind])
+                self.counter += 1
+                self.timer = time.time()
+                # logger.info('timer reset')
             
+            if flag:
+                logger.info('Done with initial frames...')
+                self.initial = False
+                self.newN = True
+                
             
-            
-        
+    
         elif self.newN:
             # skipping random flag? as that will be it's separate optimizer actor
 
@@ -191,7 +208,7 @@ class BayesOpt(Actor):
                     self.saved_GP_unc = []
                 elif len(self.goback_neurons)>=1:
                     self.nID = self.goback_neurons.pop(0)
-                    logger.info('Trying again with neuron', self.nID)
+                    logger.info('Trying again with neuron {}'.format(self.nID))
                     self.optimized_n.append(self.nID)
                 
                 print(self.y0.shape, self.X.shape, self.X0.shape)
@@ -267,9 +284,15 @@ class BayesOpt(Actor):
             else:
                 ind, xt_1 = self.optim.max_acq()
                 logger.info('suggest next stim: {}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
+                next_ind = []
+                for i in range(self.d):
+                    next_ind.append(np.where(self.stimuli[i] == self.stim_star[ind][i])[0][0])
 
                 # Need to send ind to stimulus actor to create this stim request ??
-                self.links['stim_out'].put(ind)
+            if (time.time() - self.timer) >= self.total_stim_time:
+                self.links['stim_ind_out'].put([dt.now(), next_ind])
+                self.timer = time.time()
+                # logger.info('timer reset')
 
                 ## OR
                 # id = self.client.put(ind)

@@ -7,6 +7,7 @@ from queue import Empty
 from scipy.stats import norm
 import random
 from itertools import product
+from datetime import datetime as dt
 
 from gen_stim_test import StimulusSpace
 
@@ -28,6 +29,7 @@ class VisualStimulus(Actor):
         # self.stimuli = np.load(stimuli, allow_pickle=True)
         self.stimuli_space = StimulusSpace()
         self.stim_space = self.stimuli_space.stim_space
+        self.total_stim_time = self.stim_space['total_stim_time']
         np.save('output/generated_stimuli.npy', self.stim_space['stimuli'])
 
 
@@ -53,7 +55,7 @@ class VisualStimulus(Actor):
         self.tails = []
 
     def stop(self):
-        '''Triggered at Run
+        '''Triggeredat Run
         '''
         
         # Need to save list of stimuli requested and when
@@ -66,18 +68,22 @@ class VisualStimulus(Actor):
         # Listen to request from Optimizer actor? 
         try: 
             # time benchmark
-            indices = self.links['stim_ind_in'].get(timeout=0.0001)
+            timestamp, indices = self.links['stim_ind_in'].get(timeout=0.0001)
             # logger.info('Indices received from Optimizer Actor: {}'.format(indices))
 
             parameters = self.stimuli_space.idx_to_param(indices) # use the stimulus translator class
-            # logger.info('Parameters to send: {}'.format(parameters))
+            # logger.info('Parameters to send: {}, {}'.format(parameters[0], parameters[1]))
             stim = self.create_frame(parameters)
+            # logger.info('timestamp received from optimizer: {}'.format(timestamp))
+            # logger.info('delta time: {}'.format((dt.now() - timestamp).total_seconds()))
+            # if (dt.now() - timestamp).total_seconds() >= self.total_stim_time:
+            # if (time.time() - timestamp) >= self.total_stim_time:
             self.send_frame(stim)
         
         except Empty as e:
             pass
         except Exception as e:
-            logger.info('Error in receiving stimulus indices from optimizer: {}'.format(e))
+            logger.error('Error in receiving stimulus indices from optimizer: {}'.format(e))
 
         # need to log stimuli requests
        
@@ -113,17 +119,15 @@ class VisualStimulus(Actor):
         # self.params = params
         stat_t = 0
         stim_t = stat_t + 10
-        self.total_stim_time = stim_t
 
         # self.size = params[2] # or whatever, ya know?
         # self.frequency = params[3]
-
         stim = {
                 'stim_name': 'gray_circle',
                 'angle': int(params[0]),
                 'velocity': params[1],
                 'stationary_time': stat_t,
-                'duration': stim_t,
+                'duration': self.total_stim_time,
                 'hold_after': float(stim_t),
                     }
 

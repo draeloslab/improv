@@ -19,22 +19,27 @@ class StimulusSpace():
         # labels = ['angle', 'vel', 'init_posx', 'init_posy', 'length', 'width', 'shape', 'frequency']
         # stim = np.array([x1,x2,x3,x4,x5,x6,x7,x8], dtype=object)
 
-        # example of initializing 6 random stimuli
-        self.initial_stim_count = 6
-        initial_stim = []
-        for _ in range(self.initial_stim_count):
-            random_stim = []
-            for param in stim:
-                rand_stim = random.choice(param)
-                random_stim.append(np.argwhere(rand_stim == param)[0][0])
-            initial_stim.append(random_stim)
+        self.initial_stim_count = 8
 
+        total_stim_time = 10 # duration of stimuli (in sec)
         # put stimuli, labels, and initial stim in dictionary
         self.stim_space = {
             'stimuli': stim,
             'labels': labels,
-            'initial_stim': initial_stim,
+            'total_stim_time': total_stim_time
         }
+    
+    def initial_stim(self, stimuli, counter):
+        initial_stim = []
+        flag = False
+        for param in stimuli:
+            random_stim = random.choice(param)
+            initial_stim.append(np.argwhere(random_stim == param)[0][0])
+        
+        if counter == self.initial_stim_count:
+            flag = True
+
+        return initial_stim, flag
 
     def param_to_idx(self, stimuli):
         # translation from parameter space to index space
