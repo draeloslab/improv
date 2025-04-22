@@ -55,7 +55,7 @@ class VisualStimulus(Actor):
         self.tails = []
 
     def stop(self):
-        '''Triggeredat Run
+        ''' Triggered at Run
         '''
         
         # Need to save list of stimuli requested and when
@@ -79,6 +79,7 @@ class VisualStimulus(Actor):
             # if (dt.now() - timestamp).total_seconds() >= self.total_stim_time:
             # if (time.time() - timestamp) >= self.total_stim_time:
             self.send_frame(stim)
+            logger.info('sent request to pstim')
         
         except Empty as e:
             pass

@@ -112,6 +112,8 @@ class BayesOpt(Actor):
         self.counter = 0
         self.timer = time.time()
 
+        self.stim_ind = None
+
         # logger.info('Optimizer Links: {}'.format(self.getLinks()))
         
 
@@ -177,11 +179,13 @@ class BayesOpt(Actor):
         elif self.initial: # NOTE: consider moving initial stimuli in stimulus actor since it's just reading from a list from gen_stim
             # displays initial stimulus 
             # internally counts to make sure that we only send correct number of initial stim
-            
-            initial_ind, flag = self.stimuli_space.initial_stim(self.stimuli, self.counter)
+            flag = False
+            if self.stim_ind is None:
+                self.stim_ind, flag = self.stimuli_space.initial_stim(self.stimuli, self.counter)
             # logger.info('delta time in optimizer: {}'.format(time.time() - self.timer))
             if (time.time() - self.timer) >= self.total_stim_time:
-                self.links['stim_ind_out'].put([dt.now(), initial_ind])
+                self.links['stim_ind_out'].put([dt.now(), self.stim_ind])
+                self.stim_ind = None
                 self.counter += 1
                 self.timer = time.time()
                 # logger.info('timer reset')
@@ -236,67 +240,64 @@ class BayesOpt(Actor):
         else:
             # need to update the GP
             # if self.prepared_frame is None: ??
-            X = np.zeros(self.d) 
-            for i in range(self.d):
-                X[i] = self.GP_stimuli[i][int(self.X[i,-1])]
-            # X[1] = self.GP_stimuli[1][int(self.X[1,-1])]
-
-            logger.info('optim {} , update GP with {}, {}'.format( self.nID, X, self.y0[self.nID, -1]))
-            self.optim.update_GP(np.squeeze(X), self.y0[self.nID,-1])
-
-            curr_unc = np.diagonal(self.optim.sigma).reshape((self.stim_choice))
-            curr_est = self.optim.f.reshape((self.stim_choice))
-            self.saved_GP_unc.append(curr_unc)
-            self.saved_GP_est.append(curr_est)
-
-            ids = []
-            ids.append(self.nID)
-            ids.append(self.client.put(curr_est)) #, 'est'))
-            ids.append(self.client.put(curr_unc)) #, 'unc'))
-            self.q_out.put(ids)
-
-            stopCrit = self.optim.stopping()
-            logger.info('----------- stopCrit: {}'.format(stopCrit))
-            self.stopping[self.test_count] = stopCrit
-            self.test_count += 1
-
-            if stopCrit < self.stopping_crit: #self.config.stopping_crit:
-                peak = self.stim_star[np.argmax(self.optim.f)]
-                logger.info('Satisfied with this neuron, moving to next. Est peak: {}'.format(peak))
-                # self.nID += 1
-                self.newN = True
-                self.stopping_list.append(self.stopping)
-                self.peak_list.append(peak)
-                self.optim_f_list.append(self.optim.f)
-
-                np.save('output/saved_GP_est_'+str(self.nID)+'.npy', np.array(self.saved_GP_est))
-                np.save('output/saved_GP_unc_'+str(self.nID)+'.npy', np.array(self.saved_GP_unc))
-
-            elif self.test_count >= self.maxT:
-                logger.info('exceeded test count')
-                self.goback_neurons.append(self.nID)
-                self.newN = True
-                self.stopping_list.append(self.stopping)
-                peak = self.stim_star[np.argmax(self.optim.f)]
-                self.peak_list.append(peak)
-                self.optim_f_list.append(self.optim.f)
-
-            else:
-                ind, xt_1 = self.optim.max_acq()
-                logger.info('suggest next stim: {}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
-                next_ind = []
+            if self.stim_ind is None:
+                X = np.zeros(self.d) 
                 for i in range(self.d):
-                    next_ind.append(np.where(self.stimuli[i] == self.stim_star[ind][i])[0][0])
+                    X[i] = self.GP_stimuli[i][int(self.X[i,-1])]
 
-                # Need to send ind to stimulus actor to create this stim request ??
+                logger.info('optim {} , update GP with {}, {}'.format( self.nID, X, self.y0[self.nID, -1]))
+                self.optim.update_GP(np.squeeze(X), self.y0[self.nID,-1])
+
+                curr_unc = np.diagonal(self.optim.sigma).reshape((self.stim_choice))
+                curr_est = self.optim.f.reshape((self.stim_choice))
+                self.saved_GP_unc.append(curr_unc)
+                self.saved_GP_est.append(curr_est)
+
+                ids = []
+                ids.append(self.nID)
+                ids.append(self.client.put(curr_est)) #, 'est'))
+                ids.append(self.client.put(curr_unc)) #, 'unc'))
+                self.q_out.put(ids)
+
+                stopCrit = self.optim.stopping()
+                logger.info('----------- stopCrit: {}'.format(stopCrit))
+                self.stopping[self.test_count] = stopCrit
+                self.test_count += 1
+
+                if stopCrit < self.stopping_crit: #self.config.stopping_crit:
+                    peak = self.stim_star[np.argmax(self.optim.f)]
+                    logger.info('Satisfied with this neuron, moving to next. Est peak: {}'.format(peak))
+                    # self.nID += 1
+                    self.newN = True
+                    self.stopping_list.append(self.stopping)
+                    self.peak_list.append(peak)
+                    self.optim_f_list.append(self.optim.f)
+
+                    np.save('output/saved_GP_est_'+str(self.nID)+'.npy', np.array(self.saved_GP_est))
+                    np.save('output/saved_GP_unc_'+str(self.nID)+'.npy', np.array(self.saved_GP_unc))
+
+                elif self.test_count >= self.maxT:
+                    logger.info('exceeded test count')
+                    self.goback_neurons.append(self.nID)
+                    self.newN = True
+                    self.stopping_list.append(self.stopping)
+                    peak = self.stim_star[np.argmax(self.optim.f)]
+                    self.peak_list.append(peak)
+                    self.optim_f_list.append(self.optim.f)
+
+                else:
+                    ind, xt_1 = self.optim.max_acq()
+                    logger.info('suggest next stim: {}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
+                    next_ind = []
+                    for i in range(self.d):
+                        next_ind.append(np.where(self.stimuli[i] == self.stim_star[ind][i])[0][0])
+                    self.stim_ind = next_ind
+
+            # Need to send ind to stimulus actor to create this stim request ??
             if (time.time() - self.timer) >= self.total_stim_time:
-                self.links['stim_ind_out'].put([dt.now(), next_ind])
+                self.links['stim_ind_out'].put([dt.now(), self.stim_ind])
+                self.stim_ind = None
                 self.timer = time.time()
-                # logger.info('timer reset')
-
-                ## OR
-                # id = self.client.put(ind)
-                # self.stim_out.put(id)
 
 class Optimizer():
     def __init__(self, gamma, var, nu, eta, x_star):
