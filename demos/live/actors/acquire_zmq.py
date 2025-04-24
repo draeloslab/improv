@@ -368,13 +368,13 @@ class ZMQAcquirer(Actor):
 
             elif msg_dict['stimulus']['stim_name'] == 'gray_circle':
                 logger.info('Collecting stimulus ..... ')
-                # size = float(msg_dict['texture']['length'])
+                size = float(msg_dict['texture']['length'])
                 angle = float(msg_dict['stimulus']['angle'])
                 vel = float(msg_dict['stimulus']['velocity'])
-                # freq = float(msg_dict['texture']['frequency'])
-                self.links['stim_queue'].put({self.frame_num:[angle, vel]})
+                freq = float(msg_dict['texture']['frequency'])
+                self.links['stim_queue'].put({self.frame_num:[int(angle), vel, int(size), int(freq)]})
                 self.stimmed.append([self.frame_num, angle, vel])
-                logger.info('Stimulus: Circle at angle {} deg at with velocity {} frame {}'.format(int(angle), vel, self.frame_num))
+                logger.info('Stimulus: {} Circle of radius {} at angle {} deg at with velocity {} frame {}'.format(int(freq), size/2, int(angle), vel, self.frame_num))
             else:
                 logger.info('collecting stimulus -- ')
                 try:

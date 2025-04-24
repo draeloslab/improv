@@ -26,7 +26,7 @@ actors:
     init_frame: 60
     
   Stimulus:
-    package: actors.stimulus_test #_multi
+    package: actors.stimulus #_multi
     class: VisualStimulus
     ip: '*'
     port: 5006 
@@ -52,8 +52,8 @@ actors:
 
   Optimizer:
     package: actors.optimizer
-    class: BayesOpt
-    config_file: bayesopt_parameters.yml
+    class: RandomSampler #BayesOptimizer
+    param_file: bayesopt_parameters.yaml
     
 
 # connections:
