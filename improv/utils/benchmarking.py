@@ -80,26 +80,33 @@ def plot_timestamps(acquire_frame, acquire_pstim, analysis_frame, process_frame,
     plt.legend()
     plt.show()
 
+def plot_stopping_crit(stopping_crit):
 
-if len(sys.argv) > 1:
-    dataset = sys.argv[1]
-else:
-    dataset = input('Enter dataset: ')
+    stopping_list = np.load(stopping_crit)
+    plt.plot(stopping_list)
+    plt.axhline(y=3e-4)
+    plt.show()
 
-path = '../improv/demos/live/output_' + dataset 
 
-process_frame = np.loadtxt(path + '/timing/process_frame_time.txt')
-analysis_frame = np.loadtxt(path + '/timing/analysis_frame_time.txt')
-visual_frame = np.loadtxt(path + '/timing/visual_frame_time.txt')
-if len(visual_frame) !=0:
-    visual_frame = visual_frame[:,1]
+# if len(sys.argv) > 1:
+#     dataset = sys.argv[1]
+# else:
+#     dataset = input('Enter dataset: ')
 
-acquire_frame = actor_timestamps(path+'/timing/acquire_frame_timestamp.txt')
-acquire_pstim = actor_timestamps(path+'/timing/acquire_pstim_timestamp.txt')
+# path = '../improv/demos/live/output_' + dataset 
 
-plot_timestamps(acquire_frame, acquire_pstim, analysis_frame, process_frame, visual_frame)
+# process_frame = np.loadtxt(path + '/timing/process_frame_time.txt')
+# analysis_frame = np.loadtxt(path + '/timing/analysis_frame_time.txt')
+# visual_frame = np.loadtxt(path + '/timing/visual_frame_time.txt')
+# if len(visual_frame) !=0:
+#     visual_frame = visual_frame[:,1]
 
-mem_from_log(path+'/global.log')
+# acquire_frame = actor_timestamps(path+'/timing/acquire_frame_timestamp.txt')
+# acquire_pstim = actor_timestamps(path+'/timing/acquire_pstim_timestamp.txt')
+
+# plot_timestamps(acquire_frame, acquire_pstim, analysis_frame, process_frame, visual_frame)
+
+# mem_from_log(path+'/global.log')
 
 
 
