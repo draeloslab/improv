@@ -83,8 +83,10 @@ def plot_timestamps(acquire_frame, acquire_pstim, analysis_frame, process_frame,
 def plot_stopping_crit(stopping_crit):
 
     stopping_list = np.load(stopping_crit)
-    plt.plot(stopping_list)
-    plt.axhline(y=3e-4)
+    plt.plot(stopping_list.T)
+    plt.axhline(y=3e-4, linestyle='-', color='r')
+    plt.xlabel('Number of Tests')
+    plt.ylabel('EI value')
     plt.show()
 
 

@@ -312,8 +312,8 @@ class RandomSampler(Actor):
     def setup(self):
     
         self.stop_sending = False
-        self.initial = False
-        self.newN = True
+        self.initial = True
+        self.newN = False
         self.counter = 0
         self.timer = time.time()
 
@@ -324,39 +324,39 @@ class RandomSampler(Actor):
 
     def runStep(self):
         t = time.time()
-        try:
-            ids = self.q_in.get(timeout=0.0001)
+        # try:
+        #     ids = self.q_in.get(timeout=0.0001)
 
-            # X, Y, stim, _ = self.client.get(ids)
-            X = self.client.get(ids[0])
-            Y = self.client.get(ids[1])
-            # frame_num = self.client.get(ids[2]) # maybe (sometimes this try block "fails" and so the frame num isn't recorded?)
+        #     # X, Y, stim, _ = self.client.get(ids)
+        #     X = self.client.get(ids[0])
+        #     Y = self.client.get(ids[1])
+        #     # frame_num = self.client.get(ids[2]) # maybe (sometimes this try block "fails" and so the frame num isn't recorded?)
 
-            # logger.info('X, Y: {}, {}'.format(X, Y))
+        #     # logger.info('X, Y: {}, {}'.format(X, Y))
 
-            tmpX = np.squeeze(np.array(X)).T
-            # logger.info(f'{tmpX.shape}, {len(Y)}----------------------------------------------------')
-            sh = len(tmpX.shape)
-            if sh > 1:
-                self.X = tmpX.copy()
-                if tmpX.shape[1] > 4:
-                    self.X = tmpX[:, -tmpX.shape[1]:]
-                # print('self.X DIRECT from analysis is ', X, 'and self.X is ', self.X[:,-1])
-            # print(self.X)
+        #     tmpX = np.squeeze(np.array(X)).T
+        #     # logger.info(f'{tmpX.shape}, {len(Y)}----------------------------------------------------')
+        #     sh = len(tmpX.shape)
+        #     if sh > 1:
+        #         self.X = tmpX.copy()
+        #         if tmpX.shape[1] > 4:
+        #             self.X = tmpX[:, -tmpX.shape[1]:]
+        #         # print('self.X DIRECT from analysis is ', X, 'and self.X is ', self.X[:,-1])
+        #     # print(self.X)
 
-            try:
-                b = np.zeros([len(Y),len(max(Y,key = lambda x: len(x)))])
-                for i,j in enumerate(Y):
-                    b[i][:len(j)] = j
-                self.y0 = b.T
-            except:
-                pass
+        #     try:
+        #         b = np.zeros([len(Y),len(max(Y,key = lambda x: len(x)))])
+        #         for i,j in enumerate(Y):
+        #             b[i][:len(j)] = j
+        #         self.y0 = b.T
+        #     except:
+        #         pass
             
 
-        except Empty as e:
-            pass
-        except Exception as e:
-            print('Error in optimizer get: {}'.format(e))
+        # except Empty as e:
+        #     pass
+        # except Exception as e:
+        #     print('Error in optimizer get: {}'.format(e))
 
         if self.initial: 
             # displays initial stimulus 

@@ -29,6 +29,7 @@ class VisualStimulus(Actor):
         # self.stimuli = np.load(stimuli, allow_pickle=True)
         self.stimuli_space = StimulusSpace()
         self.stim_space = self.stimuli_space.stim_space
+        logger.info('stim: {}'.format(self.stim_space['stimuli']))
         self.total_stim_time = self.stim_space['total_stim_time']
         np.save('output/generated_stimuli.npy', self.stim_space['stimuli'])
 
@@ -69,8 +70,9 @@ class VisualStimulus(Actor):
         try: 
             t = time.time()
             indices = self.links['stim_ind_in'].get(timeout=0.0001)
-
+            logger.info('indices: {}'.format(indices))
             parameters = self.stimuli_space.idx_to_param(indices) 
+            logger.info('parameters: {}'.format(parameters))
             stim = self.create_frame(parameters)
 
             self.send_frame(stim)
@@ -91,16 +93,37 @@ class VisualStimulus(Actor):
         # logger.info('PARMS INSIDE SEND FRAME {}'.format(params))
 
         if stim is not None:
+
             text = {'texture_size': 1600,
-                    'frequency': int(self.frequency),
-                    'center_x': 800,
-                    'center_y': 1000,
-                    'width': int(self.size), #int(self.size), 
-                    'length': int(self.size), #int(self.size),
-                    'texture_name': 'gray_ellipse',
-                    'bg_intensity': 200,
-                    'fg_intensity': 50,
-                    }
+                        'frequency': int(self.frequency),
+                        'center_x': 800,
+                        'center_y': 1000,
+                        'width': int(self.size), #int(self.size), 
+                        'length': int(self.size), #int(self.size),
+                        'texture_name': 'gray_ellipse',
+                        'bg_intensity': 200,
+                        'fg_intensity': 50,
+                        }
+
+            # if self.shape == 0:
+            #     text = {'texture_size': 1600,
+            #             'frequency': int(self.frequency),
+            #             'center_x': int(self.x_pos),
+            #             'center_y': int(self.y_pos),
+            #             'width': int(self.size), #int(self.size), 
+            #             'length': int(self.size), #int(self.size),
+            #             'texture_name': 'gray_ellipse',
+            #             'bg_intensity': 200,
+            #             'fg_intensity': 50,
+            #             }
+            # else:
+            #     text = {'texture_size': 1600,
+            #             'frequency': int(5),
+            #             'texture_name': 'grating_gray',
+            #             'light_value': 200,
+            #             'dark_value': 50,
+            #             }
+
                 
             stimulus = {'stimulus': stim, 'texture': text}
             # logger.info('Stimuli requested: {}'.format(stimulus))
@@ -120,6 +143,10 @@ class VisualStimulus(Actor):
 
         self.size = params[2]
         self.frequency = params[3]
+        # self.x_pos = params[4]
+        # self.y_pos = params[5]
+        # self.shape = params[6]
+
         stim = {
                 'stim_name': 'gray_circle',
                 'angle': int(params[0]),

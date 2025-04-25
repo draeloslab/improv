@@ -1,0 +1,39 @@
+General:
+  seed: 42
+  init_T: 4
+  max_tests: 15
+  improv: True
+  # stimulus_type: 'fs'
+  # data_folder: './data/'
+  # data_c_arrays: 'C arrays/'
+  # data_stim_vid: 'Stimulus Video/'
+  # vid_process_decimal: {'dg': 0, 'md': 3, 'fs': 2}  # decimal
+  # auc_dict: {'dg': -6, 'md': 0, 'fs': -40}  # x_shift
+
+# Neurons:
+#   N: 100 # 100
+#   tc_type:  'indep' # 'linear_uvn' # 'indep' # 'double_peaks' # how neuron population data are generated
+#   constraint: 'linear' #'peak_distance' #'linear'
+
+Stimuli:
+  d: 4
+  x1_range: 8
+  x2_range: 6
+  x3_range: 5
+  x4_range: 4
+  # x3_range: 7
+
+Optimizer:
+  n: 1  # only for counting optimizers, differ from d
+  gamma: 1 #1e-1 #1
+  var: 0.5
+  nu: 0.5 #1e-1
+  eta: 5e-2
+  optim_1:
+    kernel: ['rbf', 'rbf', 'rbf', 'rbf']  
+    stopping_crit: 3e-4 #, 0.02, 0.08, 0.37 #0.01, 0.1
+  # optim_2: 
+  #   name: 'Optimizer_linear'
+  #   kernel: ['linear', 'rbf'] 
+  #   stopping_crit: 0.02 #0.08, 0.01, 0.4
+  

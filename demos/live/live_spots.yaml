@@ -4,21 +4,21 @@ actors:
     class: DisplayVisual
     visual: Visual
 
-  Microscope:
-    package: actors.load_disc
-    class: FileAcquirer
-    ip: '*'
-    port: 5007
-    output: output/
-    init_filename: output/initialization.h5
-    filename: data/sample_stream0.h5 #data_032525_ds3.h5
-    init_frame: 60
-    framerate: 15
+  # Microscope:
+  #   package: actors.load_disc
+  #   class: FileAcquirer
+  #   ip: '*'
+  #   port: 5007
+  #   output: output/
+  #   init_filename: output/initialization.h5
+  #   filename: data/sample_stream0.h5 #data_032525_ds3.h5
+  #   init_frame: 60
+  #   framerate: 15
 
   Acquirer:
     package: actors.acquire_zmq
     class: ZMQAcquirer
-    ip: 127.0.0.1 #192.168.1.1 #127.0.0.1 # 10.65.110.3 #10.122.170.21
+    ip: 192.168.1.1 #127.0.0.1 # 10.65.110.3 #10.122.170.21
     ports: [50154, 5000,5007,5008,5009,5010,5011,4701,4703,5865,5005,5017,5018] #[4701,4702,4703]
     output: output/
     red_chan_image: output/red_channel_image.npy
@@ -52,7 +52,7 @@ actors:
 
   Optimizer:
     package: actors.optimizer
-    class: RandomSampler #BayesOptimizer
+    class: BayesOptimizer #RandomSampler 
     param_file: bayesopt_parameters.yaml
     
 
@@ -72,8 +72,6 @@ connections:
   Analysis.stim_out: [Optimizer.q_in] 
   Optimizer.stim_ind_out: [Stimulus.stim_ind_in] # this link is for sending next stim index
   Optimizer.q_out: [Visual.optim_in]
-
-
 
 redis_config:
   port: 6379
