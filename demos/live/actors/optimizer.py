@@ -15,6 +15,7 @@ from BayesOpt.model.config import Config
 from BayesOpt.model.optimizer import Optimizer
 
 from gen_stim import StimulusSpace
+# from gen_stim_calibrate import StimulusSpace
 
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -27,7 +28,9 @@ class BayesOptimizer(Actor):
         # Stimulus Space information (loading from stimulus class)
         self.stimuli_space = StimulusSpace()
         self.stim_space = self.stimuli_space.stim_space
-        self.stimuli = self.stim_space['stimuli']
+        # self.stimuli = self.stim_space['stimuli']
+        self.stimuli = np.array([np.sort(stim) for stim in self.stim_space['stimuli']], dtype=object)
+        # logger.info('reading in stim: {}'.format(self.stimuli))
         self.total_stim_time = self.stim_space['total_stim_time']
         self.d = self.stimuli.shape[0]
         self.initial_length = self.stimuli_space.initial_stim_count
@@ -109,11 +112,8 @@ class BayesOptimizer(Actor):
         t = time.time()
         try:
             ids = self.q_in.get(timeout=0.0001)
-
-            # X, Y, stim, _ = self.client.get(ids)
             X = self.client.get(ids[0])
             Y = self.client.get(ids[1])
-            # frame_num = self.client.get(ids[2]) # maybe (sometimes this try block "fails" and so the frame num isn't recorded?)
 
             # logger.info('X, Y: {}, {}'.format(X, Y))
 
@@ -124,8 +124,6 @@ class BayesOptimizer(Actor):
                 self.X = tmpX.copy()
                 if tmpX.shape[1] > 4:
                     self.X = tmpX[:, -tmpX.shape[1]:]
-                # print('self.X DIRECT from analysis is ', X, 'and self.X is ', self.X[:,-1])
-            # print(self.X)
 
             try:
                 b = np.zeros([len(Y),len(max(Y,key = lambda x: len(x)))])
@@ -135,7 +133,6 @@ class BayesOptimizer(Actor):
             except:
                 pass
             
-
         except Empty as e:
             pass
         except Exception as e:
@@ -276,6 +273,8 @@ class RandomSampler(Actor):
     def __init__(self, *args, stimuli=None, param_file=None, **kwargs):
         super().__init__(*args, **kwargs)
 
+        ''' RandomSampler displays a initial stimuli set, and then proceeds to send random stimuli requests. '''
+
         # Stimulus Space information (loading from stimulus class)
         self.stimuli_space = StimulusSpace()
         self.stim_space = self.stimuli_space.stim_space
@@ -285,19 +284,7 @@ class RandomSampler(Actor):
         self.initial_length = self.stimuli_space.initial_stim_count
         logger.info('Stimuli info: Num of Stimuli Parameters: {}, Num of Initial Stim: {}'.format(self.d, self.initial_length))
 
-        # -----------------------------------------------------------------------------
-
-        # self.param_file = param_file
-        # self.init_params = yaml.safe_load(open(self.param_file, 'r'))
-
-        # init_T = self.init_params['General']['init_T']
-        # self.seed = self.init_params['General']['seed']
-        # self.maxT = self.init_params['General']['max_tests']
-
-        # self.config = Config(self.param_file)
-
-        # self.stim_choice = self.config.stim_choice
-
+        # ----------------------------------------------------------------------------
         # List of all stimuli combinations
         xs = np.meshgrid(*self.stimuli, indexing='ij') #,x3,x4])
         x_star = np.empty(xs[0].shape + (self.d,))
@@ -324,6 +311,7 @@ class RandomSampler(Actor):
 
     def runStep(self):
         t = time.time()
+        # Listening to the analysis actor (currently commented out for RandomSampler)
         # try:
         #     ids = self.q_in.get(timeout=0.0001)
 
@@ -387,6 +375,7 @@ class RandomSampler(Actor):
                 np.random.shuffle(self.stim_star)
                 grid = self.stim_star[self.counter]
                 
+                #FIXME: This is a manual method (need to fix to make it more flexible)
                 param0 = np.argwhere(int(grid[0]) == self.stimuli[0])[0][0]
                 param1 = np.argwhere(grid[1] == self.stimuli[1])[0][0]
                 param2 = np.argwhere(int(grid[2]) == self.stimuli[2])[0][0]

@@ -10,6 +10,7 @@ from itertools import product
 from datetime import datetime as dt
 
 from gen_stim import StimulusSpace
+# from gen_stim_calibrate import StimulusSpace
 
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -29,7 +30,9 @@ class VisualStimulus(Actor):
         # self.stimuli = np.load(stimuli, allow_pickle=True)
         self.stimuli_space = StimulusSpace()
         self.stim_space = self.stimuli_space.stim_space
-        logger.info('stim: {}'.format(self.stim_space['stimuli']))
+        # logger.info('stim: {}'.format(self.stim_space['stimuli']))
+        self.stimuli = np.array([np.sort(stim) for stim in self.stim_space['stimuli']], dtype=object)
+        # logger.info('reading in stim: {}'.format(self.stimuli))
         self.total_stim_time = self.stim_space['total_stim_time']
         np.save('output/generated_stimuli.npy', self.stim_space['stimuli'])
 
@@ -94,16 +97,34 @@ class VisualStimulus(Actor):
 
         if stim is not None:
 
+            # text = {'texture_size': 1600,
+            #             'circle_center': (865,955),
+            #             'circle_radius': 25,
+            #             'bg_intensity': 200,
+            #             'texture_name': 'calibration_dots',
+            #             }
+
             text = {'texture_size': 1600,
-                        'frequency': int(self.frequency),
+                        'frequency': 1,
                         'center_x': 800,
                         'center_y': 1000,
-                        'width': int(self.size), #int(self.size), 
-                        'length': int(self.size), #int(self.size),
+                        'width': 50, #int(self.size), 
+                        'length': 50, #int(self.size),
                         'texture_name': 'gray_ellipse',
                         'bg_intensity': 200,
                         'fg_intensity': 50,
                         }
+
+            # text = {'texture_size': 1600,
+            #             'frequency': int(self.frequency),
+            #             'center_x': 800,
+            #             'center_y': 1000,
+            #             'width': int(self.size), #int(self.size), 
+            #             'length': int(self.size), #int(self.size),
+            #             'texture_name': 'gray_ellipse',
+            #             'bg_intensity': 200,
+            #             'fg_intensity': 50,
+            #             }
 
             # if self.shape == 0:
             #     text = {'texture_size': 1600,
@@ -139,13 +160,22 @@ class VisualStimulus(Actor):
     def create_frame(self, params):
         # self.params = params
         stat_t = 0
-        stim_t = stat_t + 10
+        stim_t = stat_t + 15
 
         self.size = params[2]
         self.frequency = params[3]
         # self.x_pos = params[4]
         # self.y_pos = params[5]
         # self.shape = params[6]
+
+        # stim = {
+        #         'stim_name': 'gray_ellipse',
+        #         'angle': int(0),
+        #         'velocity': float(0),
+        #         'stationary_time': stat_t,
+        #         'duration': self.total_stim_time,
+        #         'hold_after': float(stim_t),
+        #             }
 
         stim = {
                 'stim_name': 'gray_circle',
