@@ -157,7 +157,7 @@ class ZMQAcquirer(Actor):
             elif isinstance(msg, str):
                 # logger.info('pandastim raw msg: {}'.format(msg))
                 msg_dict, category = self._msg_unpacker(msg)
-                # logger.info('pstim msg: {}'.format(msg_dict))
+                # logger.info('pstim raw msg: {}'.format(msg))
                 tag = 'stim'
                 
             # logger.info('Receiving microscope image--')
@@ -283,7 +283,7 @@ class ZMQAcquirer(Actor):
             # print(msg)  
         elif 'motionOn' in category:
             self.stim_count += 1
-            
+            logger.info('inside acquire categories block ----- ')
             ## visual stim with Matt
             # angle2 = None
             # angle, angle2 = make_tuple(msg_dict['angle'])
@@ -299,10 +299,6 @@ class ZMQAcquirer(Actor):
                 self.links['stim_queue'].put({self.frame_num:[angle, vel]})
                 # self.stimmed.append([self.frame_num, angle, vel])
                 logger.info('Stimulus: Moving gratings angle {} with velocity {} at frame {}'.format(angle, vel, self.frame_num))
-            
-            # logger.info('texture name: {}'.format(msg_dict['texture']['texture_name']))
-            # logger.info('texture name type: {}'.format(type(msg_dict['texture']['texture_name'])))
-            # if msg_dict['texture']['texture_name'] == 'gray_ellipse' or msg_dict['texture']['texture_name'] == 'gray_rectangle':
  
             ## spots stim with Karina
             elif msg_dict['texture']['texture_name'] == 'gray_circle':
@@ -319,8 +315,8 @@ class ZMQAcquirer(Actor):
                 angle = float(msg_dict['stimulus']['angle'])
                 vel = float(msg_dict['stimulus']['velocity'])
                 freq = float(msg_dict['texture']['frequency'])
-                self.links['stim_queue'].put({self.frame_num:[angle, vel, size, freq]})
-                self.stimmed.append([self.frame_num, angle, vel, size, freq])
+                self.links['stim_queue'].put({self.frame_num:[int(angle), vel, int(size), int(freq)]})
+                self.stimmed.append([self.frame_num, int(angle), vel, int(size), int(freq)])
                 logger.info('Stimulus: {} Circle radius {} at angle {} deg at with velocity {} frame {}'.format(int(freq), size/2, int(angle), vel, self.frame_num))
             else:
                 logger.info('collecting stimulus -- ')
@@ -340,7 +336,7 @@ class ZMQAcquirer(Actor):
                 else:
                     shape = int(1)
 
-                logger.info('pstim message length received: {}'.format(length))
+                # logger.info('pstim message length received: {}'.format(length))
                 logger.info('sending stim queue')
                 self.links['stim_queue'].put({self.frame_num:[angle, vel, center_x, center_y, length, width, shape, freq]})
                 self.stimmed.append([self.frame_num, angle, vel, center_x, center_y, length, width, shape, freq])
