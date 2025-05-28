@@ -136,5 +136,8 @@ output/
 output_*
 .npy
 
+*_og.py
+*_old.py
+
 *.ipynb
 *.ipynb_checkpoints
