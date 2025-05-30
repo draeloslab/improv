@@ -90,6 +90,8 @@ class ZMQAcquirer(Actor):
 
         self.kill_flag = True
 
+        self.timerzz = time.time()
+
         # ## reconnect socket
         # self.socket.close()
         # self.socket = context.socket(zmq.SUB)
@@ -282,71 +284,73 @@ class ZMQAcquirer(Actor):
             pass 
             # print(msg)  
         elif 'motionOn' in category:
-            self.stim_count += 1
-            logger.info('inside acquire categories block ----- ')
-            ## visual stim with Matt
-            # angle2 = None
-            # angle, angle2 = make_tuple(msg_dict['angle'])
-            # if angle>=360:
-            #     angle-=360
-            # stim = self._realign_angle(angle)
-            # self.links['stim_queue'].put({self.frame_num:[stim, float(angle), float(angle2)]})
-            # self.stimmed.append([self.frame_num, stim, angle, angle2, time.time()])
-            # logger.info('Stimulus: {}, angle: {},{}, frame {}'.format(stim, angle, angle2, self.frame_num))
-            if msg_dict['texture']['texture_name'] in ('sin_gray', 'sin_rgb', 'grating_gray', 'grating_rgb'):
-                angle = float(msg_dict['stimulus']['angle'])
-                vel = float(msg_dict['stimulus']['velocity'])
-                self.links['stim_queue'].put({self.frame_num:[angle, vel]})
-                # self.stimmed.append([self.frame_num, angle, vel])
-                logger.info('Stimulus: Moving gratings angle {} with velocity {} at frame {}'.format(angle, vel, self.frame_num))
- 
-            ## spots stim with Karina
-            elif msg_dict['texture']['texture_name'] == 'gray_circle':
-                size = float(msg_dict['circle_radius'])
-                vel = float(msg_dict['velocity'])
-                self.links['stim_queue'].put({self.frame_num:[size, vel]})
-                # self.stimmed.append([self.frame_num, size, vel])
-                logger.info('Stimulus: Circle radius {} with velocity {} at frame {}'.format(size, vel, self.frame_num))
-            
-            
-            elif msg_dict['stimulus']['stim_name'] == 'gray_circle':
-                logger.info('Collecting stimulus ..... ')
-                size = float(msg_dict['texture']['length'])
-                angle = float(msg_dict['stimulus']['angle'])
-                vel = float(msg_dict['stimulus']['velocity'])
-                freq = float(msg_dict['texture']['frequency'])
-                self.links['stim_queue'].put({self.frame_num:[int(angle), vel, int(size), int(freq)]})
-                self.stimmed.append([self.frame_num, int(angle), vel, int(size), int(freq)])
-                logger.info('Stimulus: {} Circle radius {} at angle {} deg at with velocity {} frame {}'.format(int(freq), size/2, int(angle), vel, self.frame_num))
-            else:
-                logger.info('collecting stimulus -- ')
-                try:
+            if self.timerzz - time.time() > 1:
+                self.stim_count += 1
+                # logger.info('inside acquire categories block ----- ')
+                ## visual stim with Matt
+                # angle2 = None
+                # angle, angle2 = make_tuple(msg_dict['angle'])
+                # if angle>=360:
+                #     angle-=360
+                # stim = self._realign_angle(angle)
+                # self.links['stim_queue'].put({self.frame_num:[stim, float(angle), float(angle2)]})
+                # self.stimmed.append([self.frame_num, stim, angle, angle2, time.time()])
+                # logger.info('Stimulus: {}, angle: {},{}, frame {}'.format(stim, angle, angle2, self.frame_num))
+                if msg_dict['texture']['texture_name'] in ('sin_gray', 'sin_rgb', 'grating_gray', 'grating_rgb'):
                     angle = float(msg_dict['stimulus']['angle'])
                     vel = float(msg_dict['stimulus']['velocity'])
-                    freq = int(msg_dict['texture']['frequency'])
-                    center_x = int(msg_dict['texture']['center_x'])
-                    center_y = int(msg_dict['texture']['center_y'])
-                    length = int(msg_dict['texture']['length'])
-                    width = int(msg_dict['texture']['width'])
-                except Exception as e: 
-                    logger.error('Error in acquire, in collecting stimulus {}'.format(e))
-
-                if msg_dict['texture']['texture_name'] == 'gray_ellipse':
-                    shape = int(0)
+                    self.links['stim_queue'].put({self.frame_num:[angle, vel]})
+                    # self.stimmed.append([self.frame_num, angle, vel])
+                    logger.info('Stimulus: Moving gratings angle {} with velocity {} at frame {}'.format(angle, vel, self.frame_num))
+    
+                ## spots stim with Karina
+                elif msg_dict['texture']['texture_name'] == 'gray_circle':
+                    size = float(msg_dict['circle_radius'])
+                    vel = float(msg_dict['velocity'])
+                    self.links['stim_queue'].put({self.frame_num:[size, vel]})
+                    # self.stimmed.append([self.frame_num, size, vel])
+                    logger.info('Stimulus: Circle radius {} with velocity {} at frame {}'.format(size, vel, self.frame_num))
+                
+                
+                elif msg_dict['stimulus']['stim_name'] == 'gray_circle':
+                    logger.info('Collecting stimulus ..... ')
+                    size = float(msg_dict['texture']['length'])
+                    angle = float(msg_dict['stimulus']['angle'])
+                    vel = float(msg_dict['stimulus']['velocity'])
+                    freq = float(msg_dict['texture']['frequency'])
+                    self.links['stim_queue'].put({self.frame_num:[int(angle), vel, int(size), int(freq)]})
+                    self.stimmed.append([self.frame_num, int(angle), vel, int(size), int(freq)])
+                    logger.info('Stimulus: {} Circle radius {} at angle {} deg at with velocity {} frame {}'.format(int(freq), size/2, int(angle), vel, self.frame_num))
                 else:
-                    shape = int(1)
+                    logger.info('collecting stimulus -- ')
+                    try:
+                        angle = float(msg_dict['stimulus']['angle'])
+                        vel = float(msg_dict['stimulus']['velocity'])
+                        freq = int(msg_dict['texture']['frequency'])
+                        center_x = int(msg_dict['texture']['center_x'])
+                        center_y = int(msg_dict['texture']['center_y'])
+                        length = int(msg_dict['texture']['length'])
+                        width = int(msg_dict['texture']['width'])
+                    except Exception as e: 
+                        logger.error('Error in acquire, in collecting stimulus {}'.format(e))
 
-                # logger.info('pstim message length received: {}'.format(length))
-                logger.info('sending stim queue')
-                self.links['stim_queue'].put({self.frame_num:[angle, vel, center_x, center_y, length, width, shape, freq]})
-                self.stimmed.append([self.frame_num, angle, vel, center_x, center_y, length, width, shape, freq])
-               
-                if shape == 0:
-                    logger.info('Stimulus: {} Ellipse of length {} and width {} at angle {} with velocity {} at intial position ({},{}) at frame {}'.format(freq, length, width, angle, vel, center_x, center_y, self.frame_num))
-                else:
-                    logger.info('Stimulus: {} Rectangle of length {} and width {} at angle {} with velocity {} at intial position ({},{}) at frame {}'.format(freq, length, width, angle, vel, center_x, center_y, self.frame_num))
+                    if msg_dict['texture']['texture_name'] == 'gray_ellipse':
+                        shape = int(0)
+                    else:
+                        shape = int(1)
 
-            logger.info('Number of stimuli: {}'.format(self.stim_count))
+                    # logger.info('pstim message length received: {}'.format(length))
+                    logger.info('sending stim queue')
+                    self.links['stim_queue'].put({self.frame_num:[angle, vel, length, freq, center_x, center_y, shape]})
+                    self.stimmed.append([self.frame_num, angle, vel, length, freq, center_x, center_y, shape])
+                
+                    if shape == 0:
+                        logger.info('Stimulus: {} Ellipse of length {} and width {} at angle {} with velocity {} at intial position ({},{}) at frame {}'.format(freq, length, width, angle, vel, center_x, center_y, self.frame_num))
+                    else:
+                        logger.info('Stimulus: {} Rectangle of length {} and width {} at angle {} with velocity {} at intial position ({},{}) at frame {}'.format(freq, length, width, angle, vel, center_x, center_y, self.frame_num))
+
+                    self.timerzz = time.time()
+                logger.info('Number of stimuli: {}'.format(self.stim_count))
             # self.stimsendtimes.append([sendtime])
 
     def _collect_tail(self, msg_dict):
