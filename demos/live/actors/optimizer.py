@@ -28,6 +28,7 @@ class BayesOptimizer(Actor):
         # Stimulus Space information (loading from stimulus class)
         self.stimuli_space = StimulusSpace()
         self.stim_space = self.stimuli_space.stim_space
+        # logger.info("what is stimuli_space {}; what is stim_space {}".format(self.stimuli_space, self.stim_space))
         # self.stimuli = self.stim_space['stimuli']
         self.stimuli = np.array([np.sort(stim) for stim in self.stim_space['stimuli']], dtype=object)
         # logger.info('reading in stim: {}'.format(self.stimuli))
@@ -35,6 +36,7 @@ class BayesOptimizer(Actor):
         self.d = self.stimuli.shape[0]
         self.initial_length = self.stimuli_space.initial_stim_count
         logger.info('Stimuli info: Num of Stimuli Parameters: {}, Num of Initial Stim: {}'.format(self.d, self.initial_length))
+        logger.info("Stim space specification: {}".format(self.stim_space))
 
         # -----------------------------------------------------------------------------
 
@@ -46,7 +48,6 @@ class BayesOptimizer(Actor):
         self.maxT = self.init_params['General']['max_tests']
 
         self.config = Config(self.param_file)
-
         self.stim_choice = self.config.stim_choice
         self.GP_stimuli = self.config.exs
 
@@ -62,6 +63,12 @@ class BayesOptimizer(Actor):
 
         self.stim_star = x_star.reshape(-1, self.d)
         logger.info('stim_star: {}'.format(self.stim_star))
+
+        # before proceeding, check if dimensions (in gen_stim & bayesopt.yaml) matched
+        stimuli_length = [len(i) for i in self.stimuli]
+        if len(self.stimuli) != len(self.stim_choice) or stimuli_length != self.stim_choice:
+            # logger.error("MISMATCH DIMENSION!!! STIM LENGTH FROM YAML {}; VS FROM StimulusSpace {}".format(self.stim_choice, stimuli_length))
+            raise ValueError(f"MISMATCH DIMENSION!!! Expect {stimuli_length} from StimulusSpace, got {self.stim_choice} from yaml")
 
         self.X0 = np.zeros((self.d, init_T))
         self.X = self.X0.copy()
@@ -146,16 +153,18 @@ class BayesOptimizer(Actor):
             # internally counts to make sure that we only send correct number of initial stim
             flag = False
             if self.stim_ind is None:
-                self.stim_ind = self.stim_space['initial_stim'][self.counter]
+                logger.info("what is the current counter: {}".format(self.counter))
+                self.stim_ind = self.stim_space['initial_stim'][self.counter-1] ## FIXME: counter started with 1 (somehow)
                 # self.stim_ind, flag = self.stimuli_space.initial_stim(self.stimuli, self.counter)
 
             if (time.time() - self.timer) >= self.total_stim_time:
                 self.links['stim_ind_out'].put(self.stim_ind)
                 self.stim_ind = None
-                self.counter += 1
+                self.counter += 1  # FIXME: counter started with 1 (somehow)
+                # logger.info("self.counter just added by 1!")
                 self.timer = time.time()
             
-            if self.counter >= self.stimuli_space.initial_stim_count:
+            if self.counter-1 >= self.stimuli_space.initial_stim_count:  # FIXME: counter started with 1 (somehow)
                 flag = True
             
             if flag:

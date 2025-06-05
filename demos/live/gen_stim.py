@@ -1,12 +1,12 @@
 import numpy as np
 from itertools import product
 import random
+import logging; logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 class StimulusSpace():
     def __init__(self): 
 
-        # x1 = np.array([0, 45, 90, 135, 180, 225, 270, 315]) #np.arange(0, 331, 30)
-        x1 = np.array([0, 90, 180, 270])
         # x1 = np.array([0, 45, 90, 135, 180, 225, 270, 315]) #np.arange(0, 331, 30)
         x1 = np.array([0, 90, 180, 270, 360])
         x2 = np.array([0.02, 0.04, 0.06, 0.08, 0.10, 0.12]) 
@@ -22,9 +22,10 @@ class StimulusSpace():
 
         labels = ['angle', 'vel', 'size', 'frequency']
         stim = np.array([x1, x2, x3, x4], dtype=object)
+        # logger.info("what is stim: {}".format(stim))
 
         ## 
-        self.initial_stim_count = 10
+        self.initial_stim_count = 8
         initial_stim = self.initial_stim(stim, initial_type='baseline')
 
         total_stim_time = 10 # duration of stimuli (in sec)
@@ -37,29 +38,24 @@ class StimulusSpace():
         }
 
     def initial_stim(self, stim, initial_type):
-
+        initial_stim = []
         np.random.seed(42)
         if initial_type == 'baseline':
-            # This initial stim set will only be varying 1st param (directionality (angle))
-            initial_stim = []
-            np.random.seed(42)
-            shuffled_stim_0 = stim[0].copy()
-            np.random.shuffle(shuffled_stim_0)
-            shuffled_stim_0_idx = [np.where(stim[0] == value)[0][0] for value in shuffled_stim_0]
-
+            scramle_dim1_param = stim[0].copy()
+            np.random.shuffle(scramle_dim1_param)
+            scramle_dim1_idx = [np.where(stim[0] == value)[0][0] for value in scramle_dim1_param]
             for i in range(self.initial_stim_count):
-                idx = i % len(shuffled_stim_0_idx)
-                initial_stim.append([shuffled_stim_0_idx[idx], 0, 1,0])
-            # initial_stim = [[i, 0, 1, 0] for i in shuffled_stim_0_idx]
+                idx = i % len(scramle_dim1_idx)
+                initial_stim.append([scramle_dim1_idx[idx], 0, 1, 0])
+            # initial_stim = [[i, 0, 1, 0] for i in scramle_dim1_idx]
             
         else:
-            # This initial stim set will varying all parameters 
             shuffled_stim_list = [x.copy() for x in stim.tolist()]
-            np.random.seed(42)
+            # np.random.seed(42)
             for x in shuffled_stim_list:
                 np.random.shuffle(x)
         
-            initial_stim = []
+            # initial_stim = []
             for i in range(self.initial_stim_count):
                 ind = []
                 for shuffle, original in zip(shuffled_stim_list, stim.tolist()):

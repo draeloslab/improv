@@ -105,8 +105,6 @@ class VisualStimulus(Actor):
             #             }
 
             text = {'texture_size': 1600,
-                        'frequency': 1,
-                        'center_x': 850,
                         'frequency': int(self.frequency),
                         'center_x': 900,
                         'center_y': 1000,
@@ -162,7 +160,7 @@ class VisualStimulus(Actor):
     def create_frame(self, params):
         # self.params = params
         stat_t = 0
-        stim_t = stat_t + self.total_stim_time #15
+        stim_t = stat_t + self.total_stim_time 
 
         self.size = params[2]
         self.frequency = params[3]
