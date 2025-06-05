@@ -283,7 +283,6 @@ class ZMQAcquirer(Actor):
             # print(msg)  
         elif 'motionOn' in category:
             self.stim_count += 1
-            logger.info('inside acquire categories block ----- ')
             ## visual stim with Matt
             # angle2 = None
             # angle, angle2 = make_tuple(msg_dict['angle'])
