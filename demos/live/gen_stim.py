@@ -5,7 +5,8 @@ import random
 class StimulusSpace():
     def __init__(self): 
 
-        x1 = np.array([0, 45, 90, 135, 180, 225, 270, 315]) #np.arange(0, 331, 30)
+        # x1 = np.array([0, 45, 90, 135, 180, 225, 270, 315]) #np.arange(0, 331, 30)
+        x1 = np.array([0, 90, 180, 270])
         x2 = np.array([0.02, 0.04, 0.06, 0.08, 0.10, 0.12]) 
         x3 = np.array([50, 137, 225, 312, 400])
         x4 = np.array([1, 3, 10, 20])
@@ -37,10 +38,20 @@ class StimulusSpace():
 
         np.random.seed(42)
         if initial_type == 'baseline':
-            np.random.shuffle(stim[0])
-            initial_stim = [[i, 0, 1, 0] for i in range(len(stim[0]))]
+            # This initial stim set will only be varying 1st param (directionality (angle))
+            initial_stim = []
+            np.random.seed(42)
+            shuffled_stim_0 = stim[0].copy()
+            np.random.shuffle(shuffled_stim_0)
+            shuffled_stim_0_idx = [np.where(stim[0] == value)[0][0] for value in shuffled_stim_0]
+
+            for i in range(self.initial_stim_count):
+                idx = i % len(shuffled_stim_0_idx)
+                initial_stim.append([shuffled_stim_0_idx[idx], 0, 1,0])
+            # initial_stim = [[i, 0, 1, 0] for i in shuffled_stim_0_idx]
             
         else:
+            # This initial stim set will varying all parameters 
             shuffled_stim_list = [x.copy() for x in stim.tolist()]
             np.random.seed(42)
             for x in shuffled_stim_list:
