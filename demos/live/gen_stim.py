@@ -7,6 +7,8 @@ class StimulusSpace():
 
         # x1 = np.array([0, 45, 90, 135, 180, 225, 270, 315]) #np.arange(0, 331, 30)
         x1 = np.array([0, 90, 180, 270])
+        # x1 = np.array([0, 45, 90, 135, 180, 225, 270, 315]) #np.arange(0, 331, 30)
+        x1 = np.array([0, 90, 180, 270, 360])
         x2 = np.array([0.02, 0.04, 0.06, 0.08, 0.10, 0.12]) 
         x3 = np.array([50, 137, 225, 312, 400])
         x4 = np.array([1, 3, 10, 20])
@@ -22,7 +24,7 @@ class StimulusSpace():
         stim = np.array([x1, x2, x3, x4], dtype=object)
 
         ## 
-        self.initial_stim_count = 8
+        self.initial_stim_count = 10
         initial_stim = self.initial_stim(stim, initial_type='baseline')
 
         total_stim_time = 10 # duration of stimuli (in sec)

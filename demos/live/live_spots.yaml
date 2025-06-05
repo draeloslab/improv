@@ -26,10 +26,10 @@ actors:
     init_frame: 60
     
   Stimulus:
-    package: actors.stimulus #_multi
+    package: actors.stimulus 
     class: VisualStimulus
     ip: '*'
-    port: 5006 
+    port: 5006
     stimuli: stimuli.npy
     # consider adding stimulus details like (stationary time, duration, hold after)
 
@@ -48,7 +48,7 @@ actors:
     class: VizStimAnalysis
     stimuli: stimuli.npy
     before_amount: 5
-    after_amount: 10
+    after_amount: 50
 
   Optimizer:
     package: actors.optimizer
