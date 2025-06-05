@@ -41,7 +41,7 @@ class ZMQAcquirer(Actor):
         for port in self.ports:
             self.socket.connect("tcp://"+str(self.ip)+":"+str(port))
             logger.info('Connected to '+str(self.ip)+':'+str(port))
-        self.socket.connect("tcp://localhost:5010")
+        self.socket.connect("tcp://localhost:6010")
         # logger.info('Connected to '+str(self.ip)+':'+str(port))
         self.socket.setsockopt(zmq.SUBSCRIBE, b'')
 

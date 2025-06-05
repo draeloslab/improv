@@ -29,7 +29,7 @@ actors:
     package: actors.stimulus 
     class: VisualStimulus
     ip: '*'
-    port: 5006
+    port: 6006
     stimuli: stimuli.npy
     # consider adding stimulus details like (stationary time, duration, hold after)
 
