@@ -20,7 +20,8 @@ class VizStimAnalysis(Actor):
         # self.stimuli = np.load(stimuli, allow_pickle=True)
         self.stimuli_space = StimulusSpace()
         self.stim_space = self.stimuli_space.stim_space
-        self.stimuli = np.array([np.sort(stim) for stim in self.stim_space['stimuli']], dtype=object)
+        # self.stimuli = np.array([np.sort(stim) for stim in self.stim_space['stimuli']], dtype=object)
+        self.stimuli = self.stim_space['stimuli']
         # logger.info('reading in stim: {}'.format(self.stimuli))
 
 

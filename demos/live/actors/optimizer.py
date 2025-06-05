@@ -29,8 +29,8 @@ class BayesOptimizer(Actor):
         self.stimuli_space = StimulusSpace()
         self.stim_space = self.stimuli_space.stim_space
         # logger.info("what is stimuli_space {}; what is stim_space {}".format(self.stimuli_space, self.stim_space))
-        # self.stimuli = self.stim_space['stimuli']
-        self.stimuli = np.array([np.sort(stim) for stim in self.stim_space['stimuli']], dtype=object)
+        self.stimuli = self.stim_space['stimuli']
+        # self.stimuli = np.array([np.sort(stim) for stim in self.stim_space['stimuli']], dtype=object)
         # logger.info('reading in stim: {}'.format(self.stimuli))
         self.total_stim_time = self.stim_space['total_stim_time']
         self.d = self.stimuli.shape[0]

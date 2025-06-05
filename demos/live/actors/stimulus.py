@@ -31,7 +31,9 @@ class VisualStimulus(Actor):
         self.stimuli_space = StimulusSpace()
         self.stim_space = self.stimuli_space.stim_space
         # logger.info('stim: {}'.format(self.stim_space['stimuli']))
-        self.stimuli = np.array([np.sort(stim) for stim in self.stim_space['stimuli']], dtype=object)
+        # logger.info('reading in stim: {}'.format(self.stimuli))
+        self.stimuli = self.stim_space['stimuli']
+        # self.stimuli = np.array([np.sort(stim) for stim in self.stim_space['stimuli']], dtype=object)
         # logger.info('reading in stim: {}'.format(self.stimuli))
         self.total_stim_time = self.stim_space['total_stim_time']
         np.save('output/generated_stimuli.npy', self.stim_space['stimuli'])
@@ -106,7 +108,7 @@ class VisualStimulus(Actor):
 
             text = {'texture_size': 1600,
                         'frequency': int(self.frequency),
-                        'center_x': 900,
+                        'center_x': 850,
                         'center_y': 1000,
                         'width': int(self.size), 
                         'length': int(self.size),
@@ -178,7 +180,7 @@ class VisualStimulus(Actor):
         #             }
 
         stim = {
-                'stim_name': 'gray_ellipse',
+                'stim_name': 'gray_circle',
                 'angle': int(params[0]),
                 'velocity': params[1],
                 'stationary_time': stat_t,
