@@ -106,7 +106,7 @@ class VisualStimulus(Actor):
 
             text = {'texture_size': 1600,
                         'frequency': 1,
-                        'center_x': 800,
+                        'center_x': 850,
                         'center_y': 1000,
                         'width': 50, #int(self.size), 
                         'length': 50, #int(self.size),
