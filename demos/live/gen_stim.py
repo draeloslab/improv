@@ -29,12 +29,17 @@ class StimulusSpace():
         initial_stim = self.initial_stim(stim, initial_type='baseline')
 
         total_stim_time = 10 # duration of stimuli (in sec)
+        hold_after = 5 # hold after period  (in sec)
+        stationary_t = 0 # stationary time in the beginning (in sec)
+
         # put stimuli, labels, and initial stim in dictionary
         self.stim_space = {
             'stimuli': stim,
             'labels': labels,
             'initial_stim': initial_stim,
-            'total_stim_time': total_stim_time
+            'total_stim_time': total_stim_time,
+            'hold_after': hold_after,
+            'stat_t': stationary_t, 
         }
 
     def initial_stim(self, stim, initial_type):
