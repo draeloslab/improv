@@ -92,14 +92,6 @@ class ZMQAcquirer(Actor):
 
         # self.timerzz = time.time()
 
-        # ## reconnect socket
-        # self.socket.close()
-        # self.socket = context.socket(zmq.SUB)
-        # for port in self.ports:
-        #     self.socket.connect("tcp://"+str(self.ip)+":"+str(port))
-        #     print('RE-Connected to '+str(self.ip)+':'+str(port))
-        # self.socket.setsockopt(zmq.SUBSCRIBE, b'')
-
 
     def stop(self):
         logger.info('Acquire ZMQ stopping procedure --')
@@ -165,36 +157,6 @@ class ZMQAcquirer(Actor):
             # logger.info('Receiving microscope image--')
         except Exception as e:
             logger.info('error: {}'.format(e))
-
-        # try receiving pandastim message:
-        # try:
-        #     msg = self.socket.recv_multipart()
-        #     msg_dict, category = self._msg_unpacker(msg)
-        #     tag = 'stim'
-        #     # logger.info('Receiving stimuli information--')
-        # except:
-        #     pass
-        # logger.info('RECIEVING IMAGES ---------')
-        # logger.info('image message received (raw): {}'.format(msg))
-        # logger.info('msg type: {}'.format(type(msg)))
-        # try:
-        #     #NOTE: brucker_2pcontrol sends msg as dict, so no need to use msg_unpacker for this
-            
-        #     msg_dict = self._msg_unpacker(msg
-        #     # logger.info('inside try block - msg_dict')
-        #     tag = msg_dict['type'] 
-        # except Exception as e:
-        #     msg_dict = msg
-        #     logger.error('Weird format message {}'.format(e))
-        
-        # logger.info('tag: {}'.format(tag))
-        
-        # trying to visualize data
-         #np.array((np.array(message_data) - 0) / 1 * 255, np.uint8)
-        # logger.info('finalthing shape {}'.format(finalthing.shape))
-        # logger.info('finalthing: {}'.format(finalthing))
-        # plt.imshow("Microscope Image", finalthing)
-        # plt.show()
 
         if 'stim' in tag: 
             if not self.stimF:
@@ -291,30 +253,12 @@ class ZMQAcquirer(Actor):
             # logger.info("timerzz >>>>>>>>>>>>>>>>>>> 1 print something")
             self.stim_count += 1
             logger.info('inside acquire categories block ----- ')
-            ## visual stim with Matt
-            # angle2 = None
-            # angle, angle2 = make_tuple(msg_dict['angle'])
-            # if angle>=360:
-            #     angle-=360
-            # stim = self._realign_angle(angle)
-            # self.links['stim_queue'].put({self.frame_num:[stim, float(angle), float(angle2)]})
-            # self.stimmed.append([self.frame_num, stim, angle, angle2, time.time()])
-            # logger.info('Stimulus: {}, angle: {},{}, frame {}'.format(stim, angle, angle2, self.frame_num))
             if msg_dict['texture']['texture_name'] in ('sin_gray', 'sin_rgb', 'grating_gray', 'grating_rgb'):
                 angle = float(msg_dict['stimulus']['angle'])
                 vel = float(msg_dict['stimulus']['velocity'])
                 self.links['stim_queue'].put({self.frame_num:[angle, vel]})
                 # self.stimmed.append([self.frame_num, angle, vel])
                 logger.info('Stimulus: Moving gratings angle {} with velocity {} at frame {}'.format(angle, vel, self.frame_num))
-
-            ## spots stim with Karina
-            elif msg_dict['texture']['texture_name'] == 'gray_circle':
-                size = float(msg_dict['circle_radius'])
-                vel = float(msg_dict['velocity'])
-                self.links['stim_queue'].put({self.frame_num:[size, vel]})
-                # self.stimmed.append([self.frame_num, size, vel])
-                logger.info('Stimulus: Circle radius {} with velocity {} at frame {}'.format(size, vel, self.frame_num))
-            
             
             elif msg_dict['stimulus']['stim_name'] == 'gray_circle':
                 logger.info('Collecting stimulus ..... ')
@@ -343,7 +287,6 @@ class ZMQAcquirer(Actor):
                 else:
                     shape = int(1)
 
-                # logger.info('pstim message length received: {}'.format(length))
                 logger.info('sending stim queue')
                 self.links['stim_queue'].put({self.frame_num:[angle, vel, length, freq, center_x, center_y, shape]})
                 self.stimmed.append([self.frame_num, angle, vel, length, freq, center_x, center_y, shape])
@@ -366,19 +309,8 @@ class ZMQAcquirer(Actor):
         self.tailsendtimes.append([sendtime])
 
     def _msg_unpacker(self, msg):
-        # logger.info('keys: {}'.format(msg[::2]))
-        # logger.info('vals: {}'.format(msg[1::2]))
-        # keys = msg[::2]
-        # vals = msg[1::2]
-        
-        # msg_dict = {}
-        # for k, v in zip(keys, vals):
-        #     msg_dict[k.decode()] = v.decode()
-        
-        # logger.info('msg_dict inside msg_unpacker: {}'.format(msg_dict))
 
-        msg_unpacked = msg #pickle.loads(msg[0])
-        # logger.info('unpacked message: {}'.format(msg_unpacked))
+        msg_unpacked = msg 
 
         category = None
         if 'motionOn' in msg_unpacked:
@@ -389,7 +321,6 @@ class ZMQAcquirer(Actor):
             category = 'noStimChange'
         else:
             category = 'stimChange'
-        # logger.info('CATEGORY: {}'.format(category))
 
         if category == 'noStimChange':
             msg_dict = {}
@@ -400,13 +331,8 @@ class ZMQAcquirer(Actor):
             msg_str= msg_unpacked[start_idx:end_idx]
             msg_str = re.sub(r"np\.float64\(([^)]+)\)", r"\1", msg_str)
 
-            # logger.info('formatted message type: {}'.format(msg_str))
-        #     try:
             msg_dict = ast.literal_eval(msg_str)
-        #     except Esxception as e:
-        #         logger.error('ERROR: {}'.format(e))
 
-        # logger.info('msg_dict: {}'.format(msg_dict))
         return msg_dict, category
 
     def _realign_angle(self, angle):
