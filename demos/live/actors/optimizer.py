@@ -14,7 +14,7 @@ from datetime import datetime as dt
 from BayesOpt.model.config import Config
 from BayesOpt.model.optimizer import Optimizer
 
-from gen_stim import StimulusSpace
+from experiments.burgess.gen_stim import StimulusSpace
 # from gen_stim_calibrate import StimulusSpace
 
 import logging; logger = logging.getLogger(__name__)

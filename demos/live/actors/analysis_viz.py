@@ -10,7 +10,7 @@ import scipy
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-from gen_stim import StimulusSpace
+from experiments.burgess.gen_stim import StimulusSpace
 
 class VizStimAnalysis(Actor):
 
