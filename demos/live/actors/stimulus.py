@@ -36,6 +36,8 @@ class VisualStimulus(Actor):
         # self.stimuli = np.array([np.sort(stim) for stim in self.stim_space['stimuli']], dtype=object)
         # logger.info('reading in stim: {}'.format(self.stimuli))
         self.total_stim_time = self.stim_space['total_stim_time']
+        self.hold_after = self.stim_space['hold_after']
+        self.stat_t = self.stim_space['stat_t']
         np.save('output/generated_stimuli.npy', self.stim_space['stimuli'])
 
 
@@ -99,12 +101,6 @@ class VisualStimulus(Actor):
 
         if stim is not None:
 
-            # text = {'texture_size': 1600,
-            #             'circle_center': (865,955),
-            #             'circle_radius': 25,
-            #             'bg_intensity': 200,
-            #             'texture_name': 'calibration_dots',
-            #             }
 
             text = {'texture_size': 1600,
                         'frequency': int(self.frequency),
@@ -116,40 +112,9 @@ class VisualStimulus(Actor):
                         'bg_intensity': 200,
                         'fg_intensity': 50,
                         }
-
-            # text = {'texture_size': 1600,
-            #             'frequency': int(self.frequency),
-            #             'center_x': 800,
-            #             'center_y': 1000,
-            #             'width': int(self.size), #int(self.size), 
-            #             'length': int(self.size), #int(self.size),
-            #             'texture_name': 'gray_ellipse',
-            #             'bg_intensity': 200,
-            #             'fg_intensity': 50,
-            #             }
-
-            # if self.shape == 0:
-            #     text = {'texture_size': 1600,
-            #             'frequency': int(self.frequency),
-            #             'center_x': int(self.x_pos),
-            #             'center_y': int(self.y_pos),
-            #             'width': int(self.size), #int(self.size), 
-            #             'length': int(self.size), #int(self.size),
-            #             'texture_name': 'gray_ellipse',
-            #             'bg_intensity': 200,
-            #             'fg_intensity': 50,
-            #             }
-            # else:
-            #     text = {'texture_size': 1600,
-            #             'frequency': int(5),
-            #             'texture_name': 'grating_gray',
-            #             'light_value': 200,
-            #             'dark_value': 50,
-            #             }
-
                 
             stimulus = {'stimulus': stim, 'texture': text}
-            # logger.info('Stimuli requested: {}'.format(stimulus))
+            
             # TODO: add timestamp (includes time and stimulus request)
             self._socket.send_string(self.stimulus_topic, zmq.SNDMORE)
             self._socket.send_pyobj(stimulus)
@@ -160,9 +125,7 @@ class VisualStimulus(Actor):
             logger.error('Tried to send a None frame')
 
     def create_frame(self, params):
-        # self.params = params
-        stat_t = 0
-        stim_t = stat_t + self.total_stim_time 
+        stim_t = self. stat_t + self.total_stim_time 
 
         self.size = params[2]
         self.frequency = params[3]
@@ -170,22 +133,13 @@ class VisualStimulus(Actor):
         # self.y_pos = params[5]
         # self.shape = params[6]
 
-        # stim = {
-        #         'stim_name': 'gray_ellipse',
-        #         'angle': int(0),
-        #         'velocity': float(0),
-        #         'stationary_time': stat_t,
-        #         'duration': self.total_stim_time,
-        #         'hold_after': float(stim_t),
-        #             }
-
         stim = {
-                'stim_name': 'gray_circle',
+                'stim_name': 'gray_circle', # 'gray_ellipse'
                 'angle': int(params[0]),
                 'velocity': params[1],
-                'stationary_time': stat_t,
-                'duration': self.total_stim_time,  #TODO: make the hold time modular
-                'hold_after': float(stim_t-5),
+                'stationary_time': self.stat_t,
+                'duration': self.total_stim_time, 
+                'hold_after': float(stim_t-self.hold_after),
                     }
 
         self.timer = time.time()
