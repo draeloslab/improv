@@ -290,7 +290,7 @@ class ZMQAcquirer(Actor):
             # if time.time() - self.timerzz > 1:
             # logger.info("timerzz >>>>>>>>>>>>>>>>>>> 1 print something")
             self.stim_count += 1
-            logger.info('inside acquire categories block ----- ')
+            # logger.info('inside acquire categories block ----- ')
             ## visual stim with Matt
             # angle2 = None
             # angle, angle2 = make_tuple(msg_dict['angle'])

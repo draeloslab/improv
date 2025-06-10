@@ -6,7 +6,7 @@ General:
 
 Stimuli:
   d: 4
-  x1_range: 4 #8 #5
+  x1_range: 8 #8 #5
   x2_range: 6
   x3_range: 5
   x4_range: 4
@@ -20,5 +20,5 @@ Optimizer:
   eta: 5e-2
   optim_1:
     kernel: ['rbf', 'rbf', 'rbf', 'rbf']  
-    stopping_crit: 3e-4 
+    stopping_crit: 4e-4 #3e-4 
   

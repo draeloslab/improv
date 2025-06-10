@@ -69,7 +69,7 @@ class VisualStimulus(Actor):
         # np.savetxt('output/requested_stimuli.txt', self.requested_stim, fmt="%s")
 
         logger.info('Stimulus complete, avg time per frame: {}'.format(np.mean(self.total_times)))
-        logger.info('Stim got through {} frames'.format(self.frame_num))
+        # logger.info('Stim got through {} frames'.format(self.frame_num))
         
     def runStep(self):
         
@@ -77,7 +77,7 @@ class VisualStimulus(Actor):
         try: 
             t = time.time()
             indices = self.links['stim_ind_in'].get(timeout=0.0001)
-            logger.info('indices: {}'.format(indices))
+            # logger.info('indices: {}'.format(indices))
             parameters = self.stimuli_space.idx_to_param(indices) 
             logger.info('parameters: {}'.format(parameters))
             stim = self.create_frame(parameters)
@@ -101,11 +101,28 @@ class VisualStimulus(Actor):
 
         if stim is not None:
 
+            #NOTE: this is hardcoded for specific directions and their most visible "center" point on the visible grid (this will move to experiments folder)
+            if self.angle == 45:
+                center_x = 80
+                center_y = 1400
+            elif self.angle == 135:
+                center_x = 750
+                center_y = 1500
+            elif self.angle == 225:
+                center_x = 350
+                center_y = 1000
+            elif self.angle == 315:
+                center_x = 1400
+                center_y = 1500
+            else:
+                center_x = 850
+                center_y = 1000
+
 
             text = {'texture_size': 1600,
                         'frequency': int(self.frequency),
-                        'center_x': 850,
-                        'center_y': 1000,
+                        'center_x': center_x,
+                        'center_y': center_y,
                         'width': int(self.size), 
                         'length': int(self.size),
                         'texture_name': 'gray_ellipse',
@@ -127,6 +144,7 @@ class VisualStimulus(Actor):
     def create_frame(self, params):
         stim_t = self. stat_t + self.total_stim_time 
 
+        self.angle = int(params[0])
         self.size = params[2]
         self.frequency = params[3]
         # self.x_pos = params[4]
@@ -135,7 +153,7 @@ class VisualStimulus(Actor):
 
         stim = {
                 'stim_name': 'gray_circle', # 'gray_ellipse'
-                'angle': int(params[0]),
+                'angle': self.angle,
                 'velocity': params[1],
                 'stationary_time': self.stat_t,
                 'duration': self.total_stim_time, 

@@ -153,7 +153,7 @@ class BayesOptimizer(Actor):
             # internally counts to make sure that we only send correct number of initial stim
             flag = False
             if self.stim_ind is None:
-                logger.info("what is the current counter: {}".format(self.counter))
+                # logger.info("what is the current counter: {}".format(self.counter))
                 self.stim_ind = self.stim_space['initial_stim'][self.counter-1] ## FIXME: counter started with 1 (somehow)
                 # self.stim_ind, flag = self.stimuli_space.initial_stim(self.stimuli, self.counter)
 

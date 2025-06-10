@@ -7,8 +7,8 @@ logger.setLevel(logging.INFO)
 class StimulusSpace():
     def __init__(self): 
 
-        # x1 = np.array([0, 45, 90, 135, 180, 225, 270, 315]) #np.arange(0, 331, 30)
-        x1 = np.array([0, 90, 180, 270])
+        x1 = np.array([0, 45, 90, 135, 180, 225, 270, 315]) #np.arange(0, 331, 30)
+        # x1 = np.array([0, 90, 180, 270])
         x2 = np.array([0.02, 0.04, 0.06, 0.08, 0.10, 0.12]) 
         x3 = np.array([50, 137, 225, 312, 400])
         x4 = np.array([1, 3, 10, 20])
