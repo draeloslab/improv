@@ -220,7 +220,7 @@ class BayesOptimizer(Actor):
                 for i in range(self.d):
                     X[i] = self.GP_stimuli[i][int(self.X[i,-1])]
 
-                logger.info('optim {} , update GP with {}, {}'.format( self.nID, X, self.y0[self.nID, -1]))
+                logger.info('optim {} (test: {}), update GP with {}, {}'.format(self.nID, self.test_count, X, self.y0[self.nID, -1]))
                 self.optim.update_GP(np.squeeze(X), self.y0[self.nID,-1])
 
                 curr_unc = np.diagonal(self.optim.sigma).reshape((self.stim_choice))

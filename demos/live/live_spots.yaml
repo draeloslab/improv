@@ -31,7 +31,6 @@ actors:
     ip: '*'
     port: 6006
     stimuli: stimuli.npy
-    # consider adding stimulus details like (stationary time, duration, hold after)
 
   Processor:
     package: actors.caiman_processor
@@ -44,7 +43,7 @@ actors:
     class: CaimanVisualStim
     
   Analysis:
-    package: actors.analysis_viz #_multi
+    package: actors.analysis_viz 
     class: VizStimAnalysis
     stimuli: stimuli.npy
     before_amount: 5
@@ -54,15 +53,6 @@ actors:
     package: actors.optimizer
     class: BayesOptimizer #RandomSampler 
     param_file: bayesopt_parameters.yaml
-    
-
-# connections:
-#   Acquirer.q_out: [Processor.q_in, Visual.raw_frame_queue]
-#   Processor.q_out: [Analysis.q_in]
-#   Analysis.q_out: [Visual.q_in]
-#   Acquirer.stim_queue: [Analysis.input_stim_queue, Visual.stim_in]
-#   Analysis.stim_out: [Stimulus.q_in] 
-#   Stimulus.q_out: [Visual.optim_in]
 
 connections:
   Acquirer.q_out: [Processor.q_in, Visual.raw_frame_queue]
@@ -70,7 +60,7 @@ connections:
   Analysis.q_out: [Visual.q_in]
   Acquirer.stim_queue: [Analysis.input_stim_queue, Visual.stim_in]
   Analysis.stim_out: [Optimizer.q_in] 
-  Optimizer.stim_ind_out: [Stimulus.stim_ind_in] # this link is for sending next stim index
+  Optimizer.stim_ind_out: [Stimulus.stim_ind_in]
   Optimizer.q_out: [Visual.optim_in]
 
 redis_config:
