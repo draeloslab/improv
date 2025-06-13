@@ -6,6 +6,7 @@ import time
 import cv2
 import colorsys
 import scipy
+import pickle
 
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -111,6 +112,9 @@ class VizStimAnalysis(Actor):
         np.savetxt('output/timing/analysis_timestamp.txt', np.array(self.timestamp))
         np.savetxt('output/analysis_estsAvg.txt', np.array(self.estsAvg))
         np.savetxt('output/analysis_proc_S.txt', np.array(self.S))
+
+        with open("output/analysis_stimY.pkl", 'wb') as f:
+            pickle.dump(self.stimY, f)
         
         stim = []
         for i in self.allStims.keys():
