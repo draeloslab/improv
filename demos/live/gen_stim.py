@@ -12,6 +12,7 @@ class StimulusSpace():
         x2 = np.array([0.02, 0.04, 0.06, 0.08, 0.10, 0.12]) 
         x3 = np.array([50, 137, 225, 312, 400])
         x4 = np.array([1, 3, 10, 20])
+        x5 = np.array([0, 50, 100])
 
         # x3 = np.arange(405,1525,100)
         # x4 = np.arange(625,1285,100)
@@ -20,8 +21,8 @@ class StimulusSpace():
         # x8 = np.linspace(1,120, num=12).astype(int)
         # stim_list = [x1, x2, x3, x4]
 
-        labels = ['angle', 'vel', 'size', 'frequency']
-        stim = np.array([x1, x2, x3, x4], dtype=object)
+        labels = ['angle', 'vel', 'size', 'frequency', 'contrast']
+        stim = np.array([x1, x2, x3, x4, x5], dtype=object)
         # logger.info("what is stim: {}".format(stim))
 
         ## 
@@ -51,7 +52,8 @@ class StimulusSpace():
             scramle_dim1_idx = [np.where(stim[0] == value)[0][0] for value in scramle_dim1_param]
             for i in range(self.initial_stim_count):
                 idx = i % len(scramle_dim1_idx)
-                initial_stim.append([scramle_dim1_idx[idx], 0, 1, 0])
+                idx1 = i % len(stim[4])
+                initial_stim.append([scramle_dim1_idx[idx], 0, 1, 0, idx1])
             # initial_stim = [[i, 0, 1, 0] for i in scramle_dim1_idx]
             
         else:

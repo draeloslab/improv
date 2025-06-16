@@ -127,7 +127,7 @@ class VisualStimulus(Actor):
                         'length': int(self.size),
                         'texture_name': 'gray_ellipse',
                         'bg_intensity': 200,
-                        'fg_intensity': 50,
+                        'fg_intensity': int(self.contrast),
                         }
                 
             stimulus = {'stimulus': stim, 'texture': text}
@@ -147,6 +147,7 @@ class VisualStimulus(Actor):
         self.angle = int(params[0])
         self.size = params[2]
         self.frequency = params[3]
+        self.contrast = params[4]
         # self.x_pos = params[4]
         # self.y_pos = params[5]
         # self.shape = params[6]
