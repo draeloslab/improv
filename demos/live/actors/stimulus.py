@@ -80,6 +80,7 @@ class VisualStimulus(Actor):
             # logger.info('indices: {}'.format(indices))
             parameters = self.stimuli_space.idx_to_param(indices) 
             logger.info('parameters: {}'.format(parameters))
+
             stim = self.create_frame(parameters)
 
             self.send_frame(stim)
@@ -131,6 +132,7 @@ class VisualStimulus(Actor):
                         }
                 
             stimulus = {'stimulus': stim, 'texture': text}
+            logger.info('stimulus: {}'.format(stimulus))
             
             # TODO: add timestamp (includes time and stimulus request)
             self._socket.send_string(self.stimulus_topic, zmq.SNDMORE)
@@ -141,21 +143,30 @@ class VisualStimulus(Actor):
         else:
             logger.error('Tried to send a None frame')
 
-    def create_frame(self, params):
+    def create_frame(self, parameters):
         stim_t = self. stat_t + self.total_stim_time 
 
-        self.angle = int(params[0])
-        self.size = params[2]
-        self.frequency = params[3]
-        self.contrast = params[4]
-        # self.x_pos = params[4]
-        # self.y_pos = params[5]
-        # self.shape = params[6]
+        # NOTE: this is creating self.<param> based on the labels defined in gen_stim
+        for label, param in zip(self.stim_space['labels'], parameters):
+                setattr(self, label, param)
+
+        # NOTE: this is a hardcoded param dict mapping for default values, in case the parameters aren't predefined (hopefully can get rid of later)
+        # This allows for some flexibility when adding/removing parameters in gen_stim
+        default_params = {
+            'angle': 45, 
+            'velocity': 0.02,
+            'size': 50, 
+            'frequency': 1, 
+            'contrast': 50
+        }
+        for key, default_param in default_params.items():
+            if not hasattr(self, key):
+                setattr(self, key, default_param)
 
         stim = {
                 'stim_name': 'gray_circle', # 'gray_ellipse'
-                'angle': self.angle,
-                'velocity': params[1],
+                'angle': int(self.angle),
+                'velocity': self.velocity,
                 'stationary_time': self.stat_t,
                 'duration': self.total_stim_time, 
                 'hold_after': float(stim_t-self.hold_after),
