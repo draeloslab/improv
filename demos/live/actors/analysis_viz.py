@@ -69,10 +69,10 @@ class VizStimAnalysis(Actor):
         self.xs = {}
         for i, label in enumerate(self.stim_space['labels']):
             stim = self.stimuli[i]
-            logger.info('stimuli: {}'.format(self.stimuli[i]))
+            # logger.info('stimuli: {}'.format(self.stimuli[i]))
             param = f'x_{label}'
             setattr(self, param, stim)
-            logger.info('params: {}'.format(getattr(self, param, stim)))
+            # logger.info('params: {}'.format(getattr(self, param, stim)))
             # self.x_stim.append(stim)
             self.counters[label] = np.ones((stim.shape[0], 2))
             self.ys[label] = np.zeros((1, stim.shape[0], 2))
