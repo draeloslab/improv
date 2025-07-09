@@ -301,7 +301,11 @@ class RandomSampler(Actor):
             x_star[...,i] = xs[i]
 
         self.stim_star = x_star.reshape(-1, self.d)
-        logger.info('stim_star: {}'.format(self.stim_star))
+        logger.info('stim_star: {} - shape: {}'.format(self.stim_star, self.stim_star.shape))
+
+        # self.stim_star_flat = self.stim_star.flatten()
+        # np.random.shuffle(self.stim_star_flat)
+        # logger.info('shuffling a flattened stim_star of shape {}'.format(self.stim_star_flat, self.stim_star_flat.shape))
 
         self.total_times = []
 
@@ -320,40 +324,6 @@ class RandomSampler(Actor):
 
     def runStep(self):
         t = time.time()
-        # Listening to the analysis actor (currently commented out for RandomSampler)
-        # try:
-        #     ids = self.q_in.get(timeout=0.0001)
-
-        #     # X, Y, stim, _ = self.client.get(ids)
-        #     X = self.client.get(ids[0])
-        #     Y = self.client.get(ids[1])
-        #     # frame_num = self.client.get(ids[2]) # maybe (sometimes this try block "fails" and so the frame num isn't recorded?)
-
-        #     # logger.info('X, Y: {}, {}'.format(X, Y))
-
-        #     tmpX = np.squeeze(np.array(X)).T
-        #     # logger.info(f'{tmpX.shape}, {len(Y)}----------------------------------------------------')
-        #     sh = len(tmpX.shape)
-        #     if sh > 1:
-        #         self.X = tmpX.copy()
-        #         if tmpX.shape[1] > 4:
-        #             self.X = tmpX[:, -tmpX.shape[1]:]
-        #         # print('self.X DIRECT from analysis is ', X, 'and self.X is ', self.X[:,-1])
-        #     # print(self.X)
-
-        #     try:
-        #         b = np.zeros([len(Y),len(max(Y,key = lambda x: len(x)))])
-        #         for i,j in enumerate(Y):
-        #             b[i][:len(j)] = j
-        #         self.y0 = b.T
-        #     except:
-        #         pass
-            
-
-        # except Empty as e:
-        #     pass
-        # except Exception as e:
-        #     print('Error in optimizer get: {}'.format(e))
 
         if self.initial: 
             # displays initial stimulus 
@@ -381,9 +351,8 @@ class RandomSampler(Actor):
         elif self.newN:
             if self.stim_ind is None:
                 logger.info('random')
-                np.random.shuffle(self.stim_star)
                 grid = self.stim_star[self.counter]
-                
+
                 #FIXME: This is a manual method (need to fix to make it more flexible)
                 param0 = np.argwhere(int(grid[0]) == self.stimuli[0])[0][0]
                 param1 = np.argwhere(grid[1] == self.stimuli[1])[0][0]
@@ -391,6 +360,7 @@ class RandomSampler(Actor):
                 param3 = np.argwhere(int(grid[3]) == self.stimuli[3])[0][0]
 
                 self.stim_ind = [param0, param1, param2, param3]
+                logger.info('random stimulus indices chosen: {}'.format(self.stim_ind))
 
             if (time.time() - self.timer) >= self.total_stim_time:
                 self.links['stim_ind_out'].put(self.stim_ind)
