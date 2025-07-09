@@ -9,7 +9,7 @@ import random
 from itertools import product
 from datetime import datetime as dt
 
-from experiments.savier.gen_stim import StimulusSpace
+from gen_stim import StimulusSpace
 # from gen_stim_calibrate import StimulusSpace
 
 import logging; logger = logging.getLogger(__name__)
@@ -79,7 +79,7 @@ class VisualStimulus(Actor):
             indices = self.links['stim_ind_in'].get(timeout=0.0001)
             # logger.info('indices: {}'.format(indices))
             parameters = self.stimuli_space.idx_to_param(indices) 
-            logger.info('parameters: {}'.format(parameters))
+            # logger.info('parameters: {}'.format(parameters))
 
             stim = self.create_frame(parameters)
 
@@ -132,7 +132,7 @@ class VisualStimulus(Actor):
                         }
                 
             stimulus = {'stimulus': stim, 'texture': text}
-            logger.info('stimulus: {}'.format(stimulus))
+            # logger.info('stimulus: {}'.format(stimulus))
             
             # TODO: add timestamp (includes time and stimulus request)
             self._socket.send_string(self.stimulus_topic, zmq.SNDMORE)
