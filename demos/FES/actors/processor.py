@@ -4,11 +4,15 @@ import yaml
 import time
 import traceback
 import cv2
-from dlclive import DLCLive
+# from dlclive import DLCLive
 from pathlib import Path
 from improv.actor import Actor
 from collections import deque
 # from .dlcProcessor import IndexAngles
+# from deeplabcut.pose_estimation_pytorch import Task
+# from deeplabcut.pose_estimation_pytorch.apis.analyze_videos import video_inference
+from deeplabcut.pose_estimation_pytorch.config import read_config_as_dict
+from deeplabcut.pose_estimation_pytorch.apis.utils import get_inference_runners
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -46,14 +50,39 @@ class Processor(Actor):
             with open(f'{source_folder}/config.yaml', 'r') as file:
                 config = yaml.safe_load(file)
 
-            self.model_path = f'{source_folder}/DLCLive/' + config['model_path']
+
+            train_dir = Path("demos/FES/dlc-models-pytorch/iteration-2/manipulandum_pytorchMay13-trainset95shuffle1/train")
+            pytorch_config_path = train_dir / "pytorch_config.yaml"
+            snapshot_path = train_dir / "snapshot-best-010.pt"
+
+            # for top-down models, otherwise None
+            detector_snapshot_path = None
+
+            # video and inference parameters
+            max_num_animals = 1
+            batch_size = 16
+            detector_batch_size = 8
+
+            # read model configuration
+            model_cfg = read_config_as_dict(pytorch_config_path)
+
+            self.pose_runner, detector_runner = get_inference_runners(
+                model_config=model_cfg,
+                snapshot_path=snapshot_path,
+                max_individuals=max_num_animals,
+                batch_size=batch_size,
+                detector_batch_size=detector_batch_size,
+                detector_path=detector_snapshot_path,
+            )
+
+            # self.model_path = f'{source_folder}/DLCLive/' + config['model_path']
             self.resize = config['resize']
             self.name = "Processor"
             self.frame = None
             # dlc_proc = IndexAngles()
-            self.dlc_live = DLCLive(self.model_path, resize=self.resize, dynamic=(True, 0.9, 30))
-            frame = np.random.rand(1080, 1920, 3)
-            self.dlc_live.init_inference(frame)  # putting in a random frame to initialize the model
+            # self.dlc_live = DLCLive(self.model_path, resize=self.resize, dynamic=(True, 0.9, 30))
+            # frame = np.random.rand(1080, 1920, 3)
+            # self.dlc_live.init_inference(frame)  # putting in a random frame to initialize the model
             self.predictions = []
             self.latencies = []
             self.dlc_latencies = []
@@ -113,7 +142,9 @@ class Processor(Actor):
 
                 # Perform inference
                 dlc_start = time.perf_counter()
-                self.prediction = self.dlc_live.get_pose(frame)
+                # self.prediction = self.dlc_live.get_pose(frame)
+                self.prediction = self.pose_runner.inference([frame])
+
                 smoothed_prediction = np.zeros_like(self.prediction)
                 for i, point in enumerate(self.prediction):
                     x, y, likelihood = point
