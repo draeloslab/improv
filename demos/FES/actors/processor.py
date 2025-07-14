@@ -51,7 +51,7 @@ class Processor(Actor):
                 config = yaml.safe_load(file)
 
 
-            train_dir = Path("demos/FES/dlc-models-pytorch/iteration-2/manipulandum_pytorchMay13-trainset95shuffle1/train")
+            train_dir = Path("/home/chesteklab/improv/demos/FES/dlc-models-pytorch/iteration-2/manipulandum_pytorchMay13-trainset95shuffle1/train")
             pytorch_config_path = train_dir / "pytorch_config.yaml"
             snapshot_path = train_dir / "snapshot-best-010.pt"
 

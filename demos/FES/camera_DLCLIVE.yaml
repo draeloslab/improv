@@ -59,9 +59,9 @@ actors:
     class: Processor
     pred_active: False
 
-  Sender:
-    package: actors.sender
-    class: Sender
+  # Sender:
+  #   package: actors.sender
+  #   class: Sender
 
 connections:
   CameraReader0.q_out: [VideoSaver0.q_in, Processor0.q_in]
@@ -69,7 +69,7 @@ connections:
   CameraReader2.q_out: [VideoSaver2.q_in, Processor2.q_in]
   Processor0.q_out: [VideoScreen.preds0_in]
   Processor1.q_out: [VideoScreen.preds1_in]
-  Processor2.q_out: [VideoScreen.preds2_in, Sender.q_in]
+  Processor2.q_out: [VideoScreen.preds2_in] #, Sender.q_in]
 
 redis_config:
   port: 6379
