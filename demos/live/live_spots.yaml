@@ -48,6 +48,7 @@ actors:
     stimuli: stimuli.npy
     before_amount: 5
     after_amount: 50
+    calc_color: False
 
   Optimizer:
     package: actors.optimizer
@@ -63,5 +64,7 @@ connections:
   Optimizer.stim_ind_out: [Stimulus.stim_ind_in]
   Optimizer.q_out: [Visual.optim_in]
 
-redis_config:
-  port: 6379
+plasma_config:
+
+# redis_config:
+#   port: 6379
