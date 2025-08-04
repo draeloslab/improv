@@ -207,7 +207,8 @@ class VideoSaver(ManagedActor):
         logger.info(f"[Camera {self.camera_name}] waiting for camera saver thread to finish")
 
         # wait until the store thread has finished it's execution
-        self.store_frame_proc.join()     
+        if self.store_frame_proc.is_alive():
+            self.store_frame_proc.join()
         logger.info(f"[Camera {self.camera_name}] total frames received: {self.total_frames}")
         
         # start conversion

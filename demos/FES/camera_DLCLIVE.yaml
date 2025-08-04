@@ -15,10 +15,10 @@ actors:
     class: CameraReader
     camera_num: 0
 
-  CameraReader1:
-    package: actors.camera_reader
-    class: CameraReader
-    camera_num: 1
+  # CameraReader1:
+  #   package: actors.camera_reader
+  #   class: CameraReader
+  #   camera_num: 1
 
   CameraReader2:
     package: actors.camera_reader
@@ -32,11 +32,11 @@ actors:
     camera_num: 0
     method: spawn
 
-  VideoSaver1:
-    package: actors.video_saver_multiproc
-    class: VideoSaver
-    camera_num: 1
-    method: spawn
+  # VideoSaver1:
+  #   package: actors.video_saver_multiproc
+  #   class: VideoSaver
+  #   camera_num: 1
+  #   method: spawn
     
   VideoSaver2:
     package: actors.video_saver_multiproc
@@ -49,10 +49,10 @@ actors:
     class: Processor
     pred_active: True
 
-  Processor1:
-    package: actors.processor
-    class: Processor
-    pred_active: False
+  # Processor1:
+  #   package: actors.processor
+  #   class: Processor
+  #   pred_active: False
 
   Processor2:
     package: actors.processor
@@ -65,10 +65,10 @@ actors:
 
 connections:
   CameraReader0.q_out: [VideoSaver0.q_in, Processor0.q_in]
-  CameraReader1.q_out: [VideoSaver1.q_in, Processor1.q_in]
+  # CameraReader1.q_out: [VideoSaver1.q_in, Processor1.q_in]
   CameraReader2.q_out: [VideoSaver2.q_in, Processor2.q_in]
   Processor0.q_out: [VideoScreen.preds0_in]
-  Processor1.q_out: [VideoScreen.preds1_in]
+  # Processor1.q_out: [VideoScreen.preds1_in]
   Processor2.q_out: [VideoScreen.preds2_in] #, Sender.q_in]
 
 redis_config:

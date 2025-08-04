@@ -111,15 +111,21 @@ class CameraStreamWidget(QWidget):
             except Exception as e:
                 blank_frame = np.zeros((self.visual.frame_h, self.visual.frame_w, 3), dtype=np.uint8)
                 self.display_frame(blank_frame, None, self.camera_labels[camera_id], 0.0)
-                logger.error(f"Error updating frame for camera {camera_id}: {e}")
+                if camera_id == 0:  # Only log errors for camera 0 to reduce spam
+                    logger.error(f"Error updating frame for camera {camera_id}: {e}")
+                elif camera_id > 0:
+                    # Expected error for cameras 1 and 2 - no need to log as error
+                    pass
 
     def display_frame(self, frame, predictions, label, angle):
         """Convert frame to QImage, plot predictions if available, and display it in QLabel."""
         height, width, channel = frame.shape
         bytes_per_line = channel * width
         q_img = QImage(frame.data, width, height, bytes_per_line, QImage.Format_RGB888)
-        logger.info(f"PREDICTIONS: {predictions}")
+        
+        # Only log predictions when they are actually present to reduce log spam
         if predictions is not None:
+            logger.debug(f"PREDICTIONS: {predictions}")
             painter = QPainter()
             painter.begin(q_img)
             painter.setBrush(QBrush(QColor(255, 0, 0)))

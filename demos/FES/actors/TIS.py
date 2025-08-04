@@ -243,9 +243,11 @@ class TIS:
         self.pipeline.set_state(Gst.State.PAUSED)
         self.pipeline.set_state(Gst.State.READY)
 
-        recording_duration = stop_time - self.total_start_time
-
-        logger.info(f"[Camera {self.camera_name}] reader stopped. Total frames: {self.total_frame_count} - Recording duration: {recording_duration:.2f}s ({round(recording_duration/60,1)} min)")
+        if hasattr(self, 'total_start_time'):
+            recording_duration = stop_time - self.total_start_time
+            logger.info(f"[Camera {self.camera_name}] reader stopped. Total frames: {self.total_frame_count} - Recording duration: {recording_duration:.2f}s ({round(recording_duration/60,1)} min)")
+        else:
+            logger.info(f"[Camera {self.camera_name}] reader stopped. Total frames: {self.total_frame_count}")
 
     def get_source(self):
         '''

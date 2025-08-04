@@ -134,6 +134,7 @@ class Processor(Actor):
 
             if self.pred_active:
                 # retrieving the compressed frame from the storage
+                # frame = self.client.get(frame_id)
                 frame_enc = self.client.get(frame_id)
                 # uncompressing the frame
                 frame = cv2.imdecode(frame_enc, cv2.IMREAD_COLOR)
@@ -143,7 +144,13 @@ class Processor(Actor):
                 # Perform inference
                 dlc_start = time.perf_counter()
                 # self.prediction = self.dlc_live.get_pose(frame)
-                self.prediction = self.pose_runner.inference([frame])
+                raw_prediction = self.pose_runner.inference([frame])
+                logger.info(f"Raw prediction: {raw_prediction}")
+                
+                # Extract the bodyparts array from the prediction dictionary
+                # The format is [{'bodyparts': array([[[x, y, likelihood], ...]])}]
+                self.prediction = raw_prediction[0]['bodyparts'][0]  # Get the first (and only) frame's bodyparts
+                logger.info(f"Extracted prediction shape: {self.prediction.shape}")
 
                 smoothed_prediction = np.zeros_like(self.prediction)
                 for i, point in enumerate(self.prediction):
@@ -167,7 +174,12 @@ class Processor(Actor):
 
                 self.predictions.append(smoothed_prediction) #TODO might want to also store the raw prediction
 
-                angle = self.calculateAngle(smoothed_prediction)
+                # Only calculate angle if we have at least 3 bodyparts
+                if len(smoothed_prediction) >= 3:
+                    angle = self.calculateAngle(smoothed_prediction)
+                else:
+                    angle = None
+                    logger.warning(f"Not enough bodyparts for angle calculation. Got {len(smoothed_prediction)}, need 3.")
 
                 # logger.info(f"Angle: {angle}") 
                 dlc_end = time.perf_counter()
@@ -192,7 +204,7 @@ class Processor(Actor):
 
             try:
                 self.q_out.put([frame_id,smoothed_prediction, angle])
-                # logger.info(f"Sent prediciton: {self.prediction} and angle: {angle} to the next actor")
+                logger.info(f"Sent frame_id: {frame_id}, predictions: {smoothed_prediction is not None}, angle: {angle} to video screen")
 
                 if self.pred_active:
                     self.put_latencies.append(time.perf_counter() - dlc_end)
@@ -203,6 +215,11 @@ class Processor(Actor):
 
 
     def calculateAngle(self,prediction):
+        # Check if we have at least 3 points
+        if len(prediction) < 3:
+            logger.error(f"Cannot calculate angle: need 3 points, got {len(prediction)}")
+            return None
+            
         p2, p3, p4 = prediction[0, :2], prediction[1, :2], prediction[2, :2]
         # Define vectors from point 3 to points 2 and 4
         v3_to_2 = p2 - p3
