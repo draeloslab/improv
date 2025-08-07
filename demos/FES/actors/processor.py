@@ -13,6 +13,7 @@ from collections import deque
 # from deeplabcut.pose_estimation_pytorch.apis.analyze_videos import video_inference
 from deeplabcut.pose_estimation_pytorch.config import read_config_as_dict
 from deeplabcut.pose_estimation_pytorch.apis.utils import get_inference_runners
+from .kalmanfilter import KalmanFilterPredictor
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -73,6 +74,19 @@ class Processor(Actor):
                 batch_size=batch_size,
                 detector_batch_size=detector_batch_size,
                 detector_path=detector_snapshot_path,
+            )
+
+            # Initializing Kalman Filter with smoother parameters
+            self.kalman_filter = KalmanFilterPredictor(
+                adapt=True,
+                forward=0.002,
+                fps=30,  
+                nderiv=2,
+                priors=[10, 10],
+                initial_var=5,    
+                process_var=5,     
+                dlc_var=20,        
+                lik_thresh=0.5     
             )
 
             # self.model_path = f'{source_folder}/DLCLive/' + config['model_path']
@@ -142,35 +156,34 @@ class Processor(Actor):
                 self.frame_num += 1
 
                 # Perform inference
-                dlc_start = time.perf_counter()
+                dlc_start = time.time()
                 # self.prediction = self.dlc_live.get_pose(frame)
                 raw_prediction = self.pose_runner.inference([frame])
-                logger.info(f"Raw prediction: {raw_prediction}")
-                
                 # Extract the bodyparts array from the prediction dictionary
                 # The format is [{'bodyparts': array([[[x, y, likelihood], ...]])}]
                 self.prediction = raw_prediction[0]['bodyparts'][0]  # Get the first (and only) frame's bodyparts
-                logger.info(f"Extracted prediction shape: {self.prediction.shape}")
+                # smoothed_prediction = self.kalman_filter.process(self.prediction, frame_time=dlc_start)
+                smoothed_prediction = self.prediction
 
-                smoothed_prediction = np.zeros_like(self.prediction)
-                for i, point in enumerate(self.prediction):
-                    x, y, likelihood = point
-                    if self.recent_predictions[i] is None:
-                        self.recent_predictions[i] = (x,y)
+                # smoothed_prediction = np.zeros_like(self.prediction)
+                # for i, point in enumerate(self.prediction):
+                #     x, y, likelihood = point
+                #     if self.recent_predictions[i] is None:
+                #         self.recent_predictions[i] = (x,y)
 
-                    prev_x, prev_y = self.recent_predictions[i]
-                    ema_x = self.alpha * x + (1 - self.alpha) * prev_x
-                    ema_y = self.alpha * y + (1 - self.alpha) * prev_y
+                #     prev_x, prev_y = self.recent_predictions[i]
+                #     ema_x = self.alpha * x + (1 - self.alpha) * prev_x
+                #     ema_y = self.alpha * y + (1 - self.alpha) * prev_y
 
 
-                    self.recent_predictions[i] = (ema_x, ema_y)
-                    # Calculate the moving average for x and y
-                    # avg_x = np.mean([p[0] for p in self.recent_predictions[i]])
-                    # avg_y = np.mean([p[1] for p in self.recent_predictions[i]])
-                    smoothed_prediction[i, :2] = ema_x, ema_y
-                    smoothed_prediction[i, 2] = likelihood
-                    if likelihood < 0.3 and len(self.predictions) > 0:
-                        smoothed_prediction[i,:2] = self.predictions[-1][i,:2]
+                #     self.recent_predictions[i] = (ema_x, ema_y)
+                #     # Calculate the moving average for x and y
+                #     # avg_x = np.mean([p[0] for p in self.recent_predictions[i]])
+                #     # avg_y = np.mean([p[1] for p in self.recent_predictions[i]])
+                #     smoothed_prediction[i, :2] = ema_x, ema_y
+                #     smoothed_prediction[i, 2] = likelihood
+                #     if likelihood < 0.3 and len(self.predictions) > 0:
+                #         smoothed_prediction[i,:2] = self.predictions[-1][i,:2]
 
                 self.predictions.append(smoothed_prediction) #TODO might want to also store the raw prediction
 

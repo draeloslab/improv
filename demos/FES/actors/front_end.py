@@ -46,6 +46,9 @@ class CameraStreamWidget(QWidget):
             self.last_frame_ids = [None for _ in range(self.visual.num_cameras)]
             self.angles = [0]  # Store angles for live plotting
             self.recent_angles = deque(maxlen=5) #TODO make this a parameter
+            self.y_max = -np.inf  # Initialize y_max to negative infinity
+            self.y_min = np.inf  # Initialize y_min to positive infinity
+            self.predictions = None
             
 
             # Load the configuration file
@@ -88,6 +91,9 @@ class CameraStreamWidget(QWidget):
     def update_frames(self):
         """Update frames from each camera"""
         for camera_id in range(self.visual.num_cameras):
+            frame = None
+            predictions = None
+            angle = None
             try:
                 frame, predictions, angle = self.visual.getLastFrame(camera_id)
                 if frame is not None:
@@ -106,6 +112,10 @@ class CameraStreamWidget(QWidget):
                     self.angles.append(angle)
                     if len(self.angles) > 100:  # Limit to the latest 100 angles
                         self.angles.pop(0)
+                    if angle > self.y_max:
+                        self.y_max = angle
+                    if angle < self.y_min:
+                        self.y_min = angle
                     self.update_angle_plot()
                     
             except Exception as e:
@@ -113,6 +123,7 @@ class CameraStreamWidget(QWidget):
                 self.display_frame(blank_frame, None, self.camera_labels[camera_id], 0.0)
                 if camera_id == 0:  # Only log errors for camera 0 to reduce spam
                     logger.error(f"Error updating frame for camera {camera_id}: {e}")
+                    # pass
                 elif camera_id > 0:
                     # Expected error for cameras 1 and 2 - no need to log as error
                     pass
@@ -164,7 +175,7 @@ class CameraStreamWidget(QWidget):
         ax.set_title("Live Angle Plot")
         ax.set_xlabel("Frame")
         ax.set_ylabel("Angle (°)")
-        ax.set_ylim(0, 360)
+        ax.set_ylim(self.y_min-5, self.y_max+5)  # Set y-limits based on the angles
 
         # Convert Matplotlib figure to QImage
         canvas = FigureCanvasAgg(fig)

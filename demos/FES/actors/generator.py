@@ -64,14 +64,14 @@ class Generator(Actor):
             def resize_frame(frame, resize):
                 return cv2.resize(frame, (int(frame.shape[1] * resize), int(frame.shape[0] * resize)))
             self.frame = resize_frame(self.frame, self.resize)
-            logger.info(f'Frame : {(self.frame.shape)}')
-            logger.info(f'Client: {self.client}')
+            # logger.info(f'Frame : {(self.frame.shape)}')
+            # logger.info(f'Client: {self.client}')
 
             data_id = self.client.put(self.frame)
-            logger.info('Put data in store')
+            # logger.info('Put data in store')
             try:
                 self.q_out.put(data_id)
-                logger.info("Sent message on")
+                # logger.info("Sent message on")
 
             except Exception as e:
                 logger.error(f"--------------------------------Generator Exception: {e}")
