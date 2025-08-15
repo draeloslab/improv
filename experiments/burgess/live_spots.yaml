@@ -1,17 +1,17 @@
 actors:
   GUI:
-    package: actors.visual_viz_stim
+    package:  demos.live.actors.visual_viz_stim
     class: DisplayVisual
     visual: Visual
 
   # Microscope:
-  #   package: actors.load_disc
+  #   package:  demos.live.actors.load_disc
   #   class: FileAcquirer
   #   ip: '*'
   #   port: 5007
   #   output: output/
   #   init_filename: output/initialization.h5
-  #   filename: data/sample_stream0.h5 #data_032525_ds3.h5
+  #   filename: data/output_061825_ds4.h5 #sample_stream0.h5 #data_032525_ds3.h5
   #   init_frame: 60
   #   framerate: 15
 
@@ -33,17 +33,17 @@ actors:
     stimuli: stimuli.npy
 
   Processor:
-    package: actors.caiman_processor
+    package:  demos.live.actors.caiman_processor
     class: LiveTwoP
     init_filename: output/initialization.h5
     config_file: live_caiman_params.yaml
 
   Visual:
-    package: actors.visual_viz_stim
+    package:  demos.live.actors.visual_viz_stim
     class: CaimanVisualStim
     
   Analysis:
-    package: actors.analysis_viz 
+    package:  demos.live.actors.analysis_viz 
     class: VizStimAnalysis
     stimuli: stimuli.npy
     before_amount: 5
@@ -51,7 +51,7 @@ actors:
     calc_color: False
 
   Optimizer:
-    package: actors.optimizer
+    package:  demos.live.actors.optimizer
     class: BayesOptimizer #RandomSampler 
     param_file: bayesopt_parameters.yaml
 
@@ -64,7 +64,5 @@ connections:
   Optimizer.stim_ind_out: [Stimulus.stim_ind_in]
   Optimizer.q_out: [Visual.optim_in]
 
-plasma_config:
-
-# redis_config:
-#   port: 6379
+redis_config:
+  port: 6379
