@@ -72,8 +72,11 @@ class CameraReader(ManagedActor):
         logger.info(f'Device {self.camera_name} opened')
 
         # starting the camera pipeline
-        self.camera_interface.start_pipeline()
-        logger.info(f'Device {self.camera_name} pipeline started')
+        ret_sp = self.camera_interface.start_pipeline()
+        if ret_sp:
+            logger.info(f'Device {self.camera_name} pipeline started')
+        else:
+            logger.error(f'Device {self.camera_name} pipeline could not be started')
 
     def runStep(self):
         if not self.start_camera_read:
@@ -89,3 +92,4 @@ class CameraReader(ManagedActor):
 
         self.stop_program.value = True
         self.camera_interface.stop_pipeline()
+        logger.info(f"[Camera {self.camera_name}] - CameraReader stopped")   

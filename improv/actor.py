@@ -197,8 +197,11 @@ class ManagedActor(AbstractActor):
         self.actions["stop"] = self.stop
 
     def run(self):
-        with RunManager(self.name, self.actions, self.links):
-            pass
+        try:
+            with RunManager(self.name, self.actions, self.links):
+                pass
+        except:
+            logger.error(f'Actor {self.name} is no longer functional')
 
     def runStep(self):
         raise NotImplementedError
@@ -312,6 +315,10 @@ class RunManager:
                 break
             except Empty:
                 pass  # No signal from Nexus
+            except Exception: 
+                pass
+                #Exception as e:
+                # logger.error(f'Exception in actor RM {self.actorName}: {e}')
 
         return None
 

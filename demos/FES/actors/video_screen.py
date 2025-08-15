@@ -11,14 +11,30 @@ from pathlib import Path
 from improv.actor import ManagedActor, Actor, Signal
 from .front_end import CameraStreamWidget
 from PyQt5 import QtWidgets
+import os
+from collections import deque
+
+# Set Qt backend before any imports
+os.environ['QT_API'] = 'pyqt5'
+os.environ['MPLBACKEND'] = 'Qt5Agg'
+
+# Force matplotlib to use Qt5Agg backend before any Qt imports
+import matplotlib
+matplotlib.use('Qt5Agg')
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+
+from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QGridLayout
+from PyQt5.QtCore import QTimer, Qt
+from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen, QColor, QBrush, QFont
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 # Create a file handler
 log_file = "video_screen.log"
 file_handler = logging.FileHandler(log_file)
-file_handler.setLevel(logging.INFO)
+file_handler.setLevel(logging.DEBUG)
 
 # Create a formatter and set it for the handler
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -74,7 +90,7 @@ class VideoScreen(ManagedActor):
         self.frame_rate_update = 60 # Update rate for the video stream
         self.frame_i = self.frame_rate_update
         self.frame_latencies =[]
-        self.pred_latencies = []
+        # self.pred_latencies = []
         self.frame_count = 0
 
         timestamp = time.strftime("%Y%m%d-%H%M")
@@ -84,41 +100,69 @@ class VideoScreen(ManagedActor):
 
         logger.info(f"Video GUI setup completed")
 
+
     def getLastFrame(self, camera_id):
         frame_id = None
-        # predictions = None  # Initialize predictions with a default value
-        # angle = None
+        predictions = None  # Initialize predictions with a default value
+        angle = None
 
         # Clear the frame queue for the specific camera
-        while not self.links[f"preds{camera_id}_in"].empty():
-            self.links[f"preds{camera_id}_in"].get_nowait()
-
+        # while not self.links[f"preds{camera_id}_in"].empty():
+            #self.links[f"preds{camera_id}_in"].get_nowait()
+        frame_start = time.perf_counter()    
         try:
-            pred_start = time.time()
-
-            element = self.links[f"preds{camera_id}_in"].get(timeout=0.1)
-
-            frame_id = element[0]
-            predictions = element[1]
-            angle = element[2]
-            # logger.info(f'Angle received: {angle}')
-
+            frame_id = self.links[f"images{camera_id}_in"].get(timeout=0.01)
+            # frame_start = time.perf_counter()
             if frame_id is not None:
+                # frame = self.client.get(frame_id)
                 frame_enc = self.client.get(frame_id)
 
                 # uncompressing the frame
                 frame = cv2.imdecode(frame_enc, cv2.IMREAD_COLOR)
             else:
                 frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
-
-            self.pred_latencies.append(time.perf_counter() - pred_start)
-        except Exception as e:
+                logger.debug('Was unable to grab frame!')
+            # self.frame_latencies.append(time.perf_counter() - frame_start)
+        except queue.Empty:
+            frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
+            # logger.debug(f'No frame available for camera {camera_id}')
+        except KeyError:
+            frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
+            # logger.debug(f'No frame available for camera {camera_id}')
+        except Exception:
             # logger.error(f"Error getting frame for camera {camera_id}: {e}")
             # logger.info(len(self.frame_latencies))
             # logger.info(len(self.pred_latencies))
             # logger.info(f"error on {camera_id} [frame: {frame_id}]")
             frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
-            # logger.error(traceback.format_exc())
+            # logger.debug(f'Exception getting frame for camera {camera_id}: {traceback.format_exc()}')
+        self.frame_latencies.append(time.perf_counter() - frame_start)
+
+        try:
+            element = self.links[f"preds{camera_id}_in"].get(timeout=0.01)
+            # pred_start = time.perf_counter()
+
+            # element = self.links[f"preds{camera_id}_in"].get(timeout=0.1)
+
+            # frame_id = element[0]
+            predictions = element[0]
+            angle = element[1]
+            # logger.debug(f'Angle received: {angle}')
+
+            # self.pred_latencies.append(time.perf_counter() - pred_start)
+        except queue.Empty:
+            # logger.debug(f'No prediction available for camera {camera_id}')
+            pass
+        except KeyError:
+            pass
+        except Exception:
+            # logger.error(f"Error getting frame for camera {camera_id}: {e}")
+            # logger.info(len(self.frame_latencies))
+            # logger.info(len(self.pred_latencies))
+            # logger.info(f"error on {camera_id} [frame: {frame_id}]")
+            # frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
+            logger.debug(f'Unexpected error getting prediction for camera {camera_id}: {traceback.format_exc()}')
+            # pass
 
         return frame,predictions,angle
 
@@ -163,9 +207,14 @@ class VideoScreen(ManagedActor):
         pass
 
     def stop(self):
+        logger.info(f"{self.name}: Stopping Video GUI")
         self.stop_program = True
         # logger.info(f'End Frame length: {len(self.frame_latencies)}')
         # logger.info(f'end Pred Length: {len(self.pred_latencies)}')
-        np.save(self.out_folder / "vizframelatencies.npy", self.frame_latencies)
-        np.save(self.out_folder / "vizpredictionslatencies.npy", self.pred_latencies)
-        logger.info(f"Video GUI stopped")
+
+        # try:
+        #     np.save(self.out_folder / "vizframelatencies.npy", self.frame_latencies)
+        #     np.save(self.out_folder / "vizpredictionslatencies.npy", self.pred_latencies)
+        #     logger.info(f"{self.name}: Video GUI stopped")
+        # except Exception:
+        #     logger.info(f'Could not save latencies: {traceback.format_exc()}')

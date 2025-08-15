@@ -2,7 +2,7 @@ import sys
 import numpy as np
 import threading
 import queue  # Import the queue module
-from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QGridLayout
+from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QGridLayout, QMessageBox
 from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen, QColor, QBrush, QFont
 import cv2  # Import cv2 for image processing
@@ -186,3 +186,39 @@ class CameraStreamWidget(QWidget):
         # Display the plot image in the QLabel
         self.angle_plot_label.setPixmap(QPixmap.fromImage(plot_image))
         plt.close(fig)  # Close the figure to avoid memory leaks
+
+    # def closeEvent(self, event):
+    #     '''Clicked x/close on window
+    #         Add confirmation for closing without saving
+    #     '''
+    #     confirm = QMessageBox.question(self, 'Message', 'Quit without saving?',
+    #                 QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+    #     if confirm == QMessageBox.Yes:
+    #         self.comm.put(['quit'])
+    #         # print('Visual broke, avg time per frame: ', np.mean(self.visual.total_times, axis=0))
+    #         # print('Visual got through ', self.visual.frame_num, ' frames')
+    #         # # print('GUI avg time ', np.mean(self.total_times))
+    #         # np.savetxt('output/timing/visual_frame_time.txt', np.array(self.visual.total_times))
+    #         # np.savetxt('output/timing/gui_frame_time.txt', np.array(self.total_times))
+    #         # np.savetxt('output/timing/visual_timestamp.txt', np.array(self.visual.timestamp))
+    #         np.save(self.out_folder / "vizframelatencies.npy", self.frame_latencies)
+    #         np.save(self.out_folder / "vizpredictionslatencies.npy", self.pred_latencies)
+    #         logger.info("Closing CameraStreamWidget")
+    #         event.accept()
+    #     else: event.ignore()
+
+    def closeEvent(self, event):
+        '''Clicked x/close on window - save latencies before closing'''
+        logger.info("CameraStreamWidget closeEvent triggered")
+        
+        # Save latencies from the visual object
+        try:
+            np.save(self.visual.out_folder / "vizframelatencies.npy", self.visual.frame_latencies)
+            # np.save(self.visual.out_folder / "vizpredictionslatencies.npy", self.visual.pred_latencies)
+            logger.info(f"Saved frame latencies to {self.visual.out_folder / 'vizframelatencies.npy'}")     
+        except Exception as e:
+            logger.error(f'Could not save latencies: {traceback.format_exc()}')
+        
+        self.comm.put(['quit'])
+        logger.info("Closing CameraStreamWidget")
+        event.accept()

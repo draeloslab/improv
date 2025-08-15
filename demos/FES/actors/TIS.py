@@ -24,10 +24,13 @@ file_handler.setFormatter(formatter)
 # Add the handler to the logger
 logger.addHandler(file_handler)
 
+from pathlib import Path
+
+
 from gi.repository import GLib, Gst, Tcam
 
 # Needed packages:
-# pyhton-gst-1.0
+# python-gst-1.0
 # python-opencv
 # tiscamera (+ pip install pycairo PyGObject)
 
@@ -71,6 +74,14 @@ class TIS:
         # buffer processing management
         self.client = client
         self.q_out = q_out
+
+        self.camera_latencies = []
+
+        timestamp = time.strftime("%Y%m%d-%H%M")
+        self.out_folder = Path(f"/home/chesteklab/predictions/{timestamp}")
+        self.out_folder.mkdir(parents=True, exist_ok=True)
+        # logger.info(f"Output folder set to {self.out_folder}")
+        logger.info("Completed setup for TIS")
 
     def open_device(self, serial,
                     shared_frame,
@@ -199,6 +210,7 @@ class TIS:
             try:
                 data_id = self.client.put(frame_enc)
                 self.q_out.put(data_id)
+                # self.camera_latencies.append(time.perf_counter() - frame_time)
 
                 delay = time.perf_counter() - frame_time
 
@@ -222,6 +234,8 @@ class TIS:
                 self.max_delay = 0
                 self.frame_count = 0
                 self.start_time = time.perf_counter()
+        self.camera_latencies.append(time.perf_counter() - frame_time)
+            
         
         return Gst.FlowReturn.OK
 
@@ -248,6 +262,9 @@ class TIS:
             logger.info(f"[Camera {self.camera_name}] reader stopped. Total frames: {self.total_frame_count} - Recording duration: {recording_duration:.2f}s ({round(recording_duration/60,1)} min)")
         else:
             logger.info(f"[Camera {self.camera_name}] reader stopped. Total frames: {self.total_frame_count}")
+
+        np.save(self.out_folder / "TISlatencies.npy", self.camera_latencies)
+        logger.info("saved TIS latencies")
 
     def get_source(self):
         '''

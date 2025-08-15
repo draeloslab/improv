@@ -243,7 +243,7 @@ class VideoSaver(ManagedActor):
             video_proc = FFmpegWriter(self.output_video, inputdict=input_dict, outputdict=output_dict)
 
             while True:
-                frame = self.video_conv_queue.get()
+                frame = self.video_conv_queue.get(timeout=0.01)
 
                 if frame is None:
                     break        
@@ -253,7 +253,11 @@ class VideoSaver(ManagedActor):
             logger.error(f"[Camera {self.camera_name}] Error writing frame to video | {e}")
             saving_error = True
 
-        video_proc.close()
+        # if not saving_error:
+        try:
+            video_proc.close()
+        except Exception as e:
+            logger.error(f'Closing video proc FFMEG error likely due to no frames to save {e}')
 
         if not saving_error:
             # Delete binary files after successful video creation

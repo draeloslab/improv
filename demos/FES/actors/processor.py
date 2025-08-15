@@ -14,6 +14,7 @@ from collections import deque
 from deeplabcut.pose_estimation_pytorch.config import read_config_as_dict
 from deeplabcut.pose_estimation_pytorch.apis.utils import get_inference_runners
 from .kalmanfilter import KalmanFilterPredictor
+from improv.store import ObjectNotFoundError
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -99,9 +100,9 @@ class Processor(Actor):
             # self.dlc_live.init_inference(frame)  # putting in a random frame to initialize the model
             self.predictions = []
             self.latencies = []
-            self.dlc_latencies = []
-            self.grab_latencies = []
-            self.put_latencies = []            
+            # self.dlc_latencies = []
+            # self.grab_latencies = []
+            # self.put_latencies = []            
             self.time_start = time.perf_counter()
             self.frame_num = 0
             self.frame_sentTime = 0
@@ -123,108 +124,121 @@ class Processor(Actor):
             self.done = True
             np.save(self.out_folder / "latencies.npy", self.latencies)
             np.save(self.out_folder / "predictions.npy", self.predictions)
-            np.save(self.out_folder / "dlcLatencies.npy", self.dlc_latencies)
-            np.save(self.out_folder / "grabLatencies.npy", self.grab_latencies)
-            np.save(self.out_folder / "putLatencies.npy", self.put_latencies)
+            # np.save(self.out_folder / "dlcLatencies.npy", self.dlc_latencies)
+            # np.save(self.out_folder / "grabLatencies.npy", self.grab_latencies)
+            # np.save(self.out_folder / "putLatencies.npy", self.put_latencies)
             logger.info("Predictions and latencies saved")
-            logger.info("Processor stopping")
+        logger.info(f"Processor {self.name} stopped")
 
     def runStep(self):
         frame_id = None
         self.prediction = None
         angle = None
         smoothed_prediction = None
-
-        try:
-            frame_id = self.q_in.get()
+        # start_time = time.perf_counter()
+        if self.pred_active:
             start_time = time.perf_counter()
-            # logger.info(f"Frame Id received: {frame_id}")
-        except Exception as e:
-            logger.error(f"Could not get frame! {e}")
-            return
-
-        if frame_id is not None:
-            self.done = False
-
-            if self.pred_active:
-                # retrieving the compressed frame from the storage
-                # frame = self.client.get(frame_id)
-                frame_enc = self.client.get(frame_id)
-                # uncompressing the frame
-                frame = cv2.imdecode(frame_enc, cv2.IMREAD_COLOR)
-
-                self.frame_num += 1
-
-                # Perform inference
-                dlc_start = time.time()
-                # self.prediction = self.dlc_live.get_pose(frame)
-                raw_prediction = self.pose_runner.inference([frame])
-                # Extract the bodyparts array from the prediction dictionary
-                # The format is [{'bodyparts': array([[[x, y, likelihood], ...]])}]
-                self.prediction = raw_prediction[0]['bodyparts'][0]  # Get the first (and only) frame's bodyparts
-                # smoothed_prediction = self.kalman_filter.process(self.prediction, frame_time=dlc_start)
-                smoothed_prediction = self.prediction
-
-                # smoothed_prediction = np.zeros_like(self.prediction)
-                # for i, point in enumerate(self.prediction):
-                #     x, y, likelihood = point
-                #     if self.recent_predictions[i] is None:
-                #         self.recent_predictions[i] = (x,y)
-
-                #     prev_x, prev_y = self.recent_predictions[i]
-                #     ema_x = self.alpha * x + (1 - self.alpha) * prev_x
-                #     ema_y = self.alpha * y + (1 - self.alpha) * prev_y
-
-
-                #     self.recent_predictions[i] = (ema_x, ema_y)
-                #     # Calculate the moving average for x and y
-                #     # avg_x = np.mean([p[0] for p in self.recent_predictions[i]])
-                #     # avg_y = np.mean([p[1] for p in self.recent_predictions[i]])
-                #     smoothed_prediction[i, :2] = ema_x, ema_y
-                #     smoothed_prediction[i, 2] = likelihood
-                #     if likelihood < 0.3 and len(self.predictions) > 0:
-                #         smoothed_prediction[i,:2] = self.predictions[-1][i,:2]
-
-                self.predictions.append(smoothed_prediction) #TODO might want to also store the raw prediction
-
-                # Only calculate angle if we have at least 3 bodyparts
-                if len(smoothed_prediction) >= 3:
-                    angle = self.calculateAngle(smoothed_prediction)
-                else:
-                    angle = None
-                    logger.warning(f"Not enough bodyparts for angle calculation. Got {len(smoothed_prediction)}, need 3.")
-
-                # logger.info(f"Angle: {angle}") 
-                dlc_end = time.perf_counter()
-
-                self.dlc_latencies.append(dlc_end - dlc_start)
-                self.grab_latencies.append(dlc_end - start_time)
-
-                if self.frame_num % self.frames_log == 0:
-                    total_time = dlc_end - self.time_start                    
-
-                    logger.info(f"Frame number: {self.frame_num}")
-                    # logger.info(f"Prediction: {prediction}")
-                    logger.info(f"Overall Average FPS: {round(self.frames_log / total_time,2)}")
-                    logger.info(f'Camera Grab Time Avg latency: {np.mean(self.grab_latencies)}')
-                    logger.info(f'Pure DLC Inference Time Avg latency: {np.mean(self.dlc_latencies)}')
-                    logger.info(f'Put Time Avg latency: {np.mean(self.put_latencies)}')
-
-                    self.time_start = time.perf_counter() # reset the timer
-
-                # logger.info(f'sent on this frame{frame}')
-                # logger.info('Put prediction and index dict in store')
-
             try:
-                self.q_out.put([frame_id,smoothed_prediction, angle])
-                logger.info(f"Sent frame_id: {frame_id}, predictions: {smoothed_prediction is not None}, angle: {angle} to video screen")
+                frame_id = self.q_in.get(timeout=0.01)
+                # start_time = time.perf_counter()
+
+                # logger.info(f"Frame Id received: {frame_id}")
+            except Exception: # as e:
+                # logger.error(f"Could not get message!") # {e}")
+                # return
+                pass
+
+            if frame_id is not None:
+                self.done = False
 
                 if self.pred_active:
-                    self.put_latencies.append(time.perf_counter() - dlc_end)
-                    self.latencies.append(time.perf_counter() - start_time)
-            except Exception as e:
-                logger.error(f"--------------------------------Generator Exception: {e}")
-                logger.error(traceback.format_exc())
+                    # retrieving the compressed frame from the storage
+                    # frame = self.client.get(frame_id)
+                    try:
+                        # frame = self.client.get(frame_id)
+                        frame_enc = self.client.get(frame_id)
+                        
+                        # uncompressing the frame
+                        frame = cv2.imdecode(frame_enc, cv2.IMREAD_COLOR)
+
+                        self.frame_num += 1
+
+                        # Perform inference
+                        dlc_start = time.time()
+                        # self.prediction = self.dlc_live.get_pose(frame)
+                        raw_prediction = self.pose_runner.inference([frame])
+                        # Extract the bodyparts array from the prediction dictionary
+                        # The format is [{'bodyparts': array([[[x, y, likelihood], ...]])}]
+                        self.prediction = raw_prediction[0]['bodyparts'][0]  # Get the first (and only) frame's bodyparts
+                        # smoothed_prediction = self.kalman_filter.process(self.prediction, frame_time=dlc_start)
+                        smoothed_prediction = self.prediction
+
+                        # smoothed_prediction = np.zeros_like(self.prediction)
+                        # for i, point in enumerate(self.prediction):
+                        #     x, y, likelihood = point
+                        #     if self.recent_predictions[i] is None:
+                        #         self.recent_predictions[i] = (x,y)
+
+                        #     prev_x, prev_y = self.recent_predictions[i]
+                        #     ema_x = self.alpha * x + (1 - self.alpha) * prev_x
+                        #     ema_y = self.alpha * y + (1 - self.alpha) * prev_y
+
+
+                        #     self.recent_predictions[i] = (ema_x, ema_y)
+                        #     # Calculate the moving average for x and y
+                        #     # avg_x = np.mean([p[0] for p in self.recent_predictions[i]])
+                        #     # avg_y = np.mean([p[1] for p in self.recent_predictions[i]])
+                        #     smoothed_prediction[i, :2] = ema_x, ema_y
+                        #     smoothed_prediction[i, 2] = likelihood
+                        #     if likelihood < 0.3 and len(self.predictions) > 0:
+                        #         smoothed_prediction[i,:2] = self.predictions[-1][i,:2]
+
+                        self.predictions.append(smoothed_prediction) #TODO might want to also store the raw prediction
+
+                        # Only calculate angle if we have at least 3 bodyparts
+                        if len(smoothed_prediction) >= 3:
+                            angle = self.calculateAngle(smoothed_prediction)
+                        else:
+                            angle = None
+                            logger.warning(f"Not enough bodyparts for angle calculation. Got {len(smoothed_prediction)}, need 3.")
+
+                        # logger.info(f"Angle: {angle}") 
+                        dlc_end = time.perf_counter()
+
+                        # self.dlc_latencies.append(dlc_end - dlc_start)
+                        # self.grab_latencies.append(dlc_end - start_time)
+
+                        if self.frame_num % self.frames_log == 0:
+                            total_time = dlc_end - self.time_start                    
+
+                            logger.info(f"Frame number: {self.frame_num}")
+                            # logger.info(f"Prediction: {prediction}")
+                            logger.info(f"Overall Average FPS: {round(self.frames_log / total_time,2)}")
+                            # logger.info(f'Camera Grab Time Avg latency: {np.mean(self.grab_latencies)}')
+                            # logger.info(f'Pure DLC Inference Time Avg latency: {np.mean(self.dlc_latencies)}')
+                            # logger.info(f'Put Time Avg latency: {np.mean(self.put_latencies)}')
+
+                            self.time_start = time.perf_counter() # reset the timer
+
+                        # logger.info(f'sent on this frame{frame}')
+                        # logger.info('Put prediction and index dict in store')
+
+                    except ObjectNotFoundError:
+                        logger.error("Processor: Frame unavailable from store, droppping")
+
+                try:
+                    self.q_out.put([smoothed_prediction, angle])
+                    logger.debug(f"Sent frame_id: {frame_id}, predictions: {smoothed_prediction is not None}, angle: {angle} to video screen")
+
+                    if self.pred_active:
+                        # self.put_latencies.append(time.perf_counter() - dlc_end)
+                        # self.latencies.append(time.perf_counter() - start_time)
+                        pass
+                except Exception as e:
+                    logger.error(f"--------------------------------Generator Exception: {e}")
+                    logger.error(traceback.format_exc())
+                
+            self.latencies.append(time.perf_counter() - start_time)
 
 
     def calculateAngle(self,prediction):

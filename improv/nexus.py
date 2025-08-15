@@ -560,9 +560,9 @@ class Nexus:
             elif self.stopped and sig[0] == Signal.stop_success():
                 self.actorStates[name.split("_")[0]] = sig[0]
                 if all(val == Signal.stop_success() for val in state_val):
-                    self.allowStart = True  # TODO: replace with q_sig to FE/Visual
+                    self.allowStart = False  # TODO: replace with q_sig to FE/Visual
                     self.stoppped = False
-                    logger.info("All stops were successful. Allowing start.")
+                    logger.info("All stops were successful. Run setup before allowing start.")
 
     def setup(self):
         for q in self.sig_queues.values():
