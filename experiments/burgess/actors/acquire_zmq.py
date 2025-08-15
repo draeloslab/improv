@@ -260,12 +260,12 @@ class ZMQAcquirer(Actor):
         # elif 'frame' in tag: 
         else:
             t0 = time.time()
-            if self.track %2 == 0:
-                self._collect_frame(finalthing)
-                self.frame_num += 1
+            # if self.track %2 == 0:  # next two lines unindented
+            self._collect_frame(finalthing)
+            self.frame_num += 1
             self.total_times_frame.append(time.time() - t0)
             self.timestamp_frame.append([dt.now(), self.frame_num])
-            self.track += 1
+            # self.track += 1
 
         # elif str(tag) in 'tail':
         #     if not self.tailF:
@@ -291,7 +291,6 @@ class ZMQAcquirer(Actor):
             logger.info('Image frame(s) size is {}'.format(array.shape))
             if array.shape[0] == 2:
                 logger.info('Acquiring also in the red channel')
-        # logger.info("collecting arrays like this:{}".format(array))
         self.saveArray.append(array)
         if array.shape[0] == 2:
             self.saveArrayRedChan.append(array[1])
