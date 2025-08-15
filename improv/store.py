@@ -216,7 +216,7 @@ class PlasmaStoreInterface(StoreInterface):
             raise CannotConnectToStoreInterfaceError(store_loc)
         return self.client
 
-    def put(self, object, object_name):
+    def put(self, object): #, object_name):
         """
         Put a single object referenced by its string name
         into the store
@@ -247,11 +247,11 @@ class PlasmaStoreInterface(StoreInterface):
         except PlasmaObjectExists:
             logger.error("Object already exists. Meant to call replace?")
         except ArrowIOError:
-            logger.error("Could not store object {}".format(object_name))
+            logger.error("Could not store object {}".format(object_id))  # object_name
             logger.info("Refreshing connection and continuing")
             self.reset()
         except Exception:
-            logger.error("Could not store object {}".format(object_name))
+            logger.error("Could not store object {}".format(object_id))  # object_name
             logger.error(traceback.format_exc())
 
         return object_id

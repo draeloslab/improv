@@ -6,6 +6,7 @@ import time
 import cv2
 import colorsys
 import scipy
+import pickle
 
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -14,7 +15,7 @@ from experiments.burgess.gen_stim import StimulusSpace
 
 class VizStimAnalysis(Actor):
 
-    def __init__(self, *args, stimuli = None, before_amount=2, after_amount=10, **kwargs):
+    def __init__(self, *args, stimuli = None, before_amount=2, after_amount=10, calc_color = True, **kwargs):
         super().__init__(*args)
 
         # self.stimuli = np.load(stimuli, allow_pickle=True)
@@ -27,6 +28,8 @@ class VizStimAnalysis(Actor):
 
         self.before_amount = before_amount
         self.after_amount = after_amount
+        self.calc_color = calc_color
+        logger.info("from analysis viz this is calculating calc_color: {}".format(self.calc_color))
         
 
     def setup(self, param_file=None):
@@ -51,6 +54,7 @@ class VizStimAnalysis(Actor):
         self.Cpop = None
         self.coords = None
         self.color = None
+        self.tc_list = None  # TODO: not sure if we need this
         self.runMean = None
         self.runMeanOn = None
         self.runMeanOff = None
@@ -111,6 +115,9 @@ class VizStimAnalysis(Actor):
         np.savetxt('output/timing/analysis_timestamp.txt', np.array(self.timestamp))
         np.savetxt('output/analysis_estsAvg.txt', np.array(self.estsAvg))
         np.savetxt('output/analysis_proc_S.txt', np.array(self.S))
+
+        with open("output/analysis_stimY.pkl", 'wb') as f:
+            pickle.dump(self.stimY, f)
         
         stim = []
         for i in self.allStims.keys():
@@ -395,31 +402,35 @@ class VizStimAnalysis(Actor):
         color[...,3] = 255
         tc_list = []
             #TODO: don't stack image each time?
-        if self.coords is not None:
-            # activity = np.zeros((len(self.coords),self.C.shape[0]))
-            for i,c in enumerate(self.coords):
-                #c = np.array(c)
-                try:
-                    pixels = c[~np.isnan(c).any(axis=1)].astype(int)
-                    #TODO: Compute all colors simultaneously! then index in...
-                    tc = self._tuningColor(i, color[pixels[:,1], pixels[:,0]])
-                    tc_list.append(tc)
-                    cv2.fillConvexPoly(color, pixels, tc)
-                except Exception as e:
-                    logger.error('Error in fill poly: {}'.format(e))
-                    pass
-                
-                
-                # if pixels.size > 0:
-                #     npx = np.unique(pixels, axis=0)
-                #     act = self.C[:,npx[:,1],npx[:,0]]
-                #     activity[i] = np.sum(act, axis=1)
+        if self.calc_color:
+            if self.coords is not None:
+                # activity = np.zeros((len(self.coords),self.C.shape[0]))
+                for i,c in enumerate(self.coords):
+                    #c = np.array(c)
+                    try:
+                        pixels = c[~np.isnan(c).any(axis=1)].astype(int)
+                        #TODO: Compute all colors simultaneously! then index in...
+                        tc = self._tuningColor(i, color[pixels[:,1], pixels[:,0]])
+                        tc_list.append(tc)
+                        cv2.fillConvexPoly(color, pixels, tc)
+                    except Exception as e:
+                        logger.error('Error in fill poly: {}'.format(e))
+                        pass
+                    
+                    
+                    # if pixels.size > 0:
+                    #     npx = np.unique(pixels, axis=0)
+                    #     act = self.C[:,npx[:,1],npx[:,0]]
+                    #     activity[i] = np.sum(act, axis=1)
 
         ## Note: try pixelwise C display
 
         # TODO: keep list of neural colors. Compute tuning colors and IF NEW, fill ConvexPoly. 
 
         self.colortime.append(time.time()-t)
+        # TODO: not sure if this is ok
+        if not tc_list: # tc_list is empty
+            tc_list = None
         return color, tc_list
 
     def _tuningColor(self, ind, inten):
