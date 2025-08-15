@@ -8,6 +8,7 @@ actors:
   VideoScreen:
     package: actors.video_screen
     class: VideoScreen
+    num_active_cameras: 2
   
   # camera readers: each camera reader use the camera API for reading the frames
   CameraReader0:
@@ -27,7 +28,7 @@ actors:
 
   # video savers: each video saver writes the frames readed to video file
   VideoSaver0:
-    package: actors.video_saver_multiproc
+    package: actors.video_saver
     class: VideoSaver
     camera_num: 0
     method: spawn
@@ -39,7 +40,7 @@ actors:
   #   method: spawn
     
   VideoSaver2:
-    package: actors.video_saver_multiproc
+    package: actors.video_saver
     class: VideoSaver
     camera_num: 2
     method: spawn
@@ -65,11 +66,18 @@ actors:
 
 connections:
   CameraReader0.q_out: [VideoSaver0.q_in, Processor0.q_in, VideoScreen.images0_in]
+  VideoSaver0.msg_out: [VideoScreen.camera0_msg_in]
+
   # CameraReader1.q_out: [VideoSaver1.q_in, Processor1.q_in]
+  # VideoSaver1.msg_out: [VideoScreen.camera1_msg_in]
+
   CameraReader2.q_out: [VideoSaver2.q_in, Processor2.q_in, VideoScreen.images2_in]
   Processor0.q_out: [VideoScreen.preds0_in]
   # Processor1.q_out: [VideoScreen.preds1_in]
   Processor2.q_out: [VideoScreen.preds2_in] #, Sender.q_in]
+  VideoSaver2.msg_out: [VideoScreen.camera2_msg_in]
+
+  VideoScreen.msg_out: [VideoSaver0.msg_in, VideoSaver2.msg_in]
 
 redis_config:
   port: 6379

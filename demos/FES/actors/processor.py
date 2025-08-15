@@ -142,9 +142,9 @@ class Processor(Actor):
                 frame_id = self.q_in.get(timeout=0.01)
                 # start_time = time.perf_counter()
 
-                # logger.info(f"Frame Id received: {frame_id}")
+                logger.info(f"Frame Id received: {frame_id}")
             except Exception: # as e:
-                # logger.error(f"Could not get message!") # {e}")
+                logger.error(f"Could not get message!") # {e}")
                 # return
                 pass
 
@@ -202,7 +202,7 @@ class Processor(Actor):
                             angle = None
                             logger.warning(f"Not enough bodyparts for angle calculation. Got {len(smoothed_prediction)}, need 3.")
 
-                        # logger.info(f"Angle: {angle}") 
+                        logger.info(f"Angle: {angle}") 
                         dlc_end = time.perf_counter()
 
                         # self.dlc_latencies.append(dlc_end - dlc_start)
@@ -220,8 +220,8 @@ class Processor(Actor):
 
                             self.time_start = time.perf_counter() # reset the timer
 
-                        # logger.info(f'sent on this frame{frame}')
-                        # logger.info('Put prediction and index dict in store')
+                        logger.info(f'sent on this frame{frame}')
+                        logger.info('Put prediction and index dict in store')
 
                     except ObjectNotFoundError:
                         logger.error("Processor: Frame unavailable from store, droppping")

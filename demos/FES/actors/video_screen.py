@@ -60,6 +60,11 @@ class Visual(Actor):
         logger.info("GUI ready")
 
 class VideoScreen(ManagedActor):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        self.num_cameras = kwargs['num_active_cameras']
+
     def setup(self):
         # store init
         self._getStoreInterface()
@@ -78,6 +83,9 @@ class VideoScreen(ManagedActor):
 
         self.frame_w = camera_params['resolution']['width'] # frame width
         self.frame_h = camera_params['resolution']['height'] # frame height
+        self.num_buffers_rec = [0 for _ in range(self.num_cameras)] # num of buffers recorded by each camera
+        self.num_buffers_progress = [0 for _ in range(self.num_cameras)] # num of buffers converted for each camera
+        self.buffer_conv_completed = [False for _ in range(self.num_cameras)] # flag to indicate if the buffer conversion is completed
         
         self.num_cameras = len(cameras_config)
         self.camera_names = []
@@ -130,12 +138,12 @@ class VideoScreen(ManagedActor):
             frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
             # logger.debug(f'No frame available for camera {camera_id}')
         except Exception:
-            # logger.error(f"Error getting frame for camera {camera_id}: {e}")
-            # logger.info(len(self.frame_latencies))
-            # logger.info(len(self.pred_latencies))
-            # logger.info(f"error on {camera_id} [frame: {frame_id}]")
+            logger.error(f"Error getting frame for camera {camera_id}: {e}")
+            logger.info(len(self.frame_latencies))
+            logger.info(len(self.pred_latencies))
+            logger.info(f"error on {camera_id} [frame: {frame_id}]")
             frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
-            # logger.debug(f'Exception getting frame for camera {camera_id}: {traceback.format_exc()}')
+            logger.debug(f'Exception getting frame for camera {camera_id}: {traceback.format_exc()}')
         self.frame_latencies.append(time.perf_counter() - frame_start)
 
         try:
@@ -147,7 +155,7 @@ class VideoScreen(ManagedActor):
             # frame_id = element[0]
             predictions = element[0]
             angle = element[1]
-            # logger.debug(f'Angle received: {angle}')
+            logger.debug(f'Angle received: {angle}')
 
             # self.pred_latencies.append(time.perf_counter() - pred_start)
         except queue.Empty:
@@ -156,15 +164,64 @@ class VideoScreen(ManagedActor):
         except KeyError:
             pass
         except Exception:
-            # logger.error(f"Error getting frame for camera {camera_id}: {e}")
-            # logger.info(len(self.frame_latencies))
-            # logger.info(len(self.pred_latencies))
-            # logger.info(f"error on {camera_id} [frame: {frame_id}]")
-            # frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
+            logger.error(f"Error getting frame for camera {camera_id}: {e}")
+            logger.info(len(self.frame_latencies))
+            logger.info(len(self.pred_latencies))
+            logger.info(f"error on {camera_id} [frame: {frame_id}]")
+            frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
             logger.debug(f'Unexpected error getting prediction for camera {camera_id}: {traceback.format_exc()}')
             # pass
 
         return frame,predictions,angle
+    def start_buffer_conversion(self):
+        """Function to start the buffer data conversion for each camera."""
+        msg = {'type': 'video_conversion', 'value': True}
+        self.links[f"msg_out"].put(msg)
+
+        logger.info("buffer video_conversion message sent")
+
+    def get_number_buffer_conversion(self):
+        """Function to get the number of buffer files that need to be converted for each camera."""
+        
+        # Continue looping until all cameras have received their num_buffer_files
+        while not all(count > 0 for count in self.num_buffers_rec):
+            for camera_id in range(self.num_cameras):
+                # Only attempt to get messages for cameras that haven't received num_buffer_files yet
+                if self.num_buffers_rec[camera_id] == 0:
+                    try:
+                        msg = self.links[f"camera{camera_id}_msg_in"].get(timeout=0.25)
+                    except:
+                        msg = None
+                    
+                    if msg is not None:
+                        if msg['type'] == 'num_buffer_files':
+                            self.num_buffers_rec[camera_id] = msg['value']
+                        elif msg['type'] == 'buffer_conv_progress':
+                            self.num_buffers_progress[camera_id] = msg['value']
+                        elif msg['type'] == 'buffer_conv_done':
+                            self.buffer_conv_completed[camera_id] = True
+
+            time.sleep(0.25)
+
+        return self.num_buffers_rec
+
+    def check_buffer_conversion_progress(self):
+        """Function to check the progress of the camera buffer data conversion."""
+        
+        # Continue looping until all cameras have received their num_buffer_files
+        for camera_id in range(self.num_cameras):
+            try:
+                msg = self.links[f"camera{camera_id}_msg_in"].get(timeout=0.5)
+            except:
+                msg = None
+            
+            if msg is not None:
+                if msg['type'] == 'buffer_conv_progress':
+                    self.num_buffers_progress[camera_id] = msg['value']
+                elif msg['type'] == 'buffer_conv_done':
+                    self.buffer_conv_completed[camera_id] = True
+
+        return self.num_buffers_progress
 
         # # Increment frame counter
         # self.frame_count += 1
