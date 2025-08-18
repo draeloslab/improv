@@ -398,11 +398,11 @@ class VizStimAnalysis(Actor):
         '''
         t = time.time()
         image = self.image
-        color = np.stack([image, image, image, image], axis=-1).astype(np.uint8).copy()
-        color[...,3] = 255
         tc_list = []
+        if self.calc_color: # if we want to calculate colors
+            color = np.stack([image, image, image, image], axis=-1).astype(np.uint8).copy()
+            color[...,3] = 255
             #TODO: don't stack image each time?
-        if self.calc_color:
             if self.coords is not None:
                 # activity = np.zeros((len(self.coords),self.C.shape[0]))
                 for i,c in enumerate(self.coords):
@@ -423,10 +423,11 @@ class VizStimAnalysis(Actor):
                     #     act = self.C[:,npx[:,1],npx[:,0]]
                     #     activity[i] = np.sum(act, axis=1)
 
-        ## Note: try pixelwise C display
+            ## Note: try pixelwise C display
 
         # TODO: keep list of neural colors. Compute tuning colors and IF NEW, fill ConvexPoly. 
-
+        else:
+            color = image
         self.colortime.append(time.time()-t)
         # TODO: not sure if this is ok
         if not tc_list: # tc_list is empty
