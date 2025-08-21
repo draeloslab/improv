@@ -260,12 +260,12 @@ class ZMQAcquirer(Actor):
         # elif 'frame' in tag: 
         else:
             t0 = time.time()
-            if self.track %2 == 0:
-                self._collect_frame(finalthing)
-                self.frame_num += 1
+            # if self.track %2 == 0:  # next two lines unindented
+            self._collect_frame(finalthing)
+            self.frame_num += 1
             self.total_times_frame.append(time.time() - t0)
             self.timestamp_frame.append([dt.now(), self.frame_num])
-            self.track += 1
+            # self.track += 1
 
         # elif str(tag) in 'tail':
         #     if not self.tailF:
@@ -291,7 +291,6 @@ class ZMQAcquirer(Actor):
             logger.info('Image frame(s) size is {}'.format(array.shape))
             if array.shape[0] == 2:
                 logger.info('Acquiring also in the red channel')
-        # logger.info("collecting arrays like this:{}".format(array))
         self.saveArray.append(array)
         if array.shape[0] == 2:
             self.saveArrayRedChan.append(array[1])
@@ -342,7 +341,7 @@ class ZMQAcquirer(Actor):
             # if time.time() - self.timerzz > 1:
             # logger.info("timerzz >>>>>>>>>>>>>>>>>>> 1 print something")
             self.stim_count += 1
-            logger.info('inside acquire categories block ----- ')
+            # logger.info('inside acquire categories block ----- ')
             ## visual stim with Matt
             # angle2 = None
             # angle, angle2 = make_tuple(msg_dict['angle'])
@@ -374,9 +373,17 @@ class ZMQAcquirer(Actor):
                 angle = float(msg_dict['stimulus']['angle'])
                 vel = float(msg_dict['stimulus']['velocity'])
                 freq = float(msg_dict['texture']['frequency'])
-                self.links['stim_queue'].put({self.frame_num:[int(angle), vel, int(size), int(freq)]})
-                self.stimmed.append([self.frame_num, int(angle), vel, int(size), int(freq)])
-                logger.info('Stimulus: {} Circle radius {} at angle {} deg at with velocity {} frame {}'.format(int(freq), size/2, int(angle), vel, self.frame_num))
+                contrast = float(msg_dict['texture']['fg_intensity'])
+                self.links['stim_queue'].put({self.frame_num:[int(angle), vel, int(size), int(freq), int(contrast)]})
+                self.stimmed.append([self.frame_num, int(angle), vel, int(size), int(freq), int(contrast)])
+
+                if int(contrast) == 0:
+                    color = 'Black'
+                elif int(contrast) == 50:
+                    color = 'Dark gray'
+                elif int(contrast) == 100:
+                    color = 'Light gray' 
+                logger.info('Stimulus: {} {} Circle radius {} at angle {} deg at with velocity {} frame {}'.format(int(freq), color, size/2, int(angle), vel, self.frame_num))
             else:
                 logger.info('collecting stimulus -- ')
                 try:
@@ -395,7 +402,6 @@ class ZMQAcquirer(Actor):
                 else:
                     shape = int(1)
 
-                # logger.info('pstim message length received: {}'.format(length))
                 logger.info('sending stim queue')
                 self.links['stim_queue'].put({self.frame_num:[angle, vel, length, freq, center_x, center_y, shape]})
                 self.stimmed.append([self.frame_num, angle, vel, length, freq, center_x, center_y, shape])
