@@ -11,7 +11,7 @@ from itertools import product
 import yaml
 from datetime import datetime as dt
 
-from BayesOpt.model.config import Config
+from BayesOpt.model.improv_config import Config 
 from BayesOpt.model.optimizer import Optimizer
 
 from experiments.burgess.gen_stim import StimulusSpace
@@ -153,8 +153,14 @@ class BayesOptimizer(Actor):
             # internally counts to make sure that we only send correct number of initial stim
             flag = False
             if self.stim_ind is None:
-                logger.info("what is the current counter: {}".format(self.counter))
-                self.stim_ind = self.stim_space['initial_stim'][self.counter-1] ## FIXME: counter started with 1 (somehow)
+                # logger.info("what is the current counter: {}".format(self.counter))
+                if self.counter - 1 < self.stimuli_space.initial_stim_count:
+                    self.stim_ind = self.stim_space['initial_stim'][self.counter-1] ## FIXME: counter started with 1 (somehow)
+                elif self.counter -1 == self.stimuli_space.initial_stim_count:
+                    # self.stim_ind = self.stim_space['initial_stim'][-1]
+                    np.random.seed(self.seed)
+                    self.stim_ind = [np.random.choice(np.arange(0, stim)) for stim in self.stim_choice]
+                    # logger.info(f"randomly selected stim_ind is {self.stim_ind}")
                 # self.stim_ind, flag = self.stimuli_space.initial_stim(self.stimuli, self.counter)
 
             if (time.time() - self.timer) >= self.total_stim_time:
@@ -164,7 +170,8 @@ class BayesOptimizer(Actor):
                 # logger.info("self.counter just added by 1!")
                 self.timer = time.time()
             
-            if self.counter-1 >= self.stimuli_space.initial_stim_count:  # FIXME: counter started with 1 (somehow)
+            # make initialization 9 stim long so optimizer can init on first 8
+            if self.counter-1 >= self.stimuli_space.initial_stim_count + 1:  # FIXME: counter started with 1 (somehow)
                 flag = True
             
             if flag:
@@ -193,10 +200,13 @@ class BayesOptimizer(Actor):
                 print(self.y0.shape, self.X.shape, self.X0.shape)
                 if self.X.shape[1] < self.y0.shape[1]:
                     self.optim.initialize_GP(self.X[:, :].T, self.y0[self.nID, -self.X.shape[1]:].T)
+                    logger.info(f"condition 1. initialize with {self.X.shape} stim")
                 elif self.y0.shape[1] < self.maxT:
                     self.optim.initialize_GP(self.X[:, -self.y0.shape[1]:].T, self.y0[self.nID, -self.y0.shape[1]:].T)
+                    logger.info(f"condition 2. initialize with {self.y0.shape[1]} stim")
                 else:
                     self.optim.initialize_GP(self.X[:, :].T, self.y0[self.nID, :].T)
+                    logger.info(f"condition 3. initialize with all {self.X.shape[1]} stim")
                 self.test_count = 0
                 self.newN = False
                 self.stopping = np.zeros(self.maxT)
@@ -220,7 +230,7 @@ class BayesOptimizer(Actor):
                 for i in range(self.d):
                     X[i] = self.GP_stimuli[i][int(self.X[i,-1])]
 
-                logger.info('optim {} , update GP with {}, {}'.format( self.nID, X, self.y0[self.nID, -1]))
+                logger.info('optim {} (test: {}), update GP with {}, {}'.format(self.nID, self.test_count, X, self.y0[self.nID, -1]))
                 self.optim.update_GP(np.squeeze(X), self.y0[self.nID,-1])
 
                 curr_unc = np.diagonal(self.optim.sigma).reshape((self.stim_choice))
