@@ -53,7 +53,7 @@ class StimulusSpace():
             for i in range(self.initial_stim_count):
                 idx = i % len(scramle_dim1_idx)
                 idx1 = i % len(stim[4])
-                initial_stim.append([scramle_dim1_idx[idx], 0, 1, 0, idx1])
+                initial_stim.append([scramle_dim1_idx[idx], 0, 1, 0, 0])  # use high contrast #idx1])
             # initial_stim = [[i, 0, 1, 0] for i in scramle_dim1_idx]
             
         else:

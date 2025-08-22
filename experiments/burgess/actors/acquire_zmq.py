@@ -260,12 +260,13 @@ class ZMQAcquirer(Actor):
         # elif 'frame' in tag: 
         else:
             t0 = time.time()
-            # if self.track %2 == 0:  # next two lines unindented
-            self._collect_frame(finalthing)
-            self.frame_num += 1
+            # brought back the self.track, collect every other frame
+            if self.track %2 == 0:  # next two lines unindented
+                self._collect_frame(finalthing)
+                self.frame_num += 1
             self.total_times_frame.append(time.time() - t0)
             self.timestamp_frame.append([dt.now(), self.frame_num])
-            # self.track += 1
+            self.track += 1
 
         # elif str(tag) in 'tail':
         #     if not self.tailF:

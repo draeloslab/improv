@@ -271,6 +271,8 @@ class BayesOptimizer(Actor):
                     peak = self.stim_star[np.argmax(self.optim.f)]
                     self.peak_list.append(peak)
                     self.optim_f_list.append(self.optim.f)
+                    np.save('output/saved_GP_est_'+str(self.nID)+'.npy', np.array(self.saved_GP_est))
+                    np.save('output/saved_GP_unc_'+str(self.nID)+'.npy', np.array(self.saved_GP_unc))
 
                 else:
                     ind, xt_1 = self.optim.max_acq()
