@@ -8,6 +8,7 @@ actors:
   VideoScreen:
     package: actors.video_screen
     class: VideoScreen
+    num_active_cameras: 1
   
   Processor0:
     package: actors.processor

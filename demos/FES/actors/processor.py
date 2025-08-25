@@ -53,9 +53,10 @@ class Processor(Actor):
                 config = yaml.safe_load(file)
 
 
-            train_dir = Path("/home/chesteklab/improv/demos/FES/dlc-models-pytorch/iteration-2/manipulandum_pytorchMay13-trainset95shuffle1/train")
+            # train_dir = Path("/home/chesteklab/improv/demos/FES/dlc-models-pytorch/iteration-2/manipulandum_pytorchMay13-trainset95shuffle1/train")
+            train_dir = Path("/home/chesteklab/dlc-projects/resnet-101/iteration-0/manipulandum-resnet101Aug18-trainset95shuffle1/train")
             pytorch_config_path = train_dir / "pytorch_config.yaml"
-            snapshot_path = train_dir / "snapshot-best-010.pt"
+            snapshot_path = train_dir / "snapshot-best-090.pt"
 
             # for top-down models, otherwise None
             detector_snapshot_path = None
@@ -102,7 +103,8 @@ class Processor(Actor):
             self.latencies = []
             # self.dlc_latencies = []
             # self.grab_latencies = []
-            # self.put_latencies = []            
+            # self.put_latencies = []    
+            self.dlc_latencies = []        
             self.time_start = time.perf_counter()
             self.frame_num = 0
             self.frame_sentTime = 0
@@ -113,7 +115,8 @@ class Processor(Actor):
 
 
             timestamp = time.strftime("%Y%m%d-%H%M")
-            self.out_folder = Path(f"/home/chesteklab/predictions/{timestamp}")
+            string  = config['output_path']
+            self.out_folder = Path(f"{string}/{timestamp}")
             self.out_folder.mkdir(parents=True, exist_ok=True)
             logger.info(f"Output folder set to {self.out_folder}")
             logger.info("Completed setup for Processor")
@@ -124,7 +127,7 @@ class Processor(Actor):
             self.done = True
             np.save(self.out_folder / "latencies.npy", self.latencies)
             np.save(self.out_folder / "predictions.npy", self.predictions)
-            # np.save(self.out_folder / "dlcLatencies.npy", self.dlc_latencies)
+            np.save(self.out_folder / "dlcLatencies.npy", self.dlc_latencies)
             # np.save(self.out_folder / "grabLatencies.npy", self.grab_latencies)
             # np.save(self.out_folder / "putLatencies.npy", self.put_latencies)
             logger.info("Predictions and latencies saved")
@@ -155,6 +158,7 @@ class Processor(Actor):
                     # retrieving the compressed frame from the storage
                     # frame = self.client.get(frame_id)
                     try:
+                        dlc_start = time.time()
                         # frame = self.client.get(frame_id)
                         frame_enc = self.client.get(frame_id)
                         
@@ -164,9 +168,11 @@ class Processor(Actor):
                         self.frame_num += 1
 
                         # Perform inference
-                        dlc_start = time.time()
+                        # dlc_start = time.time()
                         # self.prediction = self.dlc_live.get_pose(frame)
+                        # frame = cv2.resize(frame, (int(frame.shape[1] * 0.75), int(frame.shape[0] * 0.75)))
                         raw_prediction = self.pose_runner.inference([frame])
+                        self.dlc_latencies.append(time.time() - dlc_start)
                         # Extract the bodyparts array from the prediction dictionary
                         # The format is [{'bodyparts': array([[[x, y, likelihood], ...]])}]
                         self.prediction = raw_prediction[0]['bodyparts'][0]  # Get the first (and only) frame's bodyparts
@@ -220,7 +226,7 @@ class Processor(Actor):
 
                             self.time_start = time.perf_counter() # reset the timer
 
-                        logger.info(f'sent on this frame{frame}')
+                        # logger.info(f'sent on this frame{frame}')
                         logger.info('Put prediction and index dict in store')
 
                     except ObjectNotFoundError:
@@ -228,17 +234,19 @@ class Processor(Actor):
 
                 try:
                     self.q_out.put([smoothed_prediction, angle])
-                    logger.debug(f"Sent frame_id: {frame_id}, predictions: {smoothed_prediction is not None}, angle: {angle} to video screen")
+                    # logger.debug(f"Sent frame_id: {frame_id}, predictions: {smoothed_prediction is not None}, angle: {angle} to video screen")
 
                     if self.pred_active:
                         # self.put_latencies.append(time.perf_counter() - dlc_end)
                         # self.latencies.append(time.perf_counter() - start_time)
+                        self.latencies.append(time.time())
+
                         pass
                 except Exception as e:
                     logger.error(f"--------------------------------Generator Exception: {e}")
                     logger.error(traceback.format_exc())
                 
-            self.latencies.append(time.perf_counter() - start_time)
+            # self.latencies.append(time.perf_counter())
 
 
     def calculateAngle(self,prediction):

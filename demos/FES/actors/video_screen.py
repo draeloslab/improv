@@ -127,6 +127,8 @@ class VideoScreen(ManagedActor):
 
                 # uncompressing the frame
                 frame = cv2.imdecode(frame_enc, cv2.IMREAD_COLOR)
+                self.frame_latencies.append(time.perf_counter())
+
             else:
                 frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
                 logger.debug('Was unable to grab frame!')
@@ -144,7 +146,7 @@ class VideoScreen(ManagedActor):
             logger.info(f"error on {camera_id} [frame: {frame_id}]")
             frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
             logger.debug(f'Exception getting frame for camera {camera_id}: {traceback.format_exc()}')
-        self.frame_latencies.append(time.perf_counter() - frame_start)
+        # self.frame_latencies.append(time.perf_counter())
 
         try:
             element = self.links[f"preds{camera_id}_in"].get(timeout=0.01)
