@@ -86,6 +86,7 @@ class BayesOptimizer(Actor):
 
         self.saved_GP_est = []
         self.saved_GP_unc = []
+        self.start_stimulus = []
 
 
     def setup(self):
@@ -106,6 +107,7 @@ class BayesOptimizer(Actor):
         np.save('output/stopping_list.npy', np.array(self.stopping_list))
         np.save('output/peak_list.npy', np.array(self.peak_list))
         np.save('output/optim_f_list.npy', np.array(self.optim_f_list))
+        # np.save('output/optimizer_start_stimulus.npy', np.array(self.start_stimulus))
 
         try:
             np.savetxt('output/timing/optimizer_time.txt', np.array(self.total_times))
@@ -133,10 +135,14 @@ class BayesOptimizer(Actor):
                     self.X = tmpX[:, -tmpX.shape[1]:]
 
             try:
-                b = np.zeros([len(Y),len(max(Y,key = lambda x: len(x)))])
+                # b = np.zeros([len(Y),len(max(Y,key = lambda x: len(x)))])
+                b = np.full([len(Y),len(max(Y,key = lambda x: len(x)))], np.nan)  # FIXME: change to nan instead of 0
                 for i,j in enumerate(Y):
                     b[i][:len(j)] = j
                 self.y0 = b.T
+                is_nan_2d = np.isnan(self.y0)
+                self.start_stimulus = np.argmax(~is_nan_2d, axis=1)
+                # logger.info(f"this is self.start_stimulus: {self.start_stimulus}")
             except:
                 pass
             
@@ -187,7 +193,8 @@ class BayesOptimizer(Actor):
 
             if len(nonopt) >= 1 or len(self.goback_neurons)>=1:
                 if len(nonopt) >= 1:
-                    self.nID = nonopt[np.argmax(np.mean(self.y0[nonopt,:], axis=1))]
+                    self.nID = nonopt[np.argmax(np.nanmean(self.y0[nonopt,:], axis=1))]
+                    # self.nID = nonopt[np.argmax(np.nanmean(self.y0[nonopt,:], axis=1))]  # FIXME: should change to nanmean
                     logger.info('selecting most responsive neuron: {}'.format(self.nID))
                     self.optimized_n.append(self.nID)
                     self.saved_GP_est = []
@@ -198,15 +205,27 @@ class BayesOptimizer(Actor):
                     self.optimized_n.append(self.nID)
                 
                 print(self.y0.shape, self.X.shape, self.X0.shape)
+                # logger.info(f'y0 shape {self.y0.shape}; X shape {self.X.shape}; X0 shape {self.X0.shape}')
                 if self.X.shape[1] < self.y0.shape[1]:
                     self.optim.initialize_GP(self.X[:, :].T, self.y0[self.nID, -self.X.shape[1]:].T)
-                    logger.info(f"condition 1. initialize with {self.X.shape} stim")
+                    logger.info(f"condition 1. initialize with {self.X.shape} stim")  # not run in general
+                    logger.info(f"y is {self.y0[self.nID, -self.X.shape[1]:].T}")
                 elif self.y0.shape[1] < self.maxT:
-                    self.optim.initialize_GP(self.X[:, -self.y0.shape[1]:].T, self.y0[self.nID, -self.y0.shape[1]:].T)
-                    logger.info(f"condition 2. initialize with {self.y0.shape[1]} stim")
+                    # get number of leading zeros/nans
+                    y0_with_nan = self.y0[self.nID, -self.y0.shape[1]:].T
+                    leading_zeros = np.argmax(~np.isnan(y0_with_nan))
+                    logger.info(f"leading zeros for neuron {self.nID} is {leading_zeros}")
+                    self.optim.initialize_GP(self.X[:, -(self.y0.shape[1]-leading_zeros):].T, self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T)
+                    logger.info(f"condition 2. initialize with {self.y0.shape[1]-leading_zeros} stim")
+                    logger.info(f"y is {self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T}")
                 else:
-                    self.optim.initialize_GP(self.X[:, :].T, self.y0[self.nID, :].T)
-                    logger.info(f"condition 3. initialize with all {self.X.shape[1]} stim")
+                    # get number of leading zeros/nans
+                    y0_with_nan = self.y0[self.nID, :].T
+                    leading_zeros = np.argmax(~np.isnan(y0_with_nan))
+                    logger.info(f"leading zeros for neuron {self.nID} is {leading_zeros}")
+                    self.optim.initialize_GP(self.X[:, leading_zeros:].T, self.y0[self.nID, leading_zeros:].T)
+                    logger.info(f"condition 3. initialize with all {self.X[:, leading_zeros:].T.shape[0]} stim")
+                    logger.info(f"y is {self.y0[self.nID, leading_zeros:].T}")
                 self.test_count = 0
                 self.newN = False
                 self.stopping = np.zeros(self.maxT)
