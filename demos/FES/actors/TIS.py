@@ -1,5 +1,6 @@
 import time
 import numpy as np
+import cv2
 from enum import Enum
 from collections import namedtuple
 
@@ -23,10 +24,13 @@ file_handler.setFormatter(formatter)
 # Add the handler to the logger
 logger.addHandler(file_handler)
 
+from pathlib import Path
+
+
 from gi.repository import GLib, Gst, Tcam
 
 # Needed packages:
-# pyhton-gst-1.0
+# python-gst-1.0
 # python-opencv
 # tiscamera (+ pip install pycairo PyGObject)
 
@@ -70,6 +74,14 @@ class TIS:
         # buffer processing management
         self.client = client
         self.q_out = q_out
+
+        self.camera_latencies = []
+
+        timestamp = time.strftime("%Y%m%d-%H%M")
+        self.out_folder = Path(f"/home/chesteklab/predictions/{timestamp}")
+        self.out_folder.mkdir(parents=True, exist_ok=True)
+        # logger.info(f"Output folder set to {self.out_folder}")
+        logger.info("Completed setup for TIS")
 
     def open_device(self, serial,
                     shared_frame,
@@ -119,16 +131,16 @@ class TIS:
         if showvideo:
             p += " ! tee name=t"
             p += " t. ! queue ! videoconvert ! ximagesink"
-            p += f" t. ! queue ! {conversion} appsink name=sink"
+            p += f" t. ! queue ! appsink name=sink"
         else:
-            p += f" ! queue ! {conversion} appsink name=sink"
+            p += f" ! queue ! appsink name=sink"
 
-        print(f'\tPipeline starting command: {p}')
+        logger.info(f'\tPipeline starting command: {p}')
 
         try:
             self.pipeline = Gst.parse_launch(p)
         except GLib.Error as error:
-            print("Error creating pipeline: {0}".format(error))
+            logger.info("Error creating pipeline: {0}".format(error))
             raise
 
         # Quere the source module.
@@ -136,7 +148,7 @@ class TIS:
 
         # Query a pointer to the appsink, so we can assign the callback function.
         appsink = self.pipeline.get_by_name("sink")
-        appsink.set_property("max-buffers", 60)
+        appsink.set_property("max-buffers", 5)
         appsink.set_property("drop", True)
         appsink.set_property("emit-signals", True)
         appsink.set_property("enable-last-sample", True)
@@ -149,7 +161,7 @@ class TIS:
         """
         caps = Gst.Caps.from_string('video/x-raw,format=%s,width=%d,height=%d,framerate=%s' % (self.sinkformat.value, self.width, self.height, self.framerate))
 
-        print(f"\tcaps command: {caps.to_string()}")
+        logger.info(f"\tcaps command: {caps.to_string()}")
 
         capsfilter = self.pipeline.get_by_name("caps")
         capsfilter.set_property("caps", caps)
@@ -171,7 +183,7 @@ class TIS:
         cam_state = self.pipeline.get_state(5000000000)
 
         if cam_state[1] != Gst.State.PLAYING:
-            print("Error starting pipeline. {0}".format(""))
+            logger.info("Error starting pipeline. {0}".format(cam_state[1]))
             return False
         
         return True
@@ -192,9 +204,16 @@ class TIS:
 
             frame = self.__convert_to_numpy(buf.extract_dup(0, buf.get_size()), sample.get_caps())
 
+            frame = cv2.resize(frame, (int(frame.shape[1] * 0.8), int(frame.shape[0] * 0.8)))
+
+
+            # compress the frame before storing
+            _,frame_enc = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 60])            
+
             try:
-                data_id = self.client.put(frame)
+                data_id = self.client.put(frame_enc)
                 self.q_out.put(data_id)
+                # self.camera_latencies.append(time.perf_counter() - frame_time)
 
                 delay = time.perf_counter() - frame_time
 
@@ -202,11 +221,13 @@ class TIS:
                     self.max_delay = delay
 
                 self.total_delay += delay
-            except Exception as e:
-                pass
+                self.frame_count += 1
+                self.total_frame_count += 1
+                self.camera_latencies.append(time.perf_counter())
 
-            self.frame_count += 1
-            self.total_frame_count += 1
+            except Exception as e:
+                logger.warning(f"[Camera {self.camera_name}] Could not put frame in the store | {e}")
+                pass
 
             if self.frame_count % 600 == 0:               
                 total_time = time.perf_counter() - self.start_time
@@ -218,6 +239,8 @@ class TIS:
                 self.max_delay = 0
                 self.frame_count = 0
                 self.start_time = time.perf_counter()
+        # self.camera_latencies.append(time.perf_counter())
+            
         
         return Gst.FlowReturn.OK
 
@@ -239,9 +262,14 @@ class TIS:
         self.pipeline.set_state(Gst.State.PAUSED)
         self.pipeline.set_state(Gst.State.READY)
 
-        recording_duration = stop_time - self.total_start_time
+        if hasattr(self, 'total_start_time'):
+            recording_duration = stop_time - self.total_start_time
+            logger.info(f"[Camera {self.camera_name}] reader stopped. Total frames: {self.total_frame_count} - Recording duration: {recording_duration:.2f}s ({round(recording_duration/60,1)} min)")
+        else:
+            logger.info(f"[Camera {self.camera_name}] reader stopped. Total frames: {self.total_frame_count}")
 
-        logger.info(f"[Camera {self.camera_name}] reader stopped. Total frames: {self.total_frame_count} - Recording duration: {recording_duration:.2f}s ({round(recording_duration/60,1)} min)")
+        np.save(self.out_folder / "TISlatencies.npy", self.camera_latencies)
+        logger.info("saved TIS latencies")
 
     def get_source(self):
         '''

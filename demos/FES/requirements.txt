@@ -1,3 +1,7 @@
 deeplabcut-live
 pycairo
 PyGObject
+opencv-python
+scikit-video
+pandas
+seaborn

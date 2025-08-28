@@ -560,9 +560,9 @@ class Nexus:
             elif self.stopped and sig[0] == Signal.stop_success():
                 self.actorStates[name.split("_")[0]] = sig[0]
                 if all(val == Signal.stop_success() for val in state_val):
-                    self.allowStart = True  # TODO: replace with q_sig to FE/Visual
+                    self.allowStart = False  # TODO: replace with q_sig to FE/Visual
                     self.stoppped = False
-                    logger.info("All stops were successful. Allowing start.")
+                    logger.info("All stops were successful. Run setup before allowing start.")
 
     def setup(self):
         for q in self.sig_queues.values():
@@ -658,6 +658,16 @@ class Nexus:
         else:
             return RedisStoreInterface(server_port_num=self.store_port)
 
+    def kill_redis_process(self):
+        # killing existing processes on the store port - otherwise Redis will not be able to start
+        logger.info("Kill redis process function called")
+
+        try:
+            # Run the command without requiring a password
+            subprocess.run(f"sudo lsof -t -i :{self.store_port} | xargs sudo kill -9", shell=True)
+        except Exception as e:
+            print(f"Error killing Redis process: {e}")
+
     def _startStoreInterface(self, size, attempts=20):
         """Start a subprocess that runs the plasma store
         Raises a RuntimeError exception size is undefined
@@ -701,9 +711,10 @@ class Nexus:
                 else Config.get_default_redis_port()
             )
             if self.config and self.config.redis_port_specified():
-                logger.info(
-                    "Attempting to connect to Redis on port {}".format(self.store_port)
-                )
+                logger.info( "Attempting to connect to Redis on port {}".format(self.store_port))
+
+                self.kill_redis_process() # kill existing and old redis process on the store_port
+                
                 # try with failure, incrementing port number
                 self.p_StoreInterface = self.start_redis(size)
                 time.sleep(3)

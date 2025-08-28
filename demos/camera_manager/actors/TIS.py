@@ -1,8 +1,9 @@
 import time
 import numpy as np
+import cv2
 from enum import Enum
 from collections import namedtuple
-
+import pandas as pd
 import gi
 gi.require_version("Gst", "1.0")
 gi.require_version("Tcam", "1.0")
@@ -37,7 +38,16 @@ class SinkFormats(Enum):
     RGB = "RGB"
 
 class TIS:
-    def __init__(self, camera_name, client, q_out):
+    def __init__(self, camera_name, client, q_out, logging_metrics, benchmarking=False):
+        """
+            Initialize the camera interface object
+
+            Input:
+                camera_name: Name of the camera. Used for logging.
+                client: Store client interface.
+                q_out: Queue to store the data_id of the frames.
+                benchmarking: Flag to enable benchmarking storage into file, default is False.
+        """
         try:
             if not Gst.is_initialized():
                 Gst.init(())  # Usually better to call in the main function.
@@ -48,7 +58,7 @@ class TIS:
 
         self.camera_name = camera_name
 
-        self.sharing_on = False
+        self.recording_on = False
         self.stop_program = False
 
         # Gst.debug_set_default_threshold(Gst.DebugLevel.WARNING)
@@ -70,6 +80,14 @@ class TIS:
         # buffer processing management
         self.client = client
         self.q_out = q_out
+
+        self.logging_metrics = logging_metrics
+
+        # benchmarking
+        self.benchmarking = benchmarking
+
+        if self.benchmarking:
+            self.metrics = []
 
     def open_device(self, serial,
                     shared_frame,
@@ -119,16 +137,16 @@ class TIS:
         if showvideo:
             p += " ! tee name=t"
             p += " t. ! queue ! videoconvert ! ximagesink"
-            p += f" t. ! queue ! {conversion} appsink name=sink"
+            p += f" t. ! queue ! appsink name=sink"
         else:
-            p += f" ! queue ! {conversion} appsink name=sink"
+            p += f" ! queue ! appsink name=sink"
 
-        print(f'\tPipeline starting command: {p}')
+        logger.info(f'\tPipeline starting command: {p}')
 
         try:
             self.pipeline = Gst.parse_launch(p)
         except GLib.Error as error:
-            print("Error creating pipeline: {0}".format(error))
+            logger.info("Error creating pipeline: {0}".format(error))
             raise
 
         # Quere the source module.
@@ -136,7 +154,7 @@ class TIS:
 
         # Query a pointer to the appsink, so we can assign the callback function.
         appsink = self.pipeline.get_by_name("sink")
-        appsink.set_property("max-buffers", 60)
+        appsink.set_property("max-buffers", 5)
         appsink.set_property("drop", True)
         appsink.set_property("emit-signals", True)
         appsink.set_property("enable-last-sample", True)
@@ -149,7 +167,7 @@ class TIS:
         """
         caps = Gst.Caps.from_string('video/x-raw,format=%s,width=%d,height=%d,framerate=%s' % (self.sinkformat.value, self.width, self.height, self.framerate))
 
-        print(f"\tcaps command: {caps.to_string()}")
+        logger.info(f"\tcaps command: {caps.to_string()}")
 
         capsfilter = self.pipeline.get_by_name("caps")
         capsfilter.set_property("caps", caps)
@@ -160,6 +178,7 @@ class TIS:
         self.total_frame_count = 0
         self.frame_count = 0
         self.total_delay = 0
+        self.min_delay = 1000
         self.max_delay = 0
 
         self.image_data = []
@@ -171,14 +190,14 @@ class TIS:
         cam_state = self.pipeline.get_state(5000000000)
 
         if cam_state[1] != Gst.State.PLAYING:
-            print("Error starting pipeline. {0}".format(""))
+            logger.info("Error starting pipeline. {0}".format(cam_state[1]))
             return False
         
         return True
     
     # starting sharing the frames received from the camera
-    def start_sharing(self):
-        self.sharing_on = True
+    def recording_started(self):
+        self.recording_on = True
 
         self.total_start_time = time.perf_counter()
     
@@ -187,37 +206,50 @@ class TIS:
         frame_time = time.perf_counter()
         sample = appsink.get_property('last-sample')
 
-        if sample is not None and self.sharing_on:
+        if sample is not None:
             buf = sample.get_buffer()
 
             frame = self.__convert_to_numpy(buf.extract_dup(0, buf.get_size()), sample.get_caps())
 
+            # compress the frame before storing
+            _,frame_enc = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 60])            
+
             try:
-                data_id = self.client.put(frame)
+                data_id = self.client.put(frame_enc)
                 self.q_out.put(data_id)
 
                 delay = time.perf_counter() - frame_time
 
                 if delay > self.max_delay:
                     self.max_delay = delay
+                elif delay < self.min_delay:
+                    self.min_delay = delay
 
-                self.total_delay += delay
             except Exception as e:
+                logger.warning(f"[Camera {self.camera_name}] Could not put frame in the store | {e}")
                 pass
 
-            self.frame_count += 1
-            self.total_frame_count += 1
+            if self.recording_on:                
+                self.frame_count += 1
+                self.total_frame_count += 1
+                self.total_delay += delay
 
-            if self.frame_count % 600 == 0:               
-                total_time = time.perf_counter() - self.start_time
+                if (self.logging_metrics or self.benchmarking) and self.frame_count % 600 == 0:               
+                    total_time = time.perf_counter() - self.start_time
+                    fps = round(self.frame_count / total_time,2)
+                    avg_delay = self.total_delay / self.frame_count
 
-                logger.info(f"[Camera {self.camera_name}] reader FPS: {round(self.frame_count / total_time,2)} - avg delay: {self.total_delay/self.frame_count:.4f} - max delay: {self.max_delay:.4f}")                
-                # logger.info(f"{frame.shape} - size on memory: {round(frame.nbytes/(1024**2),2)}MB")
+                    logger.info(f"[Camera {self.camera_name}] reader FPS: {fps} - avg delay: {avg_delay:.4f} - max delay: {self.max_delay:.4f}")                
+                    # logger.info(f"{frame.shape} - size on memory: {round(frame.nbytes/(1024**2),2)}MB")
 
-                self.total_delay = 0
-                self.max_delay = 0
-                self.frame_count = 0
-                self.start_time = time.perf_counter()
+                    if self.benchmarking:
+                        self.metrics.append([total_time, fps, avg_delay, self.min_delay, self.max_delay])
+
+                    self.total_delay = 0
+                    self.min_delay = 1000
+                    self.max_delay = 0
+                    self.frame_count = 0
+                    self.start_time = time.perf_counter()
         
         return Gst.FlowReturn.OK
 
@@ -233,7 +265,7 @@ class TIS:
     def stop_pipeline(self):
         stop_time = time.perf_counter()
 
-        self.sharing_on = False
+        self.recording_on = False
         self.stop_program = True
         
         self.pipeline.set_state(Gst.State.PAUSED)
@@ -242,6 +274,9 @@ class TIS:
         recording_duration = stop_time - self.total_start_time
 
         logger.info(f"[Camera {self.camera_name}] reader stopped. Total frames: {self.total_frame_count} - Recording duration: {recording_duration:.2f}s ({round(recording_duration/60,1)} min)")
+
+        if self.benchmarking:
+            self.save_benchmark_metrics()
 
     def get_source(self):
         '''
@@ -302,3 +337,13 @@ class TIS:
             baseproperty.set_command()
         except Exception as error:
             raise RuntimeError(f"Failed to execute '{property_name}'") from error
+
+    def save_benchmark_metrics(self):
+        if len(self.metrics) > 0:
+            logger.info(f"[Camera {self.camera_name}] Saving benchmarking metrics to file.")
+            df = pd.DataFrame(self.metrics, columns=['timestamp', 'fps', 'avg_delay', 'min_delay', 'max_delay'])
+            df['camera_name'] = self.camera_name
+            filename = f"benchmarks/camera_{self.camera_name}_metrics.csv"
+            df.to_csv(filename, index=False)
+
+            logger.info(f"[Camera {self.camera_name}] Benchmarking metrics saved to {filename}")
