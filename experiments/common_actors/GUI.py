@@ -8,12 +8,12 @@ from PyQt5.QtWidgets import QMessageBox, QApplication
 from matplotlib.colors import ListedColormap
 
 from improv.actor import Signal
-from . import video_photostim
+from . import video_2p
 
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-class FrontEnd(QtWidgets.QMainWindow, video_photostim.Ui_MainWindow):
+class FrontEnd(QtWidgets.QMainWindow, video_2p.Ui_MainWindow):
 
     COLOR = {0: ( 240, 122,  5),
              1: (181, 240,  5),

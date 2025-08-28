@@ -6,7 +6,6 @@ import time
 import cv2
 import colorsys
 import scipy
-import pickle
 
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -69,10 +68,10 @@ class VizStimAnalysis(Actor):
         self.xs = {}
         for i, label in enumerate(self.stim_space['labels']):
             stim = self.stimuli[i]
-            # logger.info('stimuli: {}'.format(self.stimuli[i]))
+            logger.info('stimuli: {}'.format(self.stimuli[i]))
             param = f'x_{label}'
             setattr(self, param, stim)
-            # logger.info('params: {}'.format(getattr(self, param, stim)))
+            logger.info('params: {}'.format(getattr(self, param, stim)))
             # self.x_stim.append(stim)
             self.counters[label] = np.ones((stim.shape[0], 2))
             self.ys[label] = np.zeros((1, stim.shape[0], 2))
@@ -112,9 +111,6 @@ class VizStimAnalysis(Actor):
         np.savetxt('output/timing/analysis_timestamp.txt', np.array(self.timestamp))
         np.savetxt('output/analysis_estsAvg.txt', np.array(self.estsAvg))
         np.savetxt('output/analysis_proc_S.txt', np.array(self.S))
-
-        with open("output/analysis_stimY.pkl", 'wb') as f:
-            pickle.dump(self.stimY, f)
         
         stim = []
         for i in self.allStims.keys():

@@ -59,7 +59,7 @@ class Ui_MainWindow(object):
 "#frame_8 {background: rgb(229, 229, 229);\n"
 "border-style: outset;\n"
 "border-width: 2px;\n"
-"border-radius: 10px;\n"
+"border-radius:demos/live/data/sample_stream0.h5 10px;\n"
 "border-color: black;\n"
 "padding: 6px}\n"
 "#frame_7 {background: rgb(229, 229, 229);\n"
