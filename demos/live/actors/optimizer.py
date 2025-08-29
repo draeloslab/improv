@@ -209,7 +209,7 @@ class BayesOptimizer(Actor):
                 if self.X.shape[1] < self.y0.shape[1]:
                     self.optim.initialize_GP(self.X[:, :].T, self.y0[self.nID, -self.X.shape[1]:].T)
                     logger.info(f"condition 1. initialize with {self.X.shape} stim")  # not run in general
-                    logger.info(f"y is {self.y0[self.nID, -self.X.shape[1]:].T}")
+                    # logger.info(f"X is {self.X[:, :].T}, y is {self.y0[self.nID, -self.X.shape[1]:].T}")
                 elif self.y0.shape[1] < self.maxT:
                     # get number of leading zeros/nans
                     y0_with_nan = self.y0[self.nID, -self.y0.shape[1]:].T
@@ -217,7 +217,7 @@ class BayesOptimizer(Actor):
                     logger.info(f"leading zeros for neuron {self.nID} is {leading_zeros}")
                     self.optim.initialize_GP(self.X[:, -(self.y0.shape[1]-leading_zeros):].T, self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T)
                     logger.info(f"condition 2. initialize with {self.y0.shape[1]-leading_zeros} stim")
-                    logger.info(f"y is {self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T}")
+                    logger.info(f"X is {self.X[:, -(self.y0.shape[1]-leading_zeros):].T}, y is {self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T}")
                 else:
                     # get number of leading zeros/nans
                     y0_with_nan = self.y0[self.nID, :].T
@@ -225,7 +225,7 @@ class BayesOptimizer(Actor):
                     logger.info(f"leading zeros for neuron {self.nID} is {leading_zeros}")
                     self.optim.initialize_GP(self.X[:, leading_zeros:].T, self.y0[self.nID, leading_zeros:].T)
                     logger.info(f"condition 3. initialize with all {self.X[:, leading_zeros:].T.shape[0]} stim")
-                    logger.info(f"y is {self.y0[self.nID, leading_zeros:].T}")
+                    logger.info(f"X is {self.X[:, leading_zeros:].T}, y is {self.y0[self.nID, leading_zeros:].T}")
                 self.test_count = 0
                 self.newN = False
                 self.stopping = np.zeros(self.maxT)
@@ -240,6 +240,14 @@ class BayesOptimizer(Actor):
                 ids.append(self.client.put(curr_est)) #, 'est'))
                 ids.append(self.client.put(curr_unc)) # 'unc'))
                 self.q_out.put(ids)
+
+                # immediately calculates suggested next stim
+                ind, xt_1 = self.optim.max_acq()
+                logger.info('INITIALIZATION - suggest next stim: {}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
+                next_ind = []
+                for i in range(self.d):
+                    next_ind.append(np.where(self.stimuli[i] == self.stim_star[ind][i])[0][0])
+                self.stim_ind = next_ind  # prevents duplicate update on X[:,-1], y[-1]
         
         else:
             # need to update the GP
