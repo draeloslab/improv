@@ -1,0 +1,11 @@
+actors:
+  StreamIn:
+    package: actors.stream_in
+    class: StreamIn
+
+  DimRed:
+    package: actors.dim_red
+    class: DimRed
+
+connections:
+  StreamIn.q_out: [DimRed.q_in]
