@@ -190,15 +190,22 @@ class BayesOptimizer(Actor):
 
             nonopt = np.array(list(set(np.arange(self.y0.shape[0]))-set(self.optimized_n)))
             logger.info('nonopt is {}, number of neurons '.format(nonopt,self.y0.shape[0]))
-
+            # ready = [i for i in nonopt if self._obs_count(i) >= 8]  #self.min_init_obs = 8
             if len(nonopt) >= 1 or len(self.goback_neurons)>=1:
                 if len(nonopt) >= 1:
-                    self.nID = nonopt[np.argmax(np.nanmean(self.y0[nonopt,:], axis=1))]
-                    # self.nID = nonopt[np.argmax(np.nanmean(self.y0[nonopt,:], axis=1))]  # FIXME: should change to nanmean
-                    logger.info('selecting most responsive neuron: {}'.format(self.nID))
-                    self.optimized_n.append(self.nID)
-                    self.saved_GP_est = []
-                    self.saved_GP_unc = []
+                    obs_counts = np.count_nonzero(~np.isnan(self.y0[nonopt, :]), axis=1)
+                    ready_mask = obs_counts >= 8 #self.min_init_obs = 8
+                    if np.any(ready_mask):
+                        ready = nonopt[ready_mask]
+                        # logger.info(f"out of those nonopt, these are ready: {ready}")
+                        self.nID = nonopt[np.argmax(np.nanmean(self.y0[ready,:], axis=1))]
+                        # self.nID = nonopt[np.argmax(np.nanmean(self.y0[nonopt,:], axis=1))]  # FIXME: should change to nanmean
+                        logger.info('selecting most responsive neuron: {}'.format(self.nID))
+                        self.optimized_n.append(self.nID)
+                        self.saved_GP_est = []
+                        self.saved_GP_unc = []
+                    else:
+                        logger.info("OOPSY, no neuron have more than 8 stim right now whaaaaat")
                 elif len(self.goback_neurons)>=1:
                     self.nID = self.goback_neurons.pop(0)
                     logger.info('Trying again with neuron {}'.format(self.nID))
@@ -217,7 +224,7 @@ class BayesOptimizer(Actor):
                     logger.info(f"leading zeros for neuron {self.nID} is {leading_zeros}")
                     self.optim.initialize_GP(self.X[:, -(self.y0.shape[1]-leading_zeros):].T, self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T)
                     logger.info(f"condition 2. initialize with {self.y0.shape[1]-leading_zeros} stim")
-                    logger.info(f"X is {self.X[:, -(self.y0.shape[1]-leading_zeros):].T}, y is {self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T}")
+                    # logger.info(f"X is {self.X[:, -(self.y0.shape[1]-leading_zeros):].T}, y is {self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T}")
                 else:
                     # get number of leading zeros/nans
                     y0_with_nan = self.y0[self.nID, :].T
@@ -225,7 +232,7 @@ class BayesOptimizer(Actor):
                     logger.info(f"leading zeros for neuron {self.nID} is {leading_zeros}")
                     self.optim.initialize_GP(self.X[:, leading_zeros:].T, self.y0[self.nID, leading_zeros:].T)
                     logger.info(f"condition 3. initialize with all {self.X[:, leading_zeros:].T.shape[0]} stim")
-                    logger.info(f"X is {self.X[:, leading_zeros:].T}, y is {self.y0[self.nID, leading_zeros:].T}")
+                    # logger.info(f"X is {self.X[:, leading_zeros:].T}, y is {self.y0[self.nID, leading_zeros:].T}")
                 self.test_count = 0
                 self.newN = False
                 self.stopping = np.zeros(self.maxT)
@@ -316,6 +323,10 @@ class BayesOptimizer(Actor):
                 self.timer = time.time()
                 
         self.total_times.append(time.time() - t)
+    
+    def _obs_count(self, n_idx: int) -> int:
+        # robust count of observed values even if the row is all-NaN
+        return int(np.count_nonzero(~np.isnan(self.y0[n_idx, :])))
 
 class RandomSampler(Actor):
     def __init__(self, *args, stimuli=None, param_file=None, **kwargs):
