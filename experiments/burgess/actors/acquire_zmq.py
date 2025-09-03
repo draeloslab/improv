@@ -180,9 +180,9 @@ class ZMQAcquirer(Actor):
                 timestamp = dt.utcfromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
                 frame_bytes = msg_body[8:]
                 image_array = np.frombuffer(frame_bytes, dtype=np.uint8)
-                image_array =  65535 - image_array.view('<u2').reshape((796, 512)) #np.frombuffer(frame_bytes, dtype=np.uint8)#.reshape((512, 796))
+                image_array =  65535 - image_array.view('<u2').reshape((600, 512)) #np.frombuffer(frame_bytes, dtype=np.uint8)#.reshape((512, 796))
                 # logger.info('image_array_size: {}'.format(image_array.size))
-                if image_array.size == 512 * 796 :#* 2:
+                if image_array.size == 512 * 600 :#* 2:
                     self.counter_img_number += 1
                     msg = image_array.T #image_array.view(np.uint16).reshape((512, 796))  # TODO: dim hard coded, maybe move into params. 
                     # logger.info('hey do i have correct image?')
@@ -261,12 +261,12 @@ class ZMQAcquirer(Actor):
         else:
             t0 = time.time()
             # brought back the self.track, collect every other frame
-            if self.track %2 == 0:  # next two lines unindented
-                self._collect_frame(finalthing)
-                self.frame_num += 1
+            # if self.track %2 == 0:  # next two lines unindented
+            self._collect_frame(finalthing)
+            self.frame_num += 1
             self.total_times_frame.append(time.time() - t0)
             self.timestamp_frame.append([dt.now(), self.frame_num])
-            self.track += 1
+            # self.track += 1
 
         # elif str(tag) in 'tail':
         #     if not self.tailF:
