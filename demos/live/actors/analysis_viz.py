@@ -376,6 +376,7 @@ class VizStimAnalysis(Actor):
                 logger.info('appending to X: {}'.format(list(self.xs.values())))
                 self.stimX.append(list(self.xs.values()))
                 self.stimY.append(np.mean(ests[:,self.frame-self.after_amount:self.frame],1))
+                logger.info(f"we have {ests.shape[0]} neurons right now")
                 self.testNum += 1
                 sc = self.stim_count[tuple(int(idx[0]) for idx in self.xs.values())]
                 numN = self.ests.shape[0]
