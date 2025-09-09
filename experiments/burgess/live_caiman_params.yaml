@@ -32,6 +32,8 @@ online:
   normalize: True
   show_movie: False
   sniper_mode: False
+  min_SNR: 2.5
+  rval_thr: 0.9
 
 motion:
   pw_rigid: False
