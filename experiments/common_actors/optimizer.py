@@ -11,7 +11,7 @@ from itertools import product
 import yaml
 from datetime import datetime as dt
 
-from BayesOpt.model.config import Config
+from BayesOpt.model.improv_config import Config 
 from BayesOpt.model.optimizer import Optimizer
 
 from experiments.savier.gen_stim import StimulusSpace
@@ -86,6 +86,7 @@ class BayesOptimizer(Actor):
 
         self.saved_GP_est = []
         self.saved_GP_unc = []
+        self.start_stimulus = []
 
 
     def setup(self):
@@ -106,6 +107,7 @@ class BayesOptimizer(Actor):
         np.save('output/stopping_list.npy', np.array(self.stopping_list))
         np.save('output/peak_list.npy', np.array(self.peak_list))
         np.save('output/optim_f_list.npy', np.array(self.optim_f_list))
+        # np.save('output/optimizer_start_stimulus.npy', np.array(self.start_stimulus))
 
         try:
             np.savetxt('output/timing/optimizer_time.txt', np.array(self.total_times))
@@ -133,10 +135,14 @@ class BayesOptimizer(Actor):
                     self.X = tmpX[:, -tmpX.shape[1]:]
 
             try:
-                b = np.zeros([len(Y),len(max(Y,key = lambda x: len(x)))])
+                # b = np.zeros([len(Y),len(max(Y,key = lambda x: len(x)))])
+                b = np.full([len(Y),len(max(Y,key = lambda x: len(x)))], np.nan)  # FIXME: change to nan instead of 0
                 for i,j in enumerate(Y):
                     b[i][:len(j)] = j
                 self.y0 = b.T
+                is_nan_2d = np.isnan(self.y0)
+                self.start_stimulus = np.argmax(~is_nan_2d, axis=1)
+                # logger.info(f"this is self.start_stimulus: {self.start_stimulus}")
             except:
                 pass
             
@@ -153,8 +159,14 @@ class BayesOptimizer(Actor):
             # internally counts to make sure that we only send correct number of initial stim
             flag = False
             if self.stim_ind is None:
-                logger.info("what is the current counter: {}".format(self.counter))
-                self.stim_ind = self.stim_space['initial_stim'][self.counter-1] ## FIXME: counter started with 1 (somehow)
+                # logger.info("what is the current counter: {}".format(self.counter))
+                if self.counter - 1 < self.stimuli_space.initial_stim_count:
+                    self.stim_ind = self.stim_space['initial_stim'][self.counter-1] ## FIXME: counter started with 1 (somehow)
+                elif self.counter -1 == self.stimuli_space.initial_stim_count:
+                    # self.stim_ind = self.stim_space['initial_stim'][-1]
+                    np.random.seed(self.seed)
+                    self.stim_ind = [np.random.choice(np.arange(0, stim)) for stim in self.stim_choice]
+                    # logger.info(f"randomly selected stim_ind is {self.stim_ind}")
                 # self.stim_ind, flag = self.stimuli_space.initial_stim(self.stimuli, self.counter)
 
             if (time.time() - self.timer) >= self.total_stim_time:
@@ -164,7 +176,8 @@ class BayesOptimizer(Actor):
                 # logger.info("self.counter just added by 1!")
                 self.timer = time.time()
             
-            if self.counter-1 >= self.stimuli_space.initial_stim_count:  # FIXME: counter started with 1 (somehow)
+            # make initialization 9 stim long so optimizer can init on first 8
+            if self.counter-1 >= self.stimuli_space.initial_stim_count + 1:  # FIXME: counter started with 1 (somehow)
                 flag = True
             
             if flag:
@@ -177,26 +190,49 @@ class BayesOptimizer(Actor):
 
             nonopt = np.array(list(set(np.arange(self.y0.shape[0]))-set(self.optimized_n)))
             logger.info('nonopt is {}, number of neurons '.format(nonopt,self.y0.shape[0]))
-
+            # ready = [i for i in nonopt if self._obs_count(i) >= 8]  #self.min_init_obs = 8
             if len(nonopt) >= 1 or len(self.goback_neurons)>=1:
                 if len(nonopt) >= 1:
-                    self.nID = nonopt[np.argmax(np.mean(self.y0[nonopt,:], axis=1))]
-                    logger.info('selecting most responsive neuron: {}'.format(self.nID))
-                    self.optimized_n.append(self.nID)
-                    self.saved_GP_est = []
-                    self.saved_GP_unc = []
+                    obs_counts = np.count_nonzero(~np.isnan(self.y0[nonopt, :]), axis=1)
+                    ready_mask = obs_counts >= 8 #self.min_init_obs = 8
+                    if np.any(ready_mask):
+                        ready = nonopt[ready_mask]
+                        # logger.info(f"out of those nonopt, these are ready: {ready}")
+                        self.nID = nonopt[np.argmax(np.nanmean(self.y0[ready,:], axis=1))]
+                        # self.nID = nonopt[np.argmax(np.nanmean(self.y0[nonopt,:], axis=1))]  # FIXME: should change to nanmean
+                        logger.info('selecting most responsive neuron: {}'.format(self.nID))
+                        self.optimized_n.append(self.nID)
+                        self.saved_GP_est = []
+                        self.saved_GP_unc = []
+                    else:
+                        logger.info("OOPSY, no neuron have more than 8 stim right now whaaaaat")
                 elif len(self.goback_neurons)>=1:
                     self.nID = self.goback_neurons.pop(0)
                     logger.info('Trying again with neuron {}'.format(self.nID))
                     self.optimized_n.append(self.nID)
                 
                 print(self.y0.shape, self.X.shape, self.X0.shape)
+                logger.info(f"self.y0 shape is {self.y0.shape}, self.maxT is {self.maxT}")
                 if self.X.shape[1] < self.y0.shape[1]:
                     self.optim.initialize_GP(self.X[:, :].T, self.y0[self.nID, -self.X.shape[1]:].T)
+                    logger.info(f"condition 1. initialize with {self.X.shape} stim")  # not run in general
+                    # logger.info(f"X is {self.X[:, :].T}, y is {self.y0[self.nID, -self.X.shape[1]:].T}")
                 elif self.y0.shape[1] < self.maxT:
-                    self.optim.initialize_GP(self.X[:, -self.y0.shape[1]:].T, self.y0[self.nID, -self.y0.shape[1]:].T)
+                    # get number of leading zeros/nans
+                    y0_with_nan = self.y0[self.nID, -self.y0.shape[1]:].T
+                    leading_zeros = np.argmax(~np.isnan(y0_with_nan))
+                    logger.info(f"leading zeros for neuron {self.nID} is {leading_zeros}")
+                    self.optim.initialize_GP(self.X[:, -(self.y0.shape[1]-leading_zeros):].T, self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T)
+                    logger.info(f"condition 2. initialize with {self.y0.shape[1]-leading_zeros} stim")
+                    logger.info(f"X is {self.X[:, -(self.y0.shape[1]-leading_zeros):].T}, y is {self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T}")
                 else:
-                    self.optim.initialize_GP(self.X[:, :].T, self.y0[self.nID, :].T)
+                    # get number of leading zeros/nans
+                    y0_with_nan = self.y0[self.nID, :].T
+                    leading_zeros = np.argmax(~np.isnan(y0_with_nan))
+                    logger.info(f"leading zeros for neuron {self.nID} is {leading_zeros}")
+                    self.optim.initialize_GP(self.X[:, leading_zeros:].T, self.y0[self.nID, leading_zeros:].T)
+                    logger.info(f"condition 3. initialize with all {self.X[:, leading_zeros:].T.shape[0]} stim")
+                    logger.info(f"X is {self.X[:, leading_zeros:].T}, y is {self.y0[self.nID, leading_zeros:].T}")
                 self.test_count = 0
                 self.newN = False
                 self.stopping = np.zeros(self.maxT)
@@ -211,6 +247,14 @@ class BayesOptimizer(Actor):
                 ids.append(self.client.put(curr_est)) #, 'est'))
                 ids.append(self.client.put(curr_unc)) # 'unc'))
                 self.q_out.put(ids)
+
+                # immediately calculates suggested next stim
+                ind, xt_1 = self.optim.max_acq()
+                logger.info('INITIALIZATION - suggest next stim: {}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
+                next_ind = []
+                for i in range(self.d):
+                    next_ind.append(np.where(self.stimuli[i] == self.stim_star[ind][i])[0][0])
+                self.stim_ind = next_ind  # prevents duplicate update on X[:,-1], y[-1]
         
         else:
             # need to update the GP
@@ -220,7 +264,7 @@ class BayesOptimizer(Actor):
                 for i in range(self.d):
                     X[i] = self.GP_stimuli[i][int(self.X[i,-1])]
 
-                logger.info('optim {} , update GP with {}, {}'.format( self.nID, X, self.y0[self.nID, -1]))
+                logger.info('optim {} (test: {}), update GP with {}, {}'.format(self.nID, self.test_count, X, self.y0[self.nID, -1]))
                 self.optim.update_GP(np.squeeze(X), self.y0[self.nID,-1])
 
                 curr_unc = np.diagonal(self.optim.sigma).reshape((self.stim_choice))
@@ -261,6 +305,8 @@ class BayesOptimizer(Actor):
                     peak = self.stim_star[np.argmax(self.optim.f)]
                     self.peak_list.append(peak)
                     self.optim_f_list.append(self.optim.f)
+                    np.save('output/saved_GP_est_'+str(self.nID)+'.npy', np.array(self.saved_GP_est))
+                    np.save('output/saved_GP_unc_'+str(self.nID)+'.npy', np.array(self.saved_GP_unc))
 
                 else:
                     ind, xt_1 = self.optim.max_acq()
@@ -277,6 +323,9 @@ class BayesOptimizer(Actor):
                 self.timer = time.time()
                 
         self.total_times.append(time.time() - t)
+    def _obs_count(self, n_idx: int) -> int:
+        # robust count of observed values even if the row is all-NaN
+        return int(np.count_nonzero(~np.isnan(self.y0[n_idx, :])))
 
 class RandomSampler(Actor):
     def __init__(self, *args, stimuli=None, param_file=None, **kwargs):
@@ -391,6 +440,7 @@ class RandomSampler(Actor):
                 param3 = np.argwhere(int(grid[3]) == self.stimuli[3])[0][0]
 
                 self.stim_ind = [param0, param1, param2, param3]
+                logger.info('random stimulus indices chosen: {}'.format(self.stim_ind))
 
             if (time.time() - self.timer) >= self.total_stim_time:
                 self.links['stim_ind_out'].put(self.stim_ind)
