@@ -1,6 +1,6 @@
 General:
   seed: 42
-  init_T: 4
+  init_T: 8
   max_tests: 15
   improv: True
 
@@ -20,5 +20,5 @@ Optimizer:
   eta: 5e-2
   optim_1:
     kernel: ['rbf', 'rbf', 'rbf', 'rbf', 'rbf']  
-    stopping_crit: 4e-4 #3e-4 
+    stopping_crit: 3e-4 #3e-4 #4e-4
   
