@@ -6,6 +6,8 @@ import logging
 import asyncio
 import concurrent
 import subprocess
+import psutil
+import numpy as np
 
 from queue import Full
 from datetime import datetime
@@ -44,7 +46,7 @@ class Nexus:
         self,
         file=None,
         use_watcher=None,
-        store_size=100_000_000_000, # 100 GB
+        store_size=600_000_000_000,
         control_port=0,
         output_port=0,
     ):
@@ -135,6 +137,7 @@ class Nexus:
         self.actors = {}
         self.flags = {}
         self.processes = []
+        self.mem = []
 
         self.initConfig()
 
@@ -361,6 +364,9 @@ class Nexus:
             logger.info(str(p))
             p.start()
 
+        #NOTE: getPID() here?? 
+        self.get_pid()
+
         logger.info("All processes started")
 
     def destroyNexus(self):
@@ -440,7 +446,7 @@ class Nexus:
                 elif t in done:
                     logger.debug("t.result = " + str(t.result()))
                     self.tasks[i] = asyncio.create_task(self.remote_input())
-
+                    
         if not self.early_exit:  # don't run this again if we already have
             self.stop_polling(Signal.quit(), polling)
             logger.warning("Shutting down polling")
@@ -481,7 +487,7 @@ class Nexus:
             logger.info("Received signal from user: " + flag[0])
             if flag[0] == Signal.run():
                 logger.info("Begin run!")
-                # self.flags['run'] = True
+                self.flags['run'] = True
                 self.run()
             elif flag[0] == Signal.setup():
                 logger.info("Running setup")
@@ -543,6 +549,9 @@ class Nexus:
             elif flag[0] == Signal.stop():
                 logger.info("Nexus received stop signal")
                 self.stop()
+            else:
+                logger.info("Nexus recevied signal that is being sent to all actors")
+                self.pass_signal_to_actors(flag[0])
         elif flag:
             logger.error("Unknown signal received from Nexus: {}".format(flag))
 
@@ -562,8 +571,16 @@ class Nexus:
                 if all(val == Signal.stop_success() for val in state_val):
                     self.allowStart = False  # TODO: replace with q_sig to FE/Visual
                     self.stoppped = False
-                    logger.info("All stops were successful. Run setup before allowing start.")
+                    logger.info("All stops were successful. Allowing start.")
 
+    def pass_signal_to_actors(self, flag):
+        logger.info("Sending signal {} to all actors".format(flag))
+        for q in self.sig_queues.values():
+            try:
+                q.put_nowait(flag)
+            except Full:
+                logger.warning("Signal queue" + q.name + "is full")
+    
     def setup(self):
         for q in self.sig_queues.values():
             try:
@@ -689,19 +706,22 @@ class Nexus:
         if self.config and self.config.use_plasma():
             self.use_plasma = True
             self.store_loc = str(os.path.join("/tmp/", str(uuid.uuid4())))
+            subprocess_command = [
+                "plasma_store",
+                "-s",
+                self.store_loc,
+                "-m",
+                str(size),
+                "-e",
+                "hashtable://test",
+            ]
             self.p_StoreInterface = subprocess.Popen(
-                [
-                    "plasma_store",
-                    "-s",
-                    self.store_loc,
-                    "-m",
-                    str(size),
-                    "-e",
-                    "hashtable://test",
-                ],
+                subprocess_command,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
+            logger.info(
+            "Starting Plasma server with command: \n {}".format(subprocess_command)) 
             logger.info("StoreInterface start successful: {}".format(self.store_loc))
         else:
             logger.info("Setting up Redis store.")
@@ -910,3 +930,17 @@ class Nexus:
         self.p_watch.daemon = True
         self.p_watch.start()
         self.processes.append(self.p_watch)
+    
+    def get_pid(self):
+        j = 0
+        for key, q in self.sig_queues.items():
+            try:
+                if 'GUI' in key:
+                    continue
+                # logger.info('pid number: {}'.format(self.processes[j].pid))
+                q.put_nowait('pid' + str(self.processes[j].pid))
+                j += 1
+            # except Full:
+            #     logger.warning("Signal queue" + q.name + "is full")
+            except Exception as e:
+                logger.info('Error in getPID: {}'.format(e))

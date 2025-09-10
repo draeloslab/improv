@@ -8,6 +8,8 @@ import improv.store
 from improv.store import StoreInterface
 
 import logging
+import psutil
+import numpy as np
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -31,6 +33,7 @@ class AbstractActor:
         self.client = None
         self.store_loc = store_loc
         self.lower_priority = False
+        self.mem = []
 
         # Start with no explicit data queues.
         # q_in and q_out are reserved for passing ID information
@@ -184,8 +187,28 @@ class AbstractActor:
             p.nice(19)  # lowest as default
             logger.info("Lowered priority of this process: {}".format(self.name))
             print("Lowered ", os.getpid(), " for ", self.name)
+        
+    def set_pid(self, an, pid):
+        self.pid = [an, pid]
+        # logger.info('pid: {}'.format(self.pid))
 
-
+    def check_mem(self):
+        try:
+            process = psutil.Process(self.pid[1])
+            self.mem = [self.pid[0], process.memory_percent()]
+            logger.info('mem: {}'.format(self.mem))
+        except Exception as e:
+            logger.info('Error in check memory: {}'.format(e))
+        
+        # for p in self.processes:
+        #     try:
+        #         process = psutil.Process(p.pid)
+        #         logger.info('memory stuff') # {}'.format(proscess.memory_percent()))
+        #         self.mem.append([str(p), process.memory_percent()])
+        #     except Exception as e:
+        #         print('Processes Memory error: {}'.format(e))
+        #     np.savetxt('../demos/live/output/processes_mem.txt', self.mem, fmt="%s")
+        
 class ManagedActor(AbstractActor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args)
@@ -195,6 +218,8 @@ class ManagedActor(AbstractActor):
         self.actions["setup"] = self.setup
         self.actions["run"] = self.runStep
         self.actions["stop"] = self.stop
+        self.actions["set_pid"] = self.set_pid
+        self.actions["mem"] = self.check_mem
 
     def run(self):
         try:
@@ -216,6 +241,8 @@ class AsyncActor(AbstractActor):
         self.actions["setup"] = self.setup
         self.actions["run"] = self.runStep
         self.actions["stop"] = self.stop
+        self.actions["set_pid"] = self.set_pid
+        self.actions["mem"] = self.check_mem
 
     def run(self):
         """Run the actor in an async loop"""
@@ -247,6 +274,7 @@ class RunManager:
         self.run = False
         self.stop = False
         self.config = False
+        self.check_mem = False
 
         self.actorName = name
         logger.debug("RunManager for {} created".format(self.actorName))
@@ -262,10 +290,16 @@ class RunManager:
     def __enter__(self):
         self.start = time.time()
         an = self.actorName
-
+        
         while True:
             # Run any actions given a received Signal
             if self.run:
+                if self.check_mem:
+                    try: 
+                        self.actions['mem']()
+                    except Exception as e:
+                        logger.error("Check memory error: {}".format(e))
+                    self.check_mem = False
                 try:
                     self.actions["run"]()
                 except Exception as e:
@@ -293,7 +327,12 @@ class RunManager:
             try:
                 signal = self.q_sig.get(timeout=self.timeout)
                 logger.debug("{} received Signal {}".format(self.actorName, signal))
-                if signal == Signal.run():
+                # logger.info('receiving signal {}'.format(signal))
+                if "pid" in signal:
+                    logger.warning('Received pid signal')
+                    pid = int(signal.split('pid')[1])
+                    self.actions['set_pid'](an, pid)
+                elif signal == Signal.run():
                     self.run = True
                     logger.warning("Received run signal, begin running")
                 elif signal == Signal.setup():
@@ -311,6 +350,10 @@ class RunManager:
                 elif signal == Signal.resume():  # currently treat as same as run
                     logger.warning("Received resume signal, resuming")
                     self.run = True
+                elif signal == Signal.mem():
+                    self.check_mem = True
+                    logger.info('Received signal for check mem')
+                    self.actions['mem']()
             except KeyboardInterrupt:
                 break
             except Empty:
@@ -339,6 +382,7 @@ class AsyncRunManager:
         self.run = False
         self.config = False
         self.stop = False
+        self.check_mem = False
         self.actorName = name
         logger.debug("AsyncRunManager for {} created".format(self.actorName))
         self.actions = actions
@@ -362,6 +406,11 @@ class AsyncRunManager:
         while True:
             # Run any actions given a received Signal
             if self.run:
+                if self.check_mem:
+                    try: 
+                        self.actions['mem']()
+                    except Exception as e:
+                        logger.error("Check memory error: {}".format(e))
                 try:
                     await self.actions["run"]()
                 except Exception as e:
@@ -389,7 +438,11 @@ class AsyncRunManager:
             try:
                 signal = self.q_sig.get(timeout=self.timeout)
                 logger.debug("{} received Signal {}".format(self.actorName, signal))
-                if signal == Signal.run():
+                if "pid" in signal:
+                    logger.warning('Received pid signal')
+                    pid = int(signal.split('pid')[1])
+                    self.actions['set_pid'](pid)
+                elif signal == Signal.run():
                     self.run = True
                     logger.warning("Received run signal, begin running")
                 elif signal == Signal.setup():
@@ -407,6 +460,9 @@ class AsyncRunManager:
                 elif signal == Signal.resume():  # currently treat as same as run
                     logger.warning("Received resume signal, resuming")
                     self.run = True
+                elif signal == Signal.mem():
+                    self.check_mem = True
+                    logger.error("Check memory error: {}".format(e))
             except KeyboardInterrupt:
                 break
             except Empty:
@@ -477,3 +533,7 @@ class Signal:
     @staticmethod
     def stop_success():
         return "stop success"
+    
+    @staticmethod
+    def mem():
+        return "mem"
