@@ -54,6 +54,7 @@ class BayesOptimizer(Actor):
         self.stopping_crit = float(self.init_params['Optimizer']['optim_1']['stopping_crit']) #3.0e-4
         kernels = self.init_params['Optimizer']['optim_1']['kernel']
         self.optim = Optimizer(self.config, kernels) #gamma[:self.d], var, nu, eta, self.config.x_star)
+        logger.info(f"Optimizer is using {kernels} with {self.stopping_crit} as the stopping criterion")
 
         # List of all stimuli combinations
         xs = np.meshgrid(*self.stimuli, indexing='ij') #,x3,x4])
@@ -212,7 +213,7 @@ class BayesOptimizer(Actor):
                     self.optimized_n.append(self.nID)
                 
                 print(self.y0.shape, self.X.shape, self.X0.shape)
-                logger.info(f"self.y0 shape is {self.y0.shape}, self.maxT is {self.maxT}")
+                # logger.info(f'y0 shape {self.y0.shape}; X shape {self.X.shape}; X0 shape {self.X0.shape}')
                 if self.X.shape[1] < self.y0.shape[1]:
                     self.optim.initialize_GP(self.X[:, :].T, self.y0[self.nID, -self.X.shape[1]:].T)
                     logger.info(f"condition 1. initialize with {self.X.shape} stim")  # not run in general
@@ -224,7 +225,7 @@ class BayesOptimizer(Actor):
                     logger.info(f"leading zeros for neuron {self.nID} is {leading_zeros}")
                     self.optim.initialize_GP(self.X[:, -(self.y0.shape[1]-leading_zeros):].T, self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T)
                     logger.info(f"condition 2. initialize with {self.y0.shape[1]-leading_zeros} stim")
-                    logger.info(f"X is {self.X[:, -(self.y0.shape[1]-leading_zeros):].T}, y is {self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T}")
+                    # logger.info(f"X is {self.X[:, -(self.y0.shape[1]-leading_zeros):].T}, y is {self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T}")
                 else:
                     # get number of leading zeros/nans
                     y0_with_nan = self.y0[self.nID, :].T
@@ -232,7 +233,7 @@ class BayesOptimizer(Actor):
                     logger.info(f"leading zeros for neuron {self.nID} is {leading_zeros}")
                     self.optim.initialize_GP(self.X[:, leading_zeros:].T, self.y0[self.nID, leading_zeros:].T)
                     logger.info(f"condition 3. initialize with all {self.X[:, leading_zeros:].T.shape[0]} stim")
-                    logger.info(f"X is {self.X[:, leading_zeros:].T}, y is {self.y0[self.nID, leading_zeros:].T}")
+                    # logger.info(f"X is {self.X[:, leading_zeros:].T}, y is {self.y0[self.nID, leading_zeros:].T}")
                 self.test_count = 0
                 self.newN = False
                 self.stopping = np.zeros(self.maxT)
@@ -341,6 +342,15 @@ class RandomSampler(Actor):
         self.d = self.stimuli.shape[0]
         self.initial_length = self.stimuli_space.initial_stim_count
         logger.info('Stimuli info: Num of Stimuli Parameters: {}, Num of Initial Stim: {}'.format(self.d, self.initial_length))
+        logger.info("Stim space specification: {}".format(self.stim_space))
+        
+        # -----------------------------------------------------------------------------
+
+        self.param_file = param_file
+        self.init_params = yaml.safe_load(open(self.param_file, 'r'))
+
+        self.seed = self.init_params['General']['seed']
+        logger.info(f"RandomSampler is using seed value {self.seed}")
 
         # ----------------------------------------------------------------------------
         # List of all stimuli combinations
@@ -350,7 +360,127 @@ class RandomSampler(Actor):
             x_star[...,i] = xs[i]
 
         self.stim_star = x_star.reshape(-1, self.d)
-        logger.info('stim_star: {}'.format(self.stim_star))
+        logger.info('stim_star: {} - shape: {}'.format(self.stim_star, self.stim_star.shape))
+
+        np.random.seed(self.seed)  # TODO: double check if this is ok
+        # self.stim_star_flat = self.stim_star.flatten()
+        # self.stim_star_shuffle = self.stim_star.copy()
+        self.stim_star_shuffle = np.random.permutation(self.stim_star)
+        logger.info('shuffling a copy of stim_star {} with shape {}'.format(self.stim_star_shuffle, self.stim_star_shuffle.shape))
+        logger.info(f"now this is self.stim_star {self.stim_star}")
+        self.total_times = []
+
+    def setup(self):
+    
+        self.stop_sending = False
+        self.initial = True
+        self.newN = False
+        self.counter = 0
+        self.timer = time.time()
+
+        self.stim_ind = None
+
+    def stop(self):
+        pass
+
+    def runStep(self):
+        t = time.time()
+
+        if self.initial: 
+            # displays initial stimulus 
+            # internally counts to make sure that we only send correct number of initial stim
+            flag = False
+            if self.stim_ind is None:
+                logger.info(f"line 384 this is self.counter {self.counter}")
+                self.stim_ind = self.stim_space['initial_stim'][self.counter]
+
+            if (time.time() - self.timer) >= self.total_stim_time:
+                logger.info('Displaying initial stimuli....')
+                self.links['stim_ind_out'].put(self.stim_ind)
+                self.stim_ind = None
+                self.counter += 1
+                self.timer = time.time()
+            
+            if self.counter == self.stimuli_space.initial_stim_count:
+                self.stim_ind = self.stim_space['initial_stim'][0]
+                # logger.info(f"line 395 this is stim_ind {self.stim_ind}")
+            elif self.counter -1 >= self.stimuli_space.initial_stim_count:
+                flag = True
+            
+            if flag:
+                logger.info('Done with initial frames... starting random sampler')
+                self.initial = False
+                self.newN = True
+                self.counter = 0
+            
+        elif self.newN:
+            if self.stim_ind is None:
+                logger.info('random')
+                random_stim = self.stim_star_shuffle[self.counter]
+
+                #FIXME: make checkpoints here and read all possible dimensions
+                #FIXME: This is a manual method (need to fix to make it more flexible)
+                param0 = np.argwhere(int(random_stim[0]) == self.stimuli[0])[0][0]
+                param1 = np.argwhere(random_stim[1] == self.stimuli[1])[0][0]
+                param2 = np.argwhere(int(random_stim[2]) == self.stimuli[2])[0][0]
+                param3 = np.argwhere(int(random_stim[3]) == self.stimuli[3])[0][0]
+                param4 = np.argwhere(int(random_stim[4]) == self.stimuli[4])[0][0]
+
+                self.stim_ind = [param0, param1, param2, param3, param4]
+                logger.info('random stimulus indices chosen: {}'.format(self.stim_ind))
+
+            if (time.time() - self.timer) >= self.total_stim_time:
+                self.links['stim_ind_out'].put(self.stim_ind)
+                self.stim_ind = None
+                self.counter += 1
+                self.newN = True
+                self.timer = time.time()
+        
+        self.total_times.append(time.time() -t)
+
+class GridSampler(Actor):
+    def __init__(self, *args, stimuli=None, param_file=None, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        ''' GridSampler displays a initial stimuli set, and then proceeds to a grid search of reduced stimuli requests. '''
+
+        # Stimulus Space information (loading from stimulus class)
+        self.stimuli_space = StimulusSpace()
+        self.stim_space = self.stimuli_space.stim_space
+        self.stimuli = self.stim_space['stimuli']
+        logger.info(f"self.stimuli is {self.stimuli}")
+        self.stimuli_reduced = [
+            self.stimuli[0][[0, 2, 4, 6]],   # orientation -> [0, 90, 180, 270]
+            self.stimuli[1][[0, 2, 5]],      # speed -> [0.02, 0.06, 0.12]
+            self.stimuli[2][[0, 2, 4]],      # size -> [50, 225, 400]
+            self.stimuli[3][[1, 3]],         # frequency -> [3, 20]
+            self.stimuli[4][[0, 1, 2]]       # contrast -> [0, 50, 100]
+        ]
+        logger.info(f"self.stimuli_reduced is {self.stimuli_reduced}")
+        self.total_stim_time = self.stim_space['total_stim_time']
+        self.d = self.stimuli.shape[0]
+        self.initial_length = self.stimuli_space.initial_stim_count
+        logger.info('Stimuli info: Num of Stimuli Parameters: {}, Num of Initial Stim: {}'.format(self.d, self.initial_length))
+        logger.info("Stim space specification: {}".format(self.stim_space))
+        # ----------------------------------------------------------------------------
+        # List of all stimuli combinations
+        xs = np.meshgrid(*self.stimuli, indexing='ij') #,x3,x4])
+        x_star = np.empty(xs[0].shape + (self.d,))
+        for i in range(self.d):
+            x_star[...,i] = xs[i]
+
+        self.stim_star = x_star.reshape(-1, self.d)
+        logger.info('stim_star: {} - shape: {}'.format(self.stim_star, self.stim_star.shape))
+
+        # List of all stimuli combinations for reduced samples
+        xs_reduced = np.meshgrid(*self.stimuli_reduced, indexing='ij') #,x3,x4])
+        x_star_reduced = np.empty(xs_reduced[0].shape + (self.d,))
+        for i in range(self.d):
+            x_star_reduced[...,i] = xs_reduced[i]
+
+        self.stim_star_reduced = x_star_reduced.reshape(-1, self.d)
+        logger.info('stim_star_reduced: {} - shape: {}'.format(self.stim_star_reduced, self.stim_star_reduced.shape))
+        # logger.info(f'stim_star_head is {x_star_reduced[:20]}')
 
         self.total_times = []
 
@@ -369,46 +499,13 @@ class RandomSampler(Actor):
 
     def runStep(self):
         t = time.time()
-        # Listening to the analysis actor (currently commented out for RandomSampler)
-        # try:
-        #     ids = self.q_in.get(timeout=0.0001)
-
-        #     # X, Y, stim, _ = self.client.get(ids)
-        #     X = self.client.get(ids[0])
-        #     Y = self.client.get(ids[1])
-        #     # frame_num = self.client.get(ids[2]) # maybe (sometimes this try block "fails" and so the frame num isn't recorded?)
-
-        #     # logger.info('X, Y: {}, {}'.format(X, Y))
-
-        #     tmpX = np.squeeze(np.array(X)).T
-        #     # logger.info(f'{tmpX.shape}, {len(Y)}----------------------------------------------------')
-        #     sh = len(tmpX.shape)
-        #     if sh > 1:
-        #         self.X = tmpX.copy()
-        #         if tmpX.shape[1] > 4:
-        #             self.X = tmpX[:, -tmpX.shape[1]:]
-        #         # print('self.X DIRECT from analysis is ', X, 'and self.X is ', self.X[:,-1])
-        #     # print(self.X)
-
-        #     try:
-        #         b = np.zeros([len(Y),len(max(Y,key = lambda x: len(x)))])
-        #         for i,j in enumerate(Y):
-        #             b[i][:len(j)] = j
-        #         self.y0 = b.T
-        #     except:
-        #         pass
-            
-
-        # except Empty as e:
-        #     pass
-        # except Exception as e:
-        #     print('Error in optimizer get: {}'.format(e))
 
         if self.initial: 
             # displays initial stimulus 
             # internally counts to make sure that we only send correct number of initial stim
             flag = False
             if self.stim_ind is None:
+                logger.info(f"line 508 this is self.counter {self.counter}")
                 self.stim_ind = self.stim_space['initial_stim'][self.counter]
 
             if (time.time() - self.timer) >= self.total_stim_time:
@@ -418,7 +515,10 @@ class RandomSampler(Actor):
                 self.counter += 1
                 self.timer = time.time()
             
-            if self.counter >= self.stimuli_space.initial_stim_count:
+            if self.counter == self.stimuli_space.initial_stim_count:
+                self.stim_ind = self.stim_space['initial_stim'][0]
+
+            elif self.counter -1 >= self.stimuli_space.initial_stim_count:
                 flag = True
             
             if flag:
@@ -429,18 +529,19 @@ class RandomSampler(Actor):
             
         elif self.newN:
             if self.stim_ind is None:
-                logger.info('random')
-                np.random.shuffle(self.stim_star)
-                grid = self.stim_star[self.counter]
-                
+                logger.info('grid')
+                grid = self.stim_star_reduced[self.counter]  # FIXME: this is grid not random
+
+                #FIXME: make checkpoints here and read all possible dimensions
                 #FIXME: This is a manual method (need to fix to make it more flexible)
                 param0 = np.argwhere(int(grid[0]) == self.stimuli[0])[0][0]
                 param1 = np.argwhere(grid[1] == self.stimuli[1])[0][0]
                 param2 = np.argwhere(int(grid[2]) == self.stimuli[2])[0][0]
                 param3 = np.argwhere(int(grid[3]) == self.stimuli[3])[0][0]
+                param4 = np.argwhere(int(grid[4]) == self.stimuli[4])[0][0]
 
-                self.stim_ind = [param0, param1, param2, param3]
-                logger.info('random stimulus indices chosen: {}'.format(self.stim_ind))
+                self.stim_ind = [param0, param1, param2, param3, param4]
+                logger.info('grid stimulus indices chosen: {}'.format(self.stim_ind))
 
             if (time.time() - self.timer) >= self.total_stim_time:
                 self.links['stim_ind_out'].put(self.stim_ind)
@@ -450,4 +551,112 @@ class RandomSampler(Actor):
                 self.timer = time.time()
         
         self.total_times.append(time.time() -t)
+
+class RandomSamplerWithReplace(Actor):
+    def __init__(self, *args, stimuli=None, param_file=None, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        ''' RandomSamplerWithReplace displays a initial stimuli set, and then proceeds to send random stimuli requests, sample with replacement. '''
+
+        # Stimulus Space information (loading from stimulus class)
+        self.stimuli_space = StimulusSpace()
+        self.stim_space = self.stimuli_space.stim_space
+        self.stimuli = self.stim_space['stimuli']
+        self.total_stim_time = self.stim_space['total_stim_time']
+        self.d = self.stimuli.shape[0]
+        self.initial_length = self.stimuli_space.initial_stim_count
+        logger.info('Stimuli info: Num of Stimuli Parameters: {}, Num of Initial Stim: {}'.format(self.d, self.initial_length))
+        logger.info("Stim space specification: {}".format(self.stim_space))
+
+        # -----------------------------------------------------------------------------
+
+        self.param_file = param_file
+        self.init_params = yaml.safe_load(open(self.param_file, 'r'))
+
+        self.seed = self.init_params['General']['seed']
+        logger.info(f"RandomSamplerWithReplace is using seed value {self.seed}")
+
+        # ----------------------------------------------------------------------------
+        # List of all stimuli combinations
+        xs = np.meshgrid(*self.stimuli, indexing='ij') #,x3,x4])
+        x_star = np.empty(xs[0].shape + (self.d,))
+        for i in range(self.d):
+            x_star[...,i] = xs[i]
+
+        self.stim_star = x_star.reshape(-1, self.d)
+        logger.info('stim_star: {} - shape: {}'.format(self.stim_star, self.stim_star.shape))
+
+        np.random.seed(self.seed)  # TODO: double check if this is ok
+        # self.stim_star_flat = self.stim_star.flatten()
+        # self.stim_star_shuffle = self.stim_star.copy()
+        self.total_times = []
+       
+
+    def setup(self):
+    
+        self.stop_sending = False
+        self.initial = True
+        self.newN = False
+        self.counter = 0
+        self.timer = time.time()
+
+        self.stim_ind = None
+
+    def stop(self):
+        pass
+
+    def runStep(self):
+        t = time.time()
+
+        if self.initial: 
+            # displays initial stimulus 
+            # internally counts to make sure that we only send correct number of initial stim
+            flag = False
+            if self.stim_ind is None:
+                logger.info(f"line 627 this is self.counter {self.counter}")
+                self.stim_ind = self.stim_space['initial_stim'][self.counter]
+
+            if (time.time() - self.timer) >= self.total_stim_time:
+                logger.info('Displaying initial stimuli....')
+                self.links['stim_ind_out'].put(self.stim_ind)
+                self.stim_ind = None
+                self.counter += 1
+                self.timer = time.time()
+            
+            if self.counter == self.stimuli_space.initial_stim_count:
+                self.stim_ind = self.stim_space['initial_stim'][0]
+                # logger.info(f"line 395 this is stim_ind {self.stim_ind}")
+            elif self.counter -1 >= self.stimuli_space.initial_stim_count:
+                flag = True
+            
+            if flag:
+                logger.info('Done with initial frames... starting random sampler')
+                self.initial = False
+                self.newN = True
+                self.counter = 0
+            
+        elif self.newN:
+            if self.stim_ind is None:
+                logger.info('random with replacement')
+                random_idx = np.random.randint(self.stim_star.shape[0])  # should be [0,2880)
+                random_stim = self.stim_star[random_idx]
+
+                #FIXME: make checkpoints here and read all possible dimensions
+                #FIXME: This is a manual method (need to fix to make it more flexible)
+                param0 = np.argwhere(int(random_stim[0]) == self.stimuli[0])[0][0]
+                param1 = np.argwhere(random_stim[1] == self.stimuli[1])[0][0]
+                param2 = np.argwhere(int(random_stim[2]) == self.stimuli[2])[0][0]
+                param3 = np.argwhere(int(random_stim[3]) == self.stimuli[3])[0][0]
+                param4 = np.argwhere(int(random_stim[4]) == self.stimuli[4])[0][0]
+
+                self.stim_ind = [param0, param1, param2, param3, param4]
+                logger.info('random stimulus indices {} chosen: {}'.format(random_idx, self.stim_ind))
+
+            if (time.time() - self.timer) >= self.total_stim_time:
+                self.links['stim_ind_out'].put(self.stim_ind)
+                self.stim_ind = None
+                self.counter += 1
+                self.newN = True
+                self.timer = time.time()
         
+        self.total_times.append(time.time() -t)   
