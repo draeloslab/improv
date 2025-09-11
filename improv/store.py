@@ -16,6 +16,9 @@ from redis.exceptions import BusyLoadingError, ConnectionError, TimeoutError
 from scipy.sparse import csc_matrix
 from pyarrow.lib import ArrowIOError
 from pyarrow._plasma import PlasmaObjectExists, ObjectNotAvailable
+import psutil 
+# from time import time
+import time
 
 REDIS_GLOBAL_TOPIC = "global_topic"
 
@@ -48,6 +51,24 @@ class RedisStoreInterface(StoreInterface):
         self.server_port_num = server_port_num
         self.hostname = hostname
         self.client = self.connect_to_server()
+        # report allocated memort upon init
+        config = self.client.config_get('maxmemory')
+        info = self.client.info('memory')
+
+        max_mem = int(config.get('maxmemory', 0))
+        used_mem = int(info.get('used_memory', 0))
+        used_peak_bytes = info.get('used_memory_peak',0)
+        sys_mem = psutil.virtual_memory().total
+
+        logger.info(f"[Redis] Max memory (limit): {max_mem / (1024 ** 3):.2f} GB")
+        logger.info(f"[Redis] Used memory:         {used_mem / (1024 ** 3):.2f} GB")
+        logger.info(f"[Redis] Used peak memory:         {used_peak_bytes / (1024 ** 3):.2f} GB")
+        logger.info(f"[Redis] System total RAM:    {sys_mem / (1024 ** 3):.2f} GB")
+
+        # Get total physical system memory
+        total_sys_mem = psutil.virtual_memory().total
+        logger.info(f"System total physical memory: {total_sys_mem / (1024 ** 3):.2f} GB")
+        self.timer = time.time()
 
     def connect_to_server(self):
         # TODO this should scan for available ports, but only if configured to do so.
@@ -116,6 +137,13 @@ class RedisStoreInterface(StoreInterface):
             # TODO this, but it will work now singlethreaded most of the time.
 
             self.client.set(object_key, pickle.dumps(object, protocol=5), nx=True, ex=100)
+            # if time.time() - self.timer > 30:  # report memory usage every 30 seconds
+            #     # Log memory usage after storing
+            #     mem_info = self.client.info('memory')
+            #     used = mem_info['used_memory'] / (1024**3)
+            #     peak = mem_info['used_memory_peak'] / (1024**3)
+            #     logger.info(f"[Redis] Stored {object_key} — Used: {used:.2f} GB, \n Peak: {peak:.2f} GB")
+            #     self.timer = time.time()
         except Exception:
             logger.error("Could not store object {}".format(object_key))
             logger.error(traceback.format_exc())
@@ -198,7 +226,20 @@ class PlasmaStoreInterface(StoreInterface):
         self.store_loc = store_loc
         self.client = self.connect_store(store_loc)
         self.stored = {}
+        # Check shared memory (/dev/shm)
+        stat = os.statvfs('/dev/shm')
+        total_bytes = stat.f_blocks * stat.f_frsize
+        available_bytes = stat.f_bavail * stat.f_frsize
+        used = total_bytes - available_bytes
+        total_gb = total_bytes / (1024 ** 3)
+        available_gb = available_bytes / (1024 ** 3)
+        used_gb = used / (1024 ** 3)
+        logger.info(f"/dev/shm total:     {total_gb:.2f} GB")
+        logger.info(f"/dev/shm available: {available_gb:.2f} GB")
+        logger.info(f"/dev/shm used: {used_gb:.2f} GB")
 
+        logger.info(f"Plasma store capacity: {self.client.store_capacity() / (1024**3):.2f} GB")
+        self.timer = time.time()
     def connect_store(self, store_loc):
         """Connect to the store at store_loc, max 20 retries to connect
         Raises exception if can't connect
@@ -243,7 +284,11 @@ class PlasmaStoreInterface(StoreInterface):
                 object_id = self.client.put(pickle.dumps(object, protocol=prot))
             else:
                 object_id = self.client.put(object)
-
+            # if time.time() - self.timer > 30:  # report mem usage every 30 seconds
+            #     stat = os.statvfs('/dev/shm')
+            #     used_shm = (stat.f_blocks - stat.f_bavail) * stat.f_frsize / (1024**3)
+            #     logger.info(f"[Plasma] /dev/shm used: {used_shm:.2f} GB after put()")
+            #     self.timer = time.time()
         except PlasmaObjectExists:
             logger.error("Object already exists. Meant to call replace?")
         except ArrowIOError:
