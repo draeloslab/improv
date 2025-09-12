@@ -18,6 +18,7 @@ dependencies = [
     "matplotlib",
     "PyQt5",
     "pyyaml",
+    "pyarrow==9.0.0",
     "textual==0.15.0",
     "pyzmq",
     "psutil",
