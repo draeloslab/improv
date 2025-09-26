@@ -212,13 +212,14 @@ class CameraStreamWidget(QWidget):
         logger.info("CameraStreamWidget closeEvent triggered")
         
         # Save latencies from the visual object
-        try:
-            np.save(self.visual.out_folder / "vizframelatencies.npy", self.visual.frame_latencies)
-            # np.save(self.visual.out_folder / "vizpredictionslatencies.npy", self.visual.pred_latencies)
-            logger.info(f"Saved frame latencies to {self.visual.out_folder / 'vizframelatencies.npy'}")     
-        except Exception as e:
-            logger.error(f'Could not save latencies: {traceback.format_exc()}')
+        # try:
+        #     np.save(self.visual.out_folder / "vizframelatencies.npy", self.visual.frame_latencies)
+        #     # np.save(self.visual.out_folder / "vizpredictionslatencies.npy", self.visual.pred_latencies)
+        #     logger.info(f"Saved frame latencies to {self.visual.out_folder / 'vizframelatencies.npy'}")     
+        # except Exception as e:
+        #     logger.error(f'Could not save latencies: {traceback.format_exc()}')
+        self.visual.stopMe()
         
-        self.comm.put(['quit'])
+        self.comm.put(['stop'])
         logger.info("Closing CameraStreamWidget")
         event.accept()

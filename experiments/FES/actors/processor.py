@@ -146,14 +146,16 @@ class Processor(Actor):
         # start_time = time.perf_counter()
         if self.pred_active:
             self.start_time.append(time.time())
-            self.start_perf = time.perf_counter()
+            
             try:
                 frame_id = self.q_in.get(timeout=0.01)
+                self.start_perf = time.perf_counter()
                 # start_time = time.perf_counter()
 
                 # logger.info(f"Frame Id received: {frame_id}")
             except Exception as e:
-                logger.error(f"Could not get message!  {e}")
+                pass
+                # logger.error(f"Could not get message!  {e}")
                 # Log latency even on error
                 
             if frame_id is not None:

@@ -98,7 +98,8 @@ class VideoScreen(ManagedActor):
         self.frame_rate_update = 60 # Update rate for the video stream
         self.frame_i = self.frame_rate_update
         self.frame_latencies =[]
-        # self.pred_latencies = []
+        self.videoStarts = []
+        self.pred_latencies = []
         self.frame_count = 0
 
         timestamp = time.strftime("%Y%m%d-%H%M")
@@ -117,6 +118,7 @@ class VideoScreen(ManagedActor):
         # Clear the frame queue for the specific camera
         # while not self.links[f"preds{camera_id}_in"].empty():
             #self.links[f"preds{camera_id}_in"].get_nowait()
+        self.videoStarts.append(time.time())
         frame_start = time.perf_counter()    
         try:
             frame_id = self.links[f"images{camera_id}_in"].get(timeout=0.01)
@@ -128,7 +130,7 @@ class VideoScreen(ManagedActor):
                 else:
                 # uncompressing the frame
                     frame = cv2.imdecode(frame, cv2.IMREAD_COLOR)
-                self.frame_latencies.append(time.perf_counter())
+                self.frame_latencies.append(time.perf_counter()- frame_start)
 
             else:
                 frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
@@ -150,8 +152,9 @@ class VideoScreen(ManagedActor):
         # self.frame_latencies.append(time.perf_counter())
 
         try:
+            pred_start = time.perf_counter()
             element = self.links[f"preds{camera_id}_in"].get(timeout=0.01)
-            # pred_start = time.perf_counter()
+        
 
             # element = self.links[f"preds{camera_id}_in"].get(timeout=0.1)
 
@@ -160,7 +163,7 @@ class VideoScreen(ManagedActor):
             angle = element[1]
             # logger.debug(f'Angle received: {angle}')
 
-            # self.pred_latencies.append(time.perf_counter() - pred_start)
+            self.pred_latencies.append(time.perf_counter() - pred_start)
         except queue.Empty:
             # logger.debug(f'No prediction available for camera {camera_id}')
             pass
@@ -176,6 +179,7 @@ class VideoScreen(ManagedActor):
             # pass
 
         return frame,predictions,angle
+    
     def start_buffer_conversion(self):
         """Function to start the buffer data conversion for each camera."""
         msg = {'type': 'video_conversion', 'value': True}
@@ -243,7 +247,10 @@ class VideoScreen(ManagedActor):
         #             dlcGrab = self.client.get(pred_id)
         #             predictions = dlcGrab[0]
         #             dlcframe = dlcGrab[1]
-        #             logger.info(f'Got predicitons:{predictions} and frame: {dlcframe}')
+        #             logger
+            # np.save(self.out_folder / "vizframelatencies.npy", self.frame_latencies)
+            # np.save(self.out_folder / "vizpredictionslatencies.npy", self.pred_latencies)
+            # np.save(self.out_folder / "vizStarts.npy", self.videoStarts).info(f'Got predicitons:{predictions} and frame: {dlcframe}')
         #             if self.frame_count % 100 == 0:
         #                 logger.info(f'Avg pred latency: {1/np.mean(self.pred_latencies)}')
         #             self.pred_latencies.append(time.time() - pred_start)
@@ -266,15 +273,16 @@ class VideoScreen(ManagedActor):
         self.start_program = True
         pass
 
-    def stop(self):
+    def stopMe(self):
         logger.info(f"{self.name}: Stopping Video GUI")
         self.stop_program = True
         # logger.info(f'End Frame length: {len(self.frame_latencies)}')
         # logger.info(f'end Pred Length: {len(self.pred_latencies)}')
 
-        # try:
-        #     np.save(self.out_folder / "vizframelatencies.npy", self.frame_latencies)
-        #     np.save(self.out_folder / "vizpredictionslatencies.npy", self.pred_latencies)
-        #     logger.info(f"{self.name}: Video GUI stopped")
-        # except Exception:
-        #     logger.info(f'Could not save latencies: {traceback.format_exc()}')
+        try:
+            np.save(self.out_folder / "vizframelatencies.npy", self.frame_latencies)
+            np.save(self.out_folder / "vizpredictionslatencies.npy", self.pred_latencies)
+            np.save(self.out_folder / "vizStarts.npy", self.videoStarts)
+            logger.info(f"{self.name}: Video GUI stopped")
+        except Exception:
+            logger.info(f'Could not save latencies: {traceback.format_exc()}')
