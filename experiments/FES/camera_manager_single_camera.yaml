@@ -1,0 +1,34 @@
+actors:
+  # gui class for displaying the video frames
+  GUI:
+    package: actors.video_screen
+    class: Visual
+    visual: VideoScreen
+
+  # actor for starting the GUI
+  VideoScreen:
+    package: actors.video_screen
+    class: VideoScreen
+    num_active_cameras: 1
+  
+  # camera readers: each camera reader use the camera API for reading the frames
+  CameraReader0:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 0
+    logging_metrics: false # if true, log the metrics (fps, latency, etc)
+
+  # video savers: each video saver writes the frames readed to raw-video file    
+  VideoSaver0:
+    package: actors.video_saver
+    class: VideoSaver
+    camera_num: 0
+
+connections:
+  CameraReader0.q_out: [VideoSaver0.q_in, VideoScreen.camera0_in]
+  VideoSaver0.msg_out: [VideoScreen.camera0_msg_in]
+
+  VideoScreen.msg_out: [VideoSaver0.msg_in]
+
+redis_config:
+  port: 6379

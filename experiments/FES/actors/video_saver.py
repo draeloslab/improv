@@ -174,8 +174,8 @@ class VideoSaver(ManagedActor):
             video_params = video_params,
             output_video = self.output_video,
             out_folder_buffer = self.out_folder_buffer,
-            log_progress = True,
-            msg_out = self.links['msg_out']
+            log_progress = True
+            # msg_out = self.links['msg_out']
         )
 
         # control variables

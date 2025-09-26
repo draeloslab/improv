@@ -204,7 +204,7 @@ class TIS:
 
             frame = self.__convert_to_numpy(buf.extract_dup(0, buf.get_size()), sample.get_caps())
 
-            frame = cv2.resize(frame, (int(frame.shape[1] * 0.8), int(frame.shape[0] * 0.8)))
+            # frame = cv2.resize(frame, (int(frame.shape[1] * 0.8), int(frame.shape[0] * 0.8)))
 
 
             # compress the frame before storing
@@ -223,7 +223,7 @@ class TIS:
                 self.total_delay += delay
                 self.frame_count += 1
                 self.total_frame_count += 1
-                self.camera_latencies.append(time.perf_counter())
+                # self.camera_latencies.append(time.perf_counter())
 
             except Exception as e:
                 logger.warning(f"[Camera {self.camera_name}] Could not put frame in the store | {e}")
@@ -239,7 +239,7 @@ class TIS:
                 self.max_delay = 0
                 self.frame_count = 0
                 self.start_time = time.perf_counter()
-        # self.camera_latencies.append(time.perf_counter())
+        self.camera_latencies.append(time.perf_counter())
             
         
         return Gst.FlowReturn.OK

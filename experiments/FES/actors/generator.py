@@ -37,12 +37,22 @@ class Generator(Actor):
         self.resize = config['resize']
         self.name = "Generator"
         self.frame_num = 1
+        self.gen_times = []
+        self.full_times = []
+        self.start = []
 
         self.cap = cv2.VideoCapture(self.video_path)
         if not self.cap.isOpened():
             logger.error("Error opening video file")
             return 
         total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+
+        timestamp = time.strftime("%Y%m%d-%H%M")
+        string  = config['output_path']
+        self.out_folder = Path(f"{string}/{timestamp}")
+        self.out_folder.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Output folder set to {self.out_folder}")
         logger.info(f'Total frames: {total_frames}')
         logger.info("Completed setup for Generator")
 
@@ -51,11 +61,15 @@ class Generator(Actor):
         logger.info("Generator stopping")
         if self.cap:
             self.cap.release()
+        np.save(self.out_folder / "genstarts.npy", self.start)
+        np.save(self.out_folder / "gen_latencies.npy", self.gen_times)
+        np.save(self.out_folder / "full_latencies.npy", self.full_times)
         return 0
 
     def runStep(self):
 
         if self.cap and self.cap.isOpened():
+            self.start.append(time.perf_counter())
             ret, self.frame = self.cap.read()
             if not ret:
                 logger.info("End of video")
@@ -76,6 +90,7 @@ class Generator(Actor):
             except Exception as e:
                 logger.error(f"--------------------------------Generator Exception: {e}")
             self.frame_num += 1
+            self.gen_times.append(time.perf_counter() - self.start[-1])
 
             time.sleep(self.frame_interval)
-
+            self.full_times.append(time.perf_counter() - self.start[-1])

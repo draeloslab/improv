@@ -6,7 +6,7 @@ import logging
 import traceback
 
 import numpy as np
-import pyarrow.plasma as plasma
+# import pyarrow.plasma as plasma
 
 from redis import Redis
 from redis.retry import Retry
@@ -15,7 +15,7 @@ from redis.exceptions import BusyLoadingError, ConnectionError, TimeoutError
 
 from scipy.sparse import csc_matrix
 from pyarrow.lib import ArrowIOError
-from pyarrow._plasma import PlasmaObjectExists, ObjectNotAvailable
+# from pyarrow._plasma import PlasmaObjectExists, ObjectNotAvailable
 import psutil 
 # from time import time
 import time

@@ -53,10 +53,10 @@ class Processor(Actor):
                 config = yaml.safe_load(file)
 
 
-            # train_dir = Path("/home/chesteklab/improv/demos/FES/dlc-models-pytorch/iteration-2/manipulandum_pytorchMay13-trainset95shuffle1/train")
-            train_dir = Path("/home/chesteklab/dlc-projects/resnet-101/iteration-0/manipulandum-resnet101Aug18-trainset95shuffle1/train")
+            train_dir = Path("/home/chesteklab/Desktop/dlc-models-pytorch/iteration-2/manipulandum_pytorchMay13-trainset95shuffle1/train")
+            # train_dir = Path("/home/chesteklab/Desktop/humanHand-jake-2025-09-18/dlc-models-pytorch/iteration-1/humanHandSep18-trainset95shuffle1/train")
             pytorch_config_path = train_dir / "pytorch_config.yaml"
-            snapshot_path = train_dir / "snapshot-best-090.pt"
+            snapshot_path = train_dir / "snapshot-best-010.pt"
 
             # for top-down models, otherwise None
             detector_snapshot_path = None
@@ -101,6 +101,7 @@ class Processor(Actor):
             # self.dlc_live.init_inference(frame)  # putting in a random frame to initialize the model
             self.predictions = []
             self.latencies = []
+            self.start_time = []
             # self.dlc_latencies = []
             # self.grab_latencies = []
             # self.put_latencies = []    
@@ -127,6 +128,7 @@ class Processor(Actor):
             self.done = True
             np.save(self.out_folder / "latencies.npy", self.latencies)
             np.save(self.out_folder / "predictions.npy", self.predictions)
+            np.save(self.out_folder / "startLatencies.npy", self.start_time)
             np.save(self.out_folder / "dlcLatencies.npy", self.dlc_latencies)
             # np.save(self.out_folder / "grabLatencies.npy", self.grab_latencies)
             # np.save(self.out_folder / "putLatencies.npy", self.put_latencies)
@@ -140,114 +142,108 @@ class Processor(Actor):
         smoothed_prediction = None
         # start_time = time.perf_counter()
         if self.pred_active:
-            start_time = time.perf_counter()
+            self.start_time.append(time.perf_counter())
             try:
                 frame_id = self.q_in.get(timeout=0.01)
                 # start_time = time.perf_counter()
 
-                logger.info(f"Frame Id received: {frame_id}")
-            except Exception: # as e:
-                logger.error(f"Could not get message!") # {e}")
-                # return
-                pass
-
+                # logger.info(f"Frame Id received: {frame_id}")
+            except Exception as e:
+                logger.error(f"Could not get message!  {e}")
+                # Log latency even on error
+                
             if frame_id is not None:
                 self.done = False
 
-                if self.pred_active:
-                    # retrieving the compressed frame from the storage
-                    # frame = self.client.get(frame_id)
-                    try:
-                        dlc_start = time.time()
-                        # frame = self.client.get(frame_id)
-                        frame_enc = self.client.get(frame_id)
-                        
+                try:
+                    # dlc_start = time.perf_counter()
+                    frame = self.client.get(frame_id)
+                    if isinstance(frame, np.ndarray) and len(frame.shape) == 3:
+                        pass
+                    else:
                         # uncompressing the frame
-                        frame = cv2.imdecode(frame_enc, cv2.IMREAD_COLOR)
+                        frame = cv2.imdecode(frame, cv2.IMREAD_COLOR)
 
-                        self.frame_num += 1
+                    self.frame_num += 1
 
-                        # Perform inference
-                        # dlc_start = time.time()
-                        # self.prediction = self.dlc_live.get_pose(frame)
-                        # frame = cv2.resize(frame, (int(frame.shape[1] * 0.75), int(frame.shape[0] * 0.75)))
-                        raw_prediction = self.pose_runner.inference([frame])
-                        self.dlc_latencies.append(time.time() - dlc_start)
-                        # Extract the bodyparts array from the prediction dictionary
-                        # The format is [{'bodyparts': array([[[x, y, likelihood], ...]])}]
-                        self.prediction = raw_prediction[0]['bodyparts'][0]  # Get the first (and only) frame's bodyparts
-                        # smoothed_prediction = self.kalman_filter.process(self.prediction, frame_time=dlc_start)
-                        smoothed_prediction = self.prediction
+                    # Perform inference
+                    dlc_start = time.perf_counter()
+                    # self.prediction = self.dlc_live.get_pose(frame)
+                    # frame = cv2.resize(frame, (int(frame.shape[1] * 0.75), int(frame.shape[0] * 0.75)))
+                    raw_prediction = self.pose_runner.inference([frame])
+                    self.dlc_latencies.append(time.perf_counter() - dlc_start)
+                    # Extract the bodyparts array from the prediction dictionary
+                    # The format is [{'bodyparts': array([[[x, y, likelihood], ...]])}]
+                    self.prediction = raw_prediction[0]['bodyparts'][0]  # Get the first (and only) frame's bodyparts
+                    # smoothed_prediction = self.kalman_filter.process(self.prediction, frame_time=dlc_start)
+                    smoothed_prediction = self.prediction
 
-                        # smoothed_prediction = np.zeros_like(self.prediction)
-                        # for i, point in enumerate(self.prediction):
-                        #     x, y, likelihood = point
-                        #     if self.recent_predictions[i] is None:
-                        #         self.recent_predictions[i] = (x,y)
+                    # smoothed_prediction = np.zeros_like(self.prediction)
+                    # for i, point in enumerate(self.prediction):
+                    #     x, y, likelihood = point
+                    #     if self.recent_predictions[i] is None:
+                    #         self.recent_predictions[i] = (x,y)
 
-                        #     prev_x, prev_y = self.recent_predictions[i]
-                        #     ema_x = self.alpha * x + (1 - self.alpha) * prev_x
-                        #     ema_y = self.alpha * y + (1 - self.alpha) * prev_y
+                    #     prev_x, prev_y = self.recent_predictions[i]
+                    #     ema_x = self.alpha * x + (1 - self.alpha) * prev_x
+                    #     ema_y = self.alpha * y + (1 - self.alpha) * prev_y
 
 
-                        #     self.recent_predictions[i] = (ema_x, ema_y)
-                        #     # Calculate the moving average for x and y
-                        #     # avg_x = np.mean([p[0] for p in self.recent_predictions[i]])
-                        #     # avg_y = np.mean([p[1] for p in self.recent_predictions[i]])
-                        #     smoothed_prediction[i, :2] = ema_x, ema_y
-                        #     smoothed_prediction[i, 2] = likelihood
-                        #     if likelihood < 0.3 and len(self.predictions) > 0:
-                        #         smoothed_prediction[i,:2] = self.predictions[-1][i,:2]
+                    #     self.recent_predictions[i] = (ema_x, ema_y)
+                    #     # Calculate the moving average for x and y
+                    #     # avg_x = np.mean([p[0] for p in self.recent_predictions[i]])
+                    #     # avg_y = np.mean([p[1] for p in self.recent_predictions[i]])
+                    #     smoothed_prediction[i, :2] = ema_x, ema_y
+                    #     smoothed_prediction[i, 2] = likelihood
+                    #     if likelihood < 0.3 and len(self.predictions) > 0:
+                    #         smoothed_prediction[i,:2] = self.predictions[-1][i,:2]
 
-                        self.predictions.append(smoothed_prediction) #TODO might want to also store the raw prediction
+                    self.predictions.append(smoothed_prediction) #TODO might want to also store the raw prediction
 
-                        # Only calculate angle if we have at least 3 bodyparts
-                        if len(smoothed_prediction) >= 3:
-                            angle = self.calculateAngle(smoothed_prediction)
-                        else:
-                            angle = None
-                            logger.warning(f"Not enough bodyparts for angle calculation. Got {len(smoothed_prediction)}, need 3.")
+                    # Only calculate angle if we have at least 3 bodyparts
+                    if len(smoothed_prediction) >= 3:
+                        angle = self.calculateAngle(smoothed_prediction)
+                    else:
+                        angle = None
+                        logger.warning(f"Not enough bodyparts for angle calculation. Got {len(smoothed_prediction)}, need 3.")
 
-                        logger.info(f"Angle: {angle}") 
-                        dlc_end = time.perf_counter()
+                    dlc_end = time.perf_counter()
 
-                        # self.dlc_latencies.append(dlc_end - dlc_start)
-                        # self.grab_latencies.append(dlc_end - start_time)
+                    if self.frame_num % self.frames_log == 0:
+                        total_time = dlc_end - self.time_start                    
+                        logger.info(f"Frame number: {self.frame_num}")
+                        logger.info(f"Overall Average FPS: {round(self.frames_log / total_time,2)}")
+                        self.time_start = time.perf_counter() # reset the timer
 
-                        if self.frame_num % self.frames_log == 0:
-                            total_time = dlc_end - self.time_start                    
-
-                            logger.info(f"Frame number: {self.frame_num}")
-                            # logger.info(f"Prediction: {prediction}")
-                            logger.info(f"Overall Average FPS: {round(self.frames_log / total_time,2)}")
-                            # logger.info(f'Camera Grab Time Avg latency: {np.mean(self.grab_latencies)}')
-                            # logger.info(f'Pure DLC Inference Time Avg latency: {np.mean(self.dlc_latencies)}')
-                            # logger.info(f'Put Time Avg latency: {np.mean(self.put_latencies)}')
-
-                            self.time_start = time.perf_counter() # reset the timer
-
-                        # logger.info(f'sent on this frame{frame}')
-                        logger.info('Put prediction and index dict in store')
-
-                    except ObjectNotFoundError:
-                        logger.error("Processor: Frame unavailable from store, droppping")
+                except ObjectNotFoundError:
+                    logger.error("Processor: Frame unavailable from store, dropping")
+                    # Log latency even on error
+                    # if self.pred_active:
+                    #     self.latencies.append(time.perf_counter())
+                    # return
+                except Exception as e:
+                    logger.error(f"Processing error: {e}")
+                    # # Log latency even on error
+                    # if self.pred_active:
+                    #     self.latencies.append(time.perf_counter())
+                    # return
 
                 try:
                     self.q_out.put([smoothed_prediction, angle])
-                    # logger.debug(f"Sent frame_id: {frame_id}, predictions: {smoothed_prediction is not None}, angle: {angle} to video screen")
-
-                    if self.pred_active:
-                        # self.put_latencies.append(time.perf_counter() - dlc_end)
-                        # self.latencies.append(time.perf_counter() - start_time)
-                        self.latencies.append(time.time())
-
-                        pass
                 except Exception as e:
-                    logger.error(f"--------------------------------Generator Exception: {e}")
+                    logger.error(f"Generator Exception: {e}")
                     logger.error(traceback.format_exc())
-                
-            # self.latencies.append(time.perf_counter())
+                    # Log latency even on error
+                    # if self.pred_active:
+                    #     self.latencies.append(time.perf_counter())
+                    # return
+            
+                # Log latency for successful processing
+                self.latencies.append(time.perf_counter() - self.start_time[-1])
 
+            # self.latencies.append(time.perf_counter())
+        else:
+            pass
 
     def calculateAngle(self,prediction):
         # Check if we have at least 3 points

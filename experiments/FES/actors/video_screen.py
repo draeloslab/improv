@@ -122,11 +122,12 @@ class VideoScreen(ManagedActor):
             frame_id = self.links[f"images{camera_id}_in"].get(timeout=0.01)
             # frame_start = time.perf_counter()
             if frame_id is not None:
-                # frame = self.client.get(frame_id)
-                frame_enc = self.client.get(frame_id)
-
+                frame = self.client.get(frame_id)
+                if isinstance(frame, np.ndarray) and len(frame.shape) == 3:
+                    pass
+                else:
                 # uncompressing the frame
-                frame = cv2.imdecode(frame_enc, cv2.IMREAD_COLOR)
+                    frame = cv2.imdecode(frame, cv2.IMREAD_COLOR)
                 self.frame_latencies.append(time.perf_counter())
 
             else:
@@ -157,7 +158,7 @@ class VideoScreen(ManagedActor):
             # frame_id = element[0]
             predictions = element[0]
             angle = element[1]
-            logger.debug(f'Angle received: {angle}')
+            # logger.debug(f'Angle received: {angle}')
 
             # self.pred_latencies.append(time.perf_counter() - pred_start)
         except queue.Empty:
