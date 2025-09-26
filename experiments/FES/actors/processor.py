@@ -101,6 +101,7 @@ class Processor(Actor):
             # self.dlc_live.init_inference(frame)  # putting in a random frame to initialize the model
             self.predictions = []
             self.latencies = []
+            self.latenciesFull = []
             self.start_time = []
             # self.dlc_latencies = []
             # self.grab_latencies = []
@@ -130,6 +131,8 @@ class Processor(Actor):
             np.save(self.out_folder / "predictions.npy", self.predictions)
             np.save(self.out_folder / "startLatencies.npy", self.start_time)
             np.save(self.out_folder / "dlcLatencies.npy", self.dlc_latencies)
+            np.save(self.out_folder / "latenciesFull.npy", self.latenciesFull)
+
             # np.save(self.out_folder / "grabLatencies.npy", self.grab_latencies)
             # np.save(self.out_folder / "putLatencies.npy", self.put_latencies)
             logger.info("Predictions and latencies saved")
@@ -142,7 +145,8 @@ class Processor(Actor):
         smoothed_prediction = None
         # start_time = time.perf_counter()
         if self.pred_active:
-            self.start_time.append(time.perf_counter())
+            self.start_time.append(time.time())
+            self.start_perf = time.perf_counter()
             try:
                 frame_id = self.q_in.get(timeout=0.01)
                 # start_time = time.perf_counter()
@@ -227,11 +231,14 @@ class Processor(Actor):
                     # if self.pred_active:
                     #     self.latencies.append(time.perf_counter())
                     # return
-
+                self.latencies.append(time.perf_counter() - self.start_perf)
+                
+                
                 try:
                     self.q_out.put([smoothed_prediction, angle])
+
                 except Exception as e:
-                    logger.error(f"Generator Exception: {e}")
+                    logger.error(f"Processor Exception: {e}")
                     logger.error(traceback.format_exc())
                     # Log latency even on error
                     # if self.pred_active:
@@ -239,7 +246,7 @@ class Processor(Actor):
                     # return
             
                 # Log latency for successful processing
-                self.latencies.append(time.perf_counter() - self.start_time[-1])
+                self.latenciesFull.append(time.perf_counter() - self.start_perf)
 
             # self.latencies.append(time.perf_counter())
         else:

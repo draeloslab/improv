@@ -69,7 +69,8 @@ class Generator(Actor):
     def runStep(self):
 
         if self.cap and self.cap.isOpened():
-            self.start.append(time.perf_counter())
+            self.start.append(time.time())
+            self.start_perf = time.perf_counter()
             ret, self.frame = self.cap.read()
             if not ret:
                 logger.info("End of video")
@@ -90,7 +91,7 @@ class Generator(Actor):
             except Exception as e:
                 logger.error(f"--------------------------------Generator Exception: {e}")
             self.frame_num += 1
-            self.gen_times.append(time.perf_counter() - self.start[-1])
+            self.gen_times.append(time.perf_counter() - self.start_perf)
 
             time.sleep(self.frame_interval)
-            self.full_times.append(time.perf_counter() - self.start[-1])
+            self.full_times.append(time.perf_counter() - self.start_perf)
