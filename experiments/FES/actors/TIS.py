@@ -198,12 +198,13 @@ class TIS:
     # @profile
     def __on_new_buffer(self, appsink):
         frame_time = time.perf_counter()
-        self.cameraStarts.append(time.time())
 
         sample = appsink.get_property('last-sample')
 
         if sample is not None and self.sharing_on:
             buf = sample.get_buffer()
+            self.cameraStarts.append(time.time())
+
 
             frame = self.__convert_to_numpy(buf.extract_dup(0, buf.get_size()), sample.get_caps())
 

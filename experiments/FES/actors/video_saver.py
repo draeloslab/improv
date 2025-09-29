@@ -82,6 +82,8 @@ class VideoSaver(ManagedActor):
         while not self.stop_program:
             if self.start_program:
                 try:
+                    self.start_times.append(time.time())
+                    start_perf = time.perf_counter()
                     frame_id = self.q_in.get(timeout=1)
 
                     if frame_id is not None:
@@ -108,6 +110,8 @@ class VideoSaver(ManagedActor):
                             logger.info(f"[Camera {self.camera_name}] writer FPS: {round(self.frame_count / total_time,2)}")
                             self.frame_count = 0
                             self.time_start = time.perf_counter()
+                        
+                    self.latencies.append(time.perf_counter() - start_perf)
                 except Exception as e:
                     logger.info(f"[Camera {self.camera_name}] No more frames {e}")
                     self.stop_program = True
@@ -161,6 +165,15 @@ class VideoSaver(ManagedActor):
             Path(self.out_folder_buffer).mkdir(parents=True, exist_ok=True)
 
         self.output_video = os.path.join(self.out_folder_video, f"camera_video_{self.camera_num+1}.mp4")
+
+        # Initialize latency tracking variables BEFORE creating output folder
+        self.latencies = []
+        self.start_times = []
+
+        timestamp = time.strftime("%Y%m%d-%H%M")
+        self.out_folder = Path(f"/home/chesteklab/predictions/{timestamp}")
+        self.out_folder.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Latency Output folder set to {self.out_folder}")
 
         # video converter setup
         video_params = {
@@ -230,6 +243,12 @@ class VideoSaver(ManagedActor):
         self.save_queue.join()
 
         logger.info(f"[Camera {self.camera_name}] total frames received: {self.total_frames}")
+
+ 
+        np.save(self.out_folder / f"saverlatencies_cam_{self.camera_num}.npy", self.latencies)
+        np.save(self.out_folder / f"saverstarts_cam_{self.camera_num}.npy", self.start_times)
+        logger.info(f"[Camera {self.camera_name}] Latencies saved to {self.out_folder}")
+
 
         self.wait_conversion_proc.start()
         self.wait_conversion_proc.join()
