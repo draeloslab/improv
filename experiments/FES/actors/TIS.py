@@ -76,7 +76,8 @@ class TIS:
         self.q_out = q_out
 
         self.camera_latencies = []
-
+        self.camera_latenciesFull = []
+        self.cameraStarts = []
         timestamp = time.strftime("%Y%m%d-%H%M")
         self.out_folder = Path(f"/home/chesteklab/predictions/{timestamp}")
         self.out_folder.mkdir(parents=True, exist_ok=True)
@@ -197,6 +198,8 @@ class TIS:
     # @profile
     def __on_new_buffer(self, appsink):
         frame_time = time.perf_counter()
+        self.cameraStarts.append(time.time())
+
         sample = appsink.get_property('last-sample')
 
         if sample is not None and self.sharing_on:
@@ -204,7 +207,7 @@ class TIS:
 
             frame = self.__convert_to_numpy(buf.extract_dup(0, buf.get_size()), sample.get_caps())
 
-            frame = cv2.resize(frame, (int(frame.shape[1] * 0.75), int(frame.shape[0] * 0.75)))
+            frame = cv2.resize(frame, (int(frame.shape[1] * 0.75), int(frame.shape[0] * 0.75)))  # Note this will change the quality of the frame to 1440x810
 
 
             # compress the frame before storing
@@ -213,7 +216,7 @@ class TIS:
             try:
                 data_id = self.client.put(frame_enc)
                 self.q_out.put(data_id)
-                # self.camera_latencies.append(time.perf_counter() - frame_time)
+                self.camera_latencies.append(time.perf_counter() - frame_time)
 
                 delay = time.perf_counter() - frame_time
 
@@ -239,7 +242,7 @@ class TIS:
                 self.max_delay = 0
                 self.frame_count = 0
                 self.start_time = time.perf_counter()
-        self.camera_latencies.append(time.time())
+        self.camera_latenciesFull.append(time.perf_counter() - frame_time)
             
         
         return Gst.FlowReturn.OK
@@ -269,6 +272,9 @@ class TIS:
             logger.info(f"[Camera {self.camera_name}] reader stopped. Total frames: {self.total_frame_count}")
 
         np.save(self.out_folder / "TISlatencies.npy", self.camera_latencies)
+        np.save(self.out_folder / "TISstarts.npy", self.cameraStarts)
+        np.save(self.out_folder / "TISlatenciesFull.npy", self.camera_latenciesFull)
+
         logger.info("saved TIS latencies")
 
     def get_source(self):
