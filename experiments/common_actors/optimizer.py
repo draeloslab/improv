@@ -89,7 +89,6 @@ class BayesOptimizer(Actor):
         self.saved_GP_unc = []
         self.start_stimulus = []
 
-
     def setup(self):
     
         self.stop_sending = False
@@ -99,8 +98,6 @@ class BayesOptimizer(Actor):
         self.timer = time.time()
 
         self.stim_ind = None
-
-        
 
     def stop(self):
 
