@@ -27,7 +27,7 @@ actors:
     init_frame: 60
     
   Stimulus:
-    package: actors.stimulus_calibrate 
+    package: actors.stimulus
     class: VisualStimulus
     ip: '*'
     port: 6006
