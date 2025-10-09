@@ -660,3 +660,328 @@ class RandomSamplerWithReplace(Actor):
                 self.timer = time.time()
         
         self.total_times.append(time.time() -t)   
+
+class RandomBayesOptimizer(Actor):
+    '''
+    An actor that combines RandomSamplerWithReplacement and BayesOptimizer.
+    
+    This actor first performs random sampling for a specified number of steps,
+    then switches to Bayesian Optimization to refine the stimulus selection.
+    To use this, add 'random_steps' to your YAML config file under the 
+    'General' section to control the duration of the random sampling phase.
+
+    Example YAML config:
+    General:
+      init_T: 8
+      seed: 42
+      max_tests: 20
+      random_steps: 100  # Number of random stimuli before optimization
+    '''
+    def __init__(self, *args, stimuli=None, param_file=None, **kwargs):
+        # This __init__ combines setup from BayesOptimizer and RandomSampler
+        super().__init__(*args, **kwargs)
+
+        # --- Common setup from both original actors ---
+        self.stimuli_space = StimulusSpace()
+        self.stim_space = self.stimuli_space.stim_space
+        self.stimuli = self.stim_space['stimuli']
+        self.total_stim_time = self.stim_space['total_stim_time']
+        self.d = self.stimuli.shape[0]
+        self.initial_length = self.stimuli_space.initial_stim_count
+        logger.info('Stimuli info: Num of Stimuli Parameters: {}, Num of Initial Stim: {}'.format(self.d, self.initial_length))
+
+        self.param_file = param_file
+        self.init_params = yaml.safe_load(open(self.param_file, 'r'))
+        self.seed = self.init_params['General']['seed']
+
+        # --- Setup for random sampling phase ---
+        xs = np.meshgrid(*self.stimuli, indexing='ij')
+        x_star = np.empty(xs[0].shape + (self.d,))
+        for i in range(self.d):
+            x_star[..., i] = xs[i]
+        self.stim_star = x_star.reshape(-1, self.d)
+        np.random.seed(self.seed)
+
+        # New parameter from YAML to control the switch from random to bayes
+        self.random_steps = 25 #self.init_params['General'].get('random_steps', 100) # Default to 100 steps
+        logger.info(f"RandomBayesOptimizer will run random sampling for {self.random_steps} steps before optimization.")
+
+        # --- Setup for BayesOptimizer phase ---
+        init_T = self.init_params['General']['init_T']
+        self.maxT = self.init_params['General']['max_tests']
+        self.config = Config(self.param_file)
+        self.stim_choice = self.config.stim_choice
+        self.GP_stimuli = self.config.exs
+        self.stopping_crit = float(self.init_params['Optimizer']['optim_1']['stopping_crit'])
+        kernels = self.init_params['Optimizer']['optim_1']['kernel']
+        self.optim = Optimizer(self.config, kernels)
+        logger.info(f"Optimizer is using {kernels} with {self.stopping_crit} as the stopping criterion")
+
+        stimuli_length = [len(i) for i in self.stimuli]
+        if len(self.stimuli) != len(self.stim_choice) or stimuli_length != self.stim_choice:
+            raise ValueError(f"MISMATCH DIMENSION!!! Expect {stimuli_length} from StimulusSpace, got {self.stim_choice} from yaml")
+
+        # --- Data storage and state variables (from BayesOptimizer) ---
+        self.X0 = np.zeros((self.d, init_T))
+        self.X = self.X0.copy()
+        self.y0 = None
+        self.nID = None
+        self.optimized_n = []
+        self.goback_neurons = []
+        self.stopping_list = []
+        self.peak_list = []
+        self.optim_f_list = []
+        self.total_times_update = []
+        self.total_times = []
+        self.saved_GP_est = []
+        self.saved_GP_unc = []
+        self.start_stimulus = []
+
+    def setup(self):
+        self.stop_sending = False
+        self.counter = 0
+        self.timer = time.time()
+        self.stim_ind = None
+
+        # Controls the current behavior of the actor
+        self.phase = 'initial' # Phases: 'initial', 'random', 'bayes'
+        self.bayes_newN = False # Corresponds to the 'newN' flag in the original BayesOptimizer
+
+    def stop(self):
+        # Same stop method as BayesOptimizer
+        np.save('output/optimized_neurons.npy', np.array(self.optimized_n))
+        np.save('output/stopping_list.npy', np.array(self.stopping_list))
+        np.save('output/peak_list.npy', np.array(self.peak_list))
+        np.save('output/optim_f_list.npy', np.array(self.optim_f_list))
+        try:
+            np.savetxt('output/timing/optimizer_time.txt', np.array(self.total_times))
+            np.savetxt('output/timing/optimizer_time_udpates.txt', self.total_times_update, fmt="%s")
+        except Exception as e:
+            logger.error("Trouble saving optimizer timings: {}".format(e))
+        logger.info('Optimizer complete, avg time per frame: {}'.format(np.mean(self.total_times) if self.total_times else 0))
+
+    def runStep(self):
+        t = time.time()
+        # This data acquisition block is from BayesOptimizer and is needed throughout all phases
+        try:
+            ids = self.q_in.get(timeout=0.0001)
+            X = self.client.get(ids[0])
+            Y = self.client.get(ids[1])
+            tmpX = np.squeeze(np.array(X)).T
+            sh = len(tmpX.shape)
+            if sh > 1:
+                self.X = tmpX.copy()
+                if tmpX.shape[1] > 4:
+                    self.X = tmpX[:, -tmpX.shape[1]:]
+            try:
+                b = np.full([len(Y),len(max(Y,key = lambda x: len(x)))], np.nan)
+                for i,j in enumerate(Y):
+                    b[i][:len(j)] = j
+                self.y0 = b.T
+                is_nan_2d = np.isnan(self.y0)
+                self.start_stimulus = np.argmax(~is_nan_2d, axis=1)
+            except:
+                pass
+        except Empty:
+            pass
+        except Exception as e:
+            print('Error in optimizer get: {}'.format(e))
+        
+        if self.stop_sending:
+            return
+
+        # Phase 1: Initial Stimuli (similar to original actors)
+        if self.phase == 'initial':
+            flag = False
+            if self.stim_ind is None:
+                if self.counter < self.stimuli_space.initial_stim_count:
+                    self.stim_ind = self.stim_space['initial_stim'][self.counter]
+                else: # One extra random stim, similar to original BayesOptimizer
+                    self.stim_ind = [np.random.choice(np.arange(0, stim)) for stim in self.stim_choice]
+
+            if (time.time() - self.timer) >= self.total_stim_time:
+                self.links['stim_ind_out'].put(self.stim_ind)
+                self.stim_ind = None
+                self.counter += 1
+                self.timer = time.time()
+            
+            if self.counter >= self.stimuli_space.initial_stim_count + 1:
+                logger.info(f"this is initial phase self.counter {self.counter}")
+                flag = True
+            
+            if flag:
+                logger.info('Done with initial frames. Starting random sampling phase.')
+                self.phase = 'random'
+                self.counter = 0 # Reset counter for the random phase
+
+        # Phase 2: Random Sampling (logic from RandomSamplerWithReplace)
+        elif self.phase == 'random':
+            if self.stim_ind is None:
+                if self.counter < self.random_steps:
+                    logger.info(f'Random sampling step {self.counter + 1}/{self.random_steps}')
+                    random_idx = np.random.randint(self.stim_star.shape[0])
+                    random_stim = self.stim_star[random_idx]
+
+                    # Convert the selected stimulus values back to indices for the stimulus actor
+                    next_ind = []
+                    for i in range(self.d):
+                        next_ind.append(np.where(self.stimuli[i] == random_stim[i])[0][0])
+                    self.stim_ind = next_ind
+                else:
+                    logger.info('Finished random sampling phase. Switching to Bayesian Optimization.')
+                    self.phase = 'bayes'
+                    self.bayes_newN = True # Trigger neuron selection in the next phase
+                    return # Exit this step to start fresh in 'bayes' phase
+
+            if (time.time() - self.timer) >= self.total_stim_time:
+                self.links['stim_ind_out'].put(self.stim_ind)
+                self.stim_ind = None
+                self.counter += 1
+                self.timer = time.time()
+        
+        # Phase 3: Bayesian Optimization (logic from BayesOptimizer)
+        elif self.phase == 'bayes':
+            # This block corresponds to 'elif self.newN:' from the original BayesOptimizer
+            if self.bayes_newN:
+                nonopt = np.array(list(set(np.arange(self.y0.shape[0]))-set(self.optimized_n)))
+                logger.info('nonopt is {}, number of neurons '.format(nonopt,self.y0.shape[0]))
+                # ready = [i for i in nonopt if self._obs_count(i) >= 8]  #self.min_init_obs = 8
+                if len(nonopt) >= 1 or len(self.goback_neurons)>=1:
+                    if len(nonopt) >= 1:
+                        obs_counts = np.count_nonzero(~np.isnan(self.y0[nonopt, :]), axis=1)
+                        ready_mask = obs_counts >= 8 #self.min_init_obs = 8
+                        if np.any(ready_mask):
+                            ready = nonopt[ready_mask]
+                            # logger.info(f"out of those nonopt, these are ready: {ready}")
+                            self.nID = nonopt[np.argmax(np.nanmean(self.y0[ready,:], axis=1))]
+                            # self.nID = nonopt[np.argmax(np.nanmean(self.y0[nonopt,:], axis=1))]  # FIXME: should change to nanmean
+                            logger.info('selecting most responsive neuron: {}'.format(self.nID))
+                            self.bayes_newN = False
+                            self.optimized_n.append(self.nID)
+                            self.saved_GP_est = []
+                            self.saved_GP_unc = []
+                        else:
+                            logger.info("OOPSY, no neuron have more than 8 stim right now whaaaaat")
+                    elif len(self.goback_neurons)>=1:
+                        self.nID = self.goback_neurons.pop(0)
+                        logger.info('Trying again with neuron {}'.format(self.nID))
+                        self.optimized_n.append(self.nID)
+                    
+                    print(self.y0.shape, self.X.shape, self.X0.shape)
+                    # logger.info(f'y0 shape {self.y0.shape}; X shape {self.X.shape}; X0 shape {self.X0.shape}')
+                    if self.X.shape[1] < self.y0.shape[1]:
+                        self.optim.initialize_GP(self.X[:, :].T, self.y0[self.nID, -self.X.shape[1]:].T)
+                        logger.info(f"condition 1. initialize with {self.X.shape} stim")  # not run in general
+                        # logger.info(f"X is {self.X[:, :].T}, y is {self.y0[self.nID, -self.X.shape[1]:].T}")
+                    elif self.y0.shape[1] < self.maxT:
+                        # get number of leading zeros/nans
+                        y0_with_nan = self.y0[self.nID, -self.y0.shape[1]:].T
+                        leading_zeros = np.argmax(~np.isnan(y0_with_nan))
+                        logger.info(f"leading zeros for neuron {self.nID} is {leading_zeros}")
+                        self.optim.initialize_GP(self.X[:, -(self.y0.shape[1]-leading_zeros):].T, self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T)
+                        logger.info(f"condition 2. initialize with {self.y0.shape[1]-leading_zeros} stim")
+                        # logger.info(f"X is {self.X[:, -(self.y0.shape[1]-leading_zeros):].T}, y is {self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T}")
+                    else:
+                        # get number of leading zeros/nans
+                        y0_with_nan = self.y0[self.nID, :].T
+                        leading_zeros = np.argmax(~np.isnan(y0_with_nan))
+                        logger.info(f"leading zeros for neuron {self.nID} is {leading_zeros}")
+                        self.optim.initialize_GP(self.X[:, leading_zeros:].T, self.y0[self.nID, leading_zeros:].T)
+                        logger.info(f"condition 3. initialize with all {self.X[:, leading_zeros:].T.shape[0]} stim")
+                        # logger.info(f"X is {self.X[:, leading_zeros:].T}, y is {self.y0[self.nID, leading_zeros:].T}")
+                    self.test_count = 0
+                    self.newN = False
+                    self.stopping = np.zeros(self.maxT)
+
+                    curr_unc = np.diagonal(self.optim.sigma).reshape((self.stim_choice))
+                    curr_est = self.optim.f.reshape((self.stim_choice))
+                    self.saved_GP_unc.append(curr_unc)
+                    self.saved_GP_est.append(curr_est)
+
+                    ids = []
+                    ids.append(self.nID)
+                    ids.append(self.client.put(curr_est)) #, 'est'))
+                    ids.append(self.client.put(curr_unc)) # 'unc'))
+                    self.q_out.put(ids)
+
+                    # immediately calculates suggested next stim
+                    ind, xt_1 = self.optim.max_acq()
+                    logger.info('INITIALIZATION - suggest next stim: {}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
+                    next_ind = []
+                    for i in range(self.d):
+                        next_ind.append(np.where(self.stimuli[i] == self.stim_star[ind][i])[0][0])
+                    self.stim_ind = next_ind  # prevents duplicate update on X[:,-1], y[-1]
+        
+            # This block corresponds to the 'else:' (main optimization loop) from BayesOptimizer
+            else:
+                # need to update the GP
+                t_update = time.time()
+                if self.stim_ind is None: 
+                    X = np.zeros(self.d) 
+                    for i in range(self.d):
+                        X[i] = self.GP_stimuli[i][int(self.X[i,-1])]
+
+                    logger.info('optim {} (test: {}), update GP with {}, {}'.format(self.nID, self.test_count, X, self.y0[self.nID, -1]))
+                    self.optim.update_GP(np.squeeze(X), self.y0[self.nID,-1])
+
+                    curr_unc = np.diagonal(self.optim.sigma).reshape((self.stim_choice))
+                    curr_est = self.optim.f.reshape((self.stim_choice))
+                    self.saved_GP_unc.append(curr_unc)
+                    self.saved_GP_est.append(curr_est)
+
+                    ids = []
+                    ids.append(self.nID)
+                    ids.append(self.client.put(curr_est)) #, 'est'))
+                    ids.append(self.client.put(curr_unc)) #, 'unc'))
+                    self.q_out.put(ids)
+
+                    stopCrit, PI = self.optim.stopping()
+                    logger.info('----------- stopCrit: {}'.format(stopCrit))
+                    self.stopping[self.test_count] = stopCrit
+                    self.test_count += 1
+
+                    self.total_times_update.append([dt.now(), time.time() - t_update])
+
+                    if stopCrit < self.stopping_crit: 
+                        peak = self.stim_star[np.argmax(self.optim.f)]
+                        logger.info('Satisfied with this neuron, moving to next. Est peak: {}'.format(peak))
+                        # self.nID += 1
+                        self.newN = True
+                        self.stopping_list.append(self.stopping)
+                        self.peak_list.append(peak)
+                        self.optim_f_list.append(self.optim.f)
+                        self.bayes_newN = True
+
+                        np.save('output/saved_GP_est_'+str(self.nID)+'.npy', np.array(self.saved_GP_est))
+                        np.save('output/saved_GP_unc_'+str(self.nID)+'.npy', np.array(self.saved_GP_unc))
+
+                    elif self.test_count >= self.maxT:
+                        logger.info('exceeded test count')
+                        self.goback_neurons.append(self.nID)
+                        self.newN = True
+                        self.stopping_list.append(self.stopping)
+                        peak = self.stim_star[np.argmax(self.optim.f)]
+                        self.peak_list.append(peak)
+                        self.optim_f_list.append(self.optim.f)
+                        np.save('output/saved_GP_est_'+str(self.nID)+'.npy', np.array(self.saved_GP_est))
+                        np.save('output/saved_GP_unc_'+str(self.nID)+'.npy', np.array(self.saved_GP_unc))
+                        self.bayes_newN = True
+
+                    else:
+                        ind, xt_1 = self.optim.max_acq()
+                        logger.info('suggest next stim: {}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
+                        next_ind = []
+                        for i in range(self.d):
+                            next_ind.append(np.where(self.stimuli[i] == self.stim_star[ind][i])[0][0])
+                        self.stim_ind = next_ind
+
+                # Need to send ind to stimulus actor to create this stim request ??
+                if (time.time() - self.timer) >= self.total_stim_time:
+                    self.links['stim_ind_out'].put(self.stim_ind)
+                    self.stim_ind = None
+                    self.timer = time.time()
+                    
+            self.total_times.append(time.time() - t)
+
+    def _obs_count(self, n_idx: int) -> int:
+        return int(np.count_nonzero(~np.isnan(self.y0[n_idx, :])))
