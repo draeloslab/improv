@@ -1,6 +1,6 @@
 fps: 30
 model_path: 'DLC_manipulandum_resnet_50_iteration-0_shuffle-1'
 video_path: '/home/chesteklab/Desktop/camera_video_1_2_18.mp4'
-resize: 0.75
+resize: 0.5
 threshold: 0.5
 output_path: '/home/chesteklab/predictions'

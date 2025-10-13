@@ -34,6 +34,7 @@ def parse_packet(packet):
         1       # enable
     ]
     packet_np = np.array([packet]).view(np.uint8)
+    # print(packet_np)
     eTime, feat, dsize, neural_data, fpos, target_pos, trial_count, switch1, switch2, switch3, val1, val2, msCount, \
         xpcBinSize, enable = parse_any_data(packet_np, data_lengths)
 
@@ -55,19 +56,19 @@ def parse_packet(packet):
 
 if __name__ == '__main__':
 
-    UDP_IP_recieve = "192.168.3.3" #get vision ip
+    UDP_IP_recieve = "0.0.0.0" #get vision ip
     UDP_PORT_recieve = 11114 #get vision port
     sock_recieve = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock_recieve.bind((UDP_IP_recieve, UDP_PORT_recieve))
     print("Listening on port", UDP_PORT_recieve)
-
     while True:
         try:
-            data, _ = sock_recieve.recvfrom(1500)
+            print('Waiting to receive message')
+            data = sock_recieve.recv(1500)
             print("received message:")
             eTime, feat, dsize, neural_data, fpos, msCount, xpcBinSize, enable, target_pos, trial_count, \
                 xpc_switches, xpc_vals, xpc_dict = parse_packet(data)
-            print(fpos)
+            print('fpos:', fpos )
         except Exception as e:
             print(e)
             print("Error receiving data")

@@ -208,7 +208,7 @@ class TIS:
 
             frame = self.__convert_to_numpy(buf.extract_dup(0, buf.get_size()), sample.get_caps())
 
-            frame = cv2.resize(frame, (int(frame.shape[1] * 0.75), int(frame.shape[0] * 0.75)))  # Note this will change the quality of the frame to 1440x810
+            frame = cv2.resize(frame, (int(frame.shape[1] * 0.5), int(frame.shape[0] * 0.5)))  # Note this will change the quality of the frame to 1440x810
 
 
             # compress the frame before storing
