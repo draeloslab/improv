@@ -46,6 +46,12 @@ actors:
     class: VideoSaver
     camera_num: 2
 
+  Receiver:
+    package: actors.recieverActor
+    class: Receiver
+    method: spawn
+
+
 connections:
   CameraReader0.q_out: [VideoSaver0.q_in, VideoScreen.camera0_in]
   VideoSaver0.msg_out: [VideoScreen.camera0_msg_in]
