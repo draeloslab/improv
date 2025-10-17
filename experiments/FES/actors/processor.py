@@ -182,27 +182,27 @@ class Processor(Actor):
                     # The format is [{'bodyparts': array([[[x, y, likelihood], ...]])}]
                     self.prediction = raw_prediction[0]['bodyparts'][0]  # Get the first (and only) frame's bodyparts
                     # smoothed_prediction = self.kalman_filter.process(self.prediction, frame_time=dlc_start)
-                    smoothed_prediction = self.prediction
+                    # smoothed_prediction = self.prediction
 
-                    # smoothed_prediction = np.zeros_like(self.prediction)
-                    # for i, point in enumerate(self.prediction):
-                    #     x, y, likelihood = point
-                    #     if self.recent_predictions[i] is None:
-                    #         self.recent_predictions[i] = (x,y)
+                    smoothed_prediction = np.zeros_like(self.prediction)
+                    for i, point in enumerate(self.prediction):
+                        x, y, likelihood = point
+                        if self.recent_predictions[i] is None:
+                            self.recent_predictions[i] = (x,y)
 
-                    #     prev_x, prev_y = self.recent_predictions[i]
-                    #     ema_x = self.alpha * x + (1 - self.alpha) * prev_x
-                    #     ema_y = self.alpha * y + (1 - self.alpha) * prev_y
+                        prev_x, prev_y = self.recent_predictions[i]
+                        ema_x = self.alpha * x + (1 - self.alpha) * prev_x
+                        ema_y = self.alpha * y + (1 - self.alpha) * prev_y
 
 
-                    #     self.recent_predictions[i] = (ema_x, ema_y)
-                    #     # Calculate the moving average for x and y
-                    #     # avg_x = np.mean([p[0] for p in self.recent_predictions[i]])
-                    #     # avg_y = np.mean([p[1] for p in self.recent_predictions[i]])
-                    #     smoothed_prediction[i, :2] = ema_x, ema_y
-                    #     smoothed_prediction[i, 2] = likelihood
-                    #     if likelihood < 0.3 and len(self.predictions) > 0:
-                    #         smoothed_prediction[i,:2] = self.predictions[-1][i,:2]
+                        self.recent_predictions[i] = (ema_x, ema_y)
+                        # Calculate the moving average for x and y
+                        # avg_x = np.mean([p[0] for p in self.recent_predictions[i]])
+                        # avg_y = np.mean([p[1] for p in self.recent_predictions[i]])
+                        smoothed_prediction[i, :2] = ema_x, ema_y
+                        smoothed_prediction[i, 2] = likelihood
+                        if likelihood < 0.3 and len(self.predictions) > 0:
+                            smoothed_prediction[i,:2] = self.predictions[-1][i,:2]
 
                     self.predictions.append(smoothed_prediction) #TODO might want to also store the raw prediction
 

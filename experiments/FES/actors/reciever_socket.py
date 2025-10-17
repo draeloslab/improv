@@ -1,6 +1,5 @@
-# import socket
+import socket
 import numpy as np
-import zmq
 
 def parse_packet(packet):
     """
@@ -57,30 +56,20 @@ def parse_packet(packet):
 
 if __name__ == '__main__':
 
-    UDP_IP_receive = "0.0.0.0" #get vision ip
-    UDP_PORT_receive= 11114 #get vision port
-    # sock_recieve = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    # sock_recieve.bind((UDP_IP_recieve, UDP_PORT_recieve))
-    context = zmq.Context()
-    sock_receive = context.socket(zmq.PULL)
-    sock_receive.bind(f"tcp://{UDP_IP_receive}:{UDP_PORT_receive}")
-    # sock_receive.setsockopt(zmq.RCVTIMEO, 100)  # 100ms timeout
-    print("Listening on port", UDP_PORT_receive)
-    for i in range(100):
-                try:
-                    print('Waiting to receive message')
-                    data = sock_receive.recv(1500)
-                    print("received message:")
-                    eTime, feat, dsize, neural_data, fpos, msCount, xpcBinSize, enable, target_pos, trial_count, \
-                        xpc_switches, xpc_vals, xpc_dict = parse_packet(data)
-                    print('fpos:', fpos )
-                except zmq.Again:
-                    print("Timeout - no data received")
-                    continue
-                except Exception as e:
-                    print(e)
-                    print("Error receiving data")
-                    # break
-    sock_receive.close()
-    context.term()
-    print("Shutting down receiver")
+    UDP_IP_recieve = "0.0.0.0" #get vision ip
+    UDP_PORT_recieve = 11114 #get vision port
+    sock_recieve = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock_recieve.bind((UDP_IP_recieve, UDP_PORT_recieve))
+    print("Listening on port", UDP_PORT_recieve)
+    while True:
+        try:
+            print('Waiting to receive message')
+            data = sock_recieve.recv(1500)
+            print("received message:")
+            eTime, feat, dsize, neural_data, fpos, msCount, xpcBinSize, enable, target_pos, trial_count, \
+                xpc_switches, xpc_vals, xpc_dict = parse_packet(data)
+            print('fpos:', fpos )
+        except Exception as e:
+            print(e)
+            print("Error receiving data")
+            # break
