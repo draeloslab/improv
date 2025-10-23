@@ -124,7 +124,7 @@ class BayesOptimizer(Actor):
             ids = self.q_in.get(timeout=0.0001)
             X = self.client.get(ids[0])
             Y = self.client.get(ids[1])
-
+            stim_count = self.client.get(ids[-1]) # -1 to account for initial stim
             # logger.info('X, Y: {}, {}'.format(X, Y))
 
             tmpX = np.squeeze(np.array(X)).T
@@ -143,6 +143,7 @@ class BayesOptimizer(Actor):
                 self.y0 = b.T
                 is_nan_2d = np.isnan(self.y0)
                 self.start_stimulus = np.argmax(~is_nan_2d, axis=1)
+                self.stim_count = stim_count-1
                 # logger.info(f"this is self.start_stimulus: {self.start_stimulus}")
             except:
                 pass
@@ -191,6 +192,7 @@ class BayesOptimizer(Actor):
 
             nonopt = np.array(list(set(np.arange(self.y0.shape[0]))-set(self.optimized_n)))
             logger.info('nonopt is {}, number of neurons '.format(nonopt,self.y0.shape[0]))
+            logger.info('Initialization check: stim_count: {}, Y length: {}, same len? {}'.format(self.stim_count, self.y0.shape[1], self.y0.shape[1] == self.stim_count))
             # ready = [i for i in nonopt if self._obs_count(i) >= 8]  #self.min_init_obs = 8
             if len(nonopt) >= 1 or len(self.goback_neurons)>=1:
                 if len(nonopt) >= 1:
@@ -261,6 +263,7 @@ class BayesOptimizer(Actor):
             # need to update the GP
             t_update = time.time()
             if self.stim_ind is None: 
+                logger.info('Update check: stim_count: {}, Y length: {}, same len? {}'.format(self.stim_count, self.y0.shape[1], self.y0.shape[1] == self.stim_count))
                 X = np.zeros(self.d) 
                 for i in range(self.d):
                     X[i] = self.GP_stimuli[i][int(self.X[i,-1])]

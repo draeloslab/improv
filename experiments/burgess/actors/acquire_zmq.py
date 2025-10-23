@@ -375,7 +375,8 @@ class ZMQAcquirer(Actor):
                 vel = float(msg_dict['stimulus']['velocity'])
                 freq = float(msg_dict['texture']['frequency'])
                 contrast = float(msg_dict['texture']['fg_intensity'])
-                self.links['stim_queue'].put({self.frame_num:[int(angle), vel, int(size), int(freq), int(contrast)]})
+                # self.links['stim_queue'].put({self.frame_num:[int(angle), vel, int(size), int(freq), int(contrast)]})
+                self.links['stim_queue'].put({self.frame_num:[[int(angle), vel, int(size), int(freq), int(contrast)], self.stim_count]})
                 self.stimmed.append([self.frame_num, int(angle), vel, int(size), int(freq), int(contrast)])
 
                 if int(contrast) == 0:
