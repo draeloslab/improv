@@ -530,7 +530,11 @@ class GridSampler(Actor):
         elif self.newN:
             if self.stim_ind is None:
                 logger.info('grid')
-                grid = self.stim_star_reduced[self.counter]  # FIXME: this is grid not random
+                if self.counter < self.stim_star_reduced.shape[0]:
+                    grid = self.stim_star_reduced[self.counter]  # FIXME: this is grid not random
+                else:
+                    logger.info(f"!!!!!!!SELF.COUNTER {self.counter} EXCEED THE GRID LENGTH, STOP NOW!!!!!!!")
+                    grid = self.stim_star[self.counter]
 
                 #FIXME: make checkpoints here and read all possible dimensions
                 #FIXME: This is a manual method (need to fix to make it more flexible)
