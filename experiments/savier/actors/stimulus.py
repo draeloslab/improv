@@ -77,10 +77,9 @@ class VisualStimulus(Actor):
         try: 
             t = time.time()
             indices = self.links['stim_ind_in'].get(timeout=0.0001)
-            # logger.info('indices: {}'.format(indices))
+            logger.info('indices: {}'.format(indices))
             parameters = self.stimuli_space.idx_to_param(indices) 
-            # logger.info('parameters: {}'.format(parameters))
-
+            logger.info('parameters: {}'.format(parameters))
             stim = self.create_frame(parameters)
 
             self.send_frame(stim)
@@ -102,35 +101,51 @@ class VisualStimulus(Actor):
 
         if stim is not None:
 
-            #NOTE: this is hardcoded for specific directions and their most visible "center" point on the visible grid (this will move to experiments folder)
-            if self.angle == 45:
-                center_x = 80
-                center_y = 1400
-            elif self.angle == 135:
-                center_x = 750
-                center_y = 1500
-            elif self.angle == 225:
-                center_x = 350
-                center_y = 1000
-            elif self.angle == 315:
-                center_x = 1400
-                center_y = 1500
+            if self.speed == float(0):
+                center_x = self.center_x
+                center_y = self.center_y
             else:
-                center_x = 850
-                center_y = 1000
+            #NOTE: this is hardcoded for specific directions and their most visible "center" point on the visible grid (this will move to experiments folder)
+                if self.angle == 45:
+                    center_x = 80
+                    center_y = 1400
+                elif self.angle == 135:
+                    center_x = 750
+                    center_y = 1500
+                elif self.angle == 225:
+                    center_x = 350
+                    center_y = 1000
+                elif self.angle == 315:
+                    center_x = 1400
+                    center_y = 1500
+                else:
+                    center_x = 850
+                    center_y = 1000
 
-
-            text = {'texture_size': 1600,
+            if self.shape == 0:
+                texture_name = 'gray_ellipse'
+                
+                text = {'texture_size': 1600,
                         'frequency': int(self.frequency),
                         'center_x': center_x,
                         'center_y': center_y,
                         'width': int(self.size), 
                         'length': int(self.size),
-                        'texture_name': 'gray_ellipse',
+                        'texture_name': texture_name,
                         'bg_intensity': 200,
                         'fg_intensity': int(self.contrast),
                         }
-                
+
+            else:
+                texture_name = 'grating_gray'
+                text = {'texture_size': 1600,
+                        'frequency': int(self.frequency),
+                        'texture_name': texture_name,
+                        'light_value': 200,
+                        'dark_value': int(self.contrast),
+                        }
+
+            
             stimulus = {'stimulus': stim, 'texture': text}
             # logger.info('stimulus: {}'.format(stimulus))
             
@@ -154,19 +169,25 @@ class VisualStimulus(Actor):
         # This allows for some flexibility when adding/removing parameters in gen_stim
         default_params = {
             'angle': 45, 
-            'velocity': 0.02,
+            'speed': 0.02,
             'size': 50, 
             'frequency': 1, 
-            'contrast': 50
+            'contrast': 50,
+            'shape': 0,
         }
         for key, default_param in default_params.items():
             if not hasattr(self, key):
                 setattr(self, key, default_param)
 
+        if self.shape == 0:
+            stim_name = 'gray_circle'
+        else:
+            stim_name = 'grating_gray'
+
         stim = {
-                'stim_name': 'gray_circle', # 'gray_ellipse'
+                'stim_name': stim_name,
                 'angle': int(self.angle),
-                'velocity': self.velocity,
+                'velocity': self.speed,
                 'stationary_time': self.stat_t,
                 'duration': self.total_stim_time, 
                 'hold_after': float(stim_t-self.hold_after),
