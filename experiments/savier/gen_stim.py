@@ -8,26 +8,22 @@ class StimulusSpace():
     def __init__(self): 
 
         x1 = np.array([0, 45, 90, 135, 180, 225, 270, 315]) #np.arange(0, 331, 30)
-        # x1 = np.array([0, 90, 180, 270])
-        x2 = np.array([0.02, 0.04, 0.06, 0.08, 0.10, 0.12]) 
+        x2 = np.array([0.0, 0.02, 0.04, 0.06, 0.08, 0.10, 0.12]) 
         x3 = np.array([50, 137, 225, 312, 400])
         x4 = np.array([1, 3, 10, 20])
-        x5 = np.array([0, 50, 100])
+        x5 = np.array([800, 850, 900])
+        x6 = np.array([950, 1000, 1050])
+        x7 = np.array([0, 50, 100])
+        x8 = np.array([0,1])
 
-        # x3 = np.arange(405,1525,100)
-        # x4 = np.arange(625,1285,100)
-        # x6 = np.arange(20, 801, 80)
-        # x7 = np.array([0,1])
-        # x8 = np.linspace(1,120, num=12).astype(int)
-        # stim_list = [x1, x2, x3, x4]
+        labels = ['angle', 'speed', 'size', 'frequency', 'center_x', 'center_y', 'contrast', 'shape']
+        stim = np.array([x1, x2, x3, x4, x5, x6, x7, x8], dtype=object)
+        stim_optim = np.array([x1, x2, x3, x4, x7], dtype=object)
 
-        labels = ['angle', 'velocity', 'size', 'frequency', 'contrast']
-        stim = np.array([x1, x2, x3, x4, x5], dtype=object)
-        # logger.info("what is stim: {}".format(stim))
+        calibration_stim, self.calibration_stim_count = self.calibration_stim(stim)
 
-        ## 
         self.initial_stim_count = 8
-        initial_stim = self.initial_stim(stim, initial_type='baseline')
+        initial_stim = self.initial_stim(stim_optim, initial_type='baseline')
 
         total_stim_time = 10 # duration of stimuli (in sec)
         hold_after = 5 # hold after period  (in sec)
@@ -36,12 +32,25 @@ class StimulusSpace():
         # put stimuli, labels, and initial stim in dictionary
         self.stim_space = {
             'stimuli': stim,
+            'stimuli_optim': stim_optim,
             'labels': labels,
+            'calibration_stim': calibration_stim,
             'initial_stim': initial_stim,
             'total_stim_time': total_stim_time,
             'hold_after': hold_after,
             'stat_t': stationary_t, 
         }
+
+    def calibration_stim(self, stim):
+
+        drift_gratings = [[i, 2, 0, 2, 0, 0, 1, 1] for i in range(len(stim[0]))]
+        stationary_spots = [[0,0,0,0,1,1,1,0], [0,0,0,0,0,0,1,0], [0,0,0,0,0,2,1,0], [0,0,0,0,2,2,1,0], [0,0,0,0,2,0,1,0]]
+        moving_spots = [[0,2,0,1,0,0,1,0], [0,2,0,1,0,2,1,0], [0,2,0,1,2,2,1,0], [0,2,0,1,2,0,1,0], [0,2,0,1,1,1,1,0]]
+
+        calibration_stim = drift_gratings + stationary_spots + moving_spots
+        calibration_stim_count = len(calibration_stim)
+
+        return calibration_stim, calibration_stim_count
 
     def initial_stim(self, stim, initial_type):
         initial_stim = []
@@ -53,7 +62,7 @@ class StimulusSpace():
             for i in range(self.initial_stim_count):
                 idx = i % len(scramle_dim1_idx)
                 # idx1 = i % len(stim[4])
-                initial_stim.append([scramle_dim1_idx[idx], 0, 1, 0, 0])  # use high contrast #idx1])
+                initial_stim.append([scramle_dim1_idx[idx], 1, 1, 0, 0])  # use high contrast #idx1])
             # initial_stim = [[i, 0, 1, 0] for i in scramle_dim1_idx]
             
         else:
