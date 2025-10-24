@@ -7,7 +7,7 @@ General:
 Stimuli:
   d: 5
   x1_range: 8 #8 #5
-  x2_range: 6
+  x2_range: 7
   x3_range: 5
   x4_range: 4
   x5_range: 3
