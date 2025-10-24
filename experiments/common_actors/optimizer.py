@@ -15,14 +15,13 @@ from BayesOpt.model.improv_config import Config
 from BayesOpt.model.optimizer import Optimizer
 
 from experiments.savier.gen_stim import StimulusSpace
-# from gen_stim_calibrate import StimulusSpace
 
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
 class BayesOptimizer(Actor):
-    def __init__(self, *args, stimuli=None, param_file=None, **kwargs):
+    def __init__(self, *args, stimuli=None, param_file=None, calibration=False, **kwargs):
         super().__init__(*args, **kwargs)
 
         # Stimulus Space information (loading from stimulus class)
@@ -30,10 +29,11 @@ class BayesOptimizer(Actor):
         self.stim_space = self.stimuli_space.stim_space
         # logger.info("what is stimuli_space {}; what is stim_space {}".format(self.stimuli_space, self.stim_space))
         self.stimuli = self.stim_space['stimuli']
+        self.stimuli_optim = self.stim_space['stimuli_optim']
         # self.stimuli = np.array([np.sort(stim) for stim in self.stim_space['stimuli']], dtype=object)
         # logger.info('reading in stim: {}'.format(self.stimuli))
         self.total_stim_time = self.stim_space['total_stim_time']
-        self.d = self.stimuli.shape[0]
+        self.d = self.stimuli_optim.shape[0]
         self.initial_length = self.stimuli_space.initial_stim_count
         logger.info('Stimuli info: Num of Stimuli Parameters: {}, Num of Initial Stim: {}'.format(self.d, self.initial_length))
         logger.info("Stim space specification: {}".format(self.stim_space))
@@ -57,7 +57,8 @@ class BayesOptimizer(Actor):
         logger.info(f"Optimizer is using {kernels} with {self.stopping_crit} as the stopping criterion")
 
         # List of all stimuli combinations
-        xs = np.meshgrid(*self.stimuli, indexing='ij') #,x3,x4])
+        # TODO: potentially make xs the meshgrid of the subset parameter space (so the 5 parameters we're optimizing?)
+        xs = np.meshgrid(*self.stimuli_optim, indexing='ij') #,x3,x4])
         x_star = np.empty(xs[0].shape + (self.d,))
         for i in range(self.d):
             x_star[...,i] = xs[i]
@@ -66,8 +67,8 @@ class BayesOptimizer(Actor):
         logger.info('stim_star: {}'.format(self.stim_star))
 
         # before proceeding, check if dimensions (in gen_stim & bayesopt.yaml) matched
-        stimuli_length = [len(i) for i in self.stimuli]
-        if len(self.stimuli) != len(self.stim_choice) or stimuli_length != self.stim_choice:
+        stimuli_length = [len(i) for i in self.stimuli_optim]
+        if len(self.stimuli_optim) != len(self.stim_choice) or stimuli_length != self.stim_choice:
             # logger.error("MISMATCH DIMENSION!!! STIM LENGTH FROM YAML {}; VS FROM StimulusSpace {}".format(self.stim_choice, stimuli_length))
             raise ValueError(f"MISMATCH DIMENSION!!! Expect {stimuli_length} from StimulusSpace, got {self.stim_choice} from yaml")
 
@@ -89,11 +90,18 @@ class BayesOptimizer(Actor):
         self.saved_GP_unc = []
         self.start_stimulus = []
 
+        self.calibration = calibration
+        logger.info('calibration is {}'.format(self.stim_space['calibration_stim']))
+
 
     def setup(self):
     
         self.stop_sending = False
-        self.initial = True
+
+        if self.calibration is True:
+            self.initial = False
+        else:
+            self.initial = True
         self.newN = False
         self.counter = 0
         self.timer = time.time()
@@ -155,6 +163,29 @@ class BayesOptimizer(Actor):
         if self.stop_sending:
             pass
 
+        # logger.info('calibration is {}'.format(self.calibration))
+        elif self.calibration:
+            #TODO: write section for the sending the calibration stimulus set? should be similiar to the initial stim section (i.e. flags, counter)
+            flag = False
+            if self.stim_ind is None:
+                self.stim_ind = self.stim_space['calibration_stim'][self.counter]
+            
+            if (time.time() - self.timer) >= self.total_stim_time:
+                self.links['stim_ind_out'].put(self.stim_ind)
+                stim_flag = 'calibration'
+                self.links['stim_flag_out'].put(stim_flag)
+                self.counter += 1
+                self.timer = time.time()
+            
+            if self.counter - 1 >= self.stimuli_space.calibration_stim_count:
+                flag = True
+            
+            if flag:
+                logger.info('Done with calibrations set, moving on to initial stimuli set...')
+                self.calibration = False
+                self.initial = True
+                self.counter = 0
+
         elif self.initial: 
             # displays initial stimulus 
             # internally counts to make sure that we only send correct number of initial stim
@@ -172,6 +203,8 @@ class BayesOptimizer(Actor):
 
             if (time.time() - self.timer) >= self.total_stim_time:
                 self.links['stim_ind_out'].put(self.stim_ind)
+                stim_flag = 'initial'
+                self.links['stim_flag_out'].put(stim_flag)
                 self.stim_ind = None
                 self.counter += 1  # FIXME: counter started with 1 (somehow)
                 # logger.info("self.counter just added by 1!")
@@ -188,7 +221,7 @@ class BayesOptimizer(Actor):
             
     
         elif self.newN:
-
+            stim_flag = 'optimization'
             nonopt = np.array(list(set(np.arange(self.y0.shape[0]))-set(self.optimized_n)))
             logger.info('nonopt is {}, number of neurons '.format(nonopt,self.y0.shape[0]))
             # ready = [i for i in nonopt if self._obs_count(i) >= 8]  #self.min_init_obs = 8
@@ -254,7 +287,7 @@ class BayesOptimizer(Actor):
                 logger.info('INITIALIZATION - suggest next stim: {}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
                 next_ind = []
                 for i in range(self.d):
-                    next_ind.append(np.where(self.stimuli[i] == self.stim_star[ind][i])[0][0])
+                    next_ind.append(np.where(self.stimuli_optim[i] == self.stim_star[ind][i])[0][0])
                 self.stim_ind = next_ind  # prevents duplicate update on X[:,-1], y[-1]
         
         else:
@@ -314,12 +347,13 @@ class BayesOptimizer(Actor):
                     logger.info('suggest next stim: {}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
                     next_ind = []
                     for i in range(self.d):
-                        next_ind.append(np.where(self.stimuli[i] == self.stim_star[ind][i])[0][0])
+                        next_ind.append(np.where(self.stimuli_optim[i] == self.stim_star[ind][i])[0][0])
                     self.stim_ind = next_ind
 
             # Need to send ind to stimulus actor to create this stim request ??
             if (time.time() - self.timer) >= self.total_stim_time:
                 self.links['stim_ind_out'].put(self.stim_ind)
+                self.links['stim_flag_out'].put(stim_flag)
                 self.stim_ind = None
                 self.timer = time.time()
                 
