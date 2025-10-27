@@ -141,8 +141,8 @@ class CameraStreamWidget(QWidget):
             painter.begin(q_img)
             painter.setBrush(QBrush(QColor(255, 0, 0)))
 
-            # labels = ["DIP", "PIP", "MCP", "Wrist", "Forearm"]
-            labels = ["Wrist", "MCP", "End"]
+            labels = ["DIP", "PIP", "MCP", "Wrist"]
+            # labels = ["Wrist", "MCP", "End"]
 
             prev_point = None
             for i, point in enumerate(predictions):
