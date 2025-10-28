@@ -1,7 +1,7 @@
 data:
-  fr: 7.5 #15 #2.2
-  decay_time: 0.5 #0.5
-  fnames: ['output/initialization.h5']
+  fr: 1.875 #15 #2.2
+  decay_time: 4 #0.5
+  fnames: ['output/a.hdf5']
 
 init: 
   K: 2 #50

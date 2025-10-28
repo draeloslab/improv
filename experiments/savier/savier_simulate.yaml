@@ -11,10 +11,10 @@ actors:
     ip: '*'
     port: 5007
     output: output/
-    init_filename: output/initialization.h5
-    filename: data/sample_stream0.h5
+    init_filename: output/a.hdf5
+    filename: data/b.hdf5
     init_frame: 0 #60
-    framerate: 15
+    framerate: 1.875
 
   Acquirer:
     package: actors.acquire_zmq
@@ -22,8 +22,8 @@ actors:
     ip: 127.0.0.1 #192.168.1.1 #127.0.0.1 IP address is for running a pseudo-online run
     ports: [50154, 5000,5007,5008,5009,5010,5011,4701,4703,5865,5005,5017,5018] 
     output: output/
-    red_chan_image: output/red_channel_image.npy
-    init_filename: output/initialization.h5
+    # red_chan_image: output/red_channel_image.npy
+    init_filename: output/a.hdf5
     init_frame: 60
     
   Stimulus:
@@ -36,7 +36,7 @@ actors:
   Processor:
     package: experiments.common_actors.caiman_processor
     class: LiveTwoP
-    init_filename: output/initialization.h5
+    init_filename: output/a.hdf5
     config_file: live_caiman_params.yaml
 
   Visual:
