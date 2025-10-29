@@ -1,0 +1,53 @@
+actors:
+  GUI:
+    package: experiments.common_actors.visual_viz_stim
+    class: DisplayVisual
+    visual: Visual
+
+  Microscope:
+    package: experiments.common_actors.load_disc
+    class: FileAcquirer
+    ip: '*'
+    port: 5007
+    output: output/
+    init_filename: data/a.hdf5
+    filename: data/b.hdf5
+    init_frame: 0 #60
+    framerate: 15
+
+  Acquirer:
+    package: actors.acquire_zmq
+    class: ZMQAcquirer
+    ip: 127.0.0.1
+    ports: [50154, 5000,5007,5008,5009,5010,5011,4701,4703,5865,5005,5017,5018] 
+    output: output/
+    init_filename: data/a.hdf5
+    init_frame: 60
+    
+  Processor:
+    package: experiments.common_actors.caiman_processor
+    class: LiveTwoP
+    init_filename: data/a.hdf5
+    config_file: live_caiman_params.yaml
+
+  Visual:
+    package: experiments.common_actors.visual_viz_stim
+    class: CaimanVisualStim
+    
+  Analysis:
+    package: experiments.common_actors.analysis_viz
+    class: VizStimAnalysis
+    stimuli: stimuli.npy
+    before_amount: 5
+    after_amount: 1
+    calc_color: False
+
+
+connections:
+  Acquirer.q_out: [Processor.q_in, Visual.raw_frame_queue]
+  Processor.q_out: [Analysis.q_in]
+  Analysis.q_out: [Visual.q_in]
+  Acquirer.stim_queue: [Visual.stim_in]
+
+redis_config:
+  port: 6379

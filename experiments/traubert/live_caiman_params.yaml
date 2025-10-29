@@ -1,0 +1,40 @@
+data:
+  fr: 1.875 #15 #2.2
+  decay_time: 4 #0.5
+  fnames: ['data/a.hdf5']
+
+init: 
+  K: 2 #50
+  gSig: [6,6] #[3,3]
+  nb: 2
+  ssub: 1
+  tsub: 1
+  method_init: 'greedy_roi'
+
+preprocess:
+  p: 1
+
+temporal: 
+  p: 1
+
+# not used in caiman online
+# quality:
+#   rval_thr: 0.90 #0.95
+  
+online:
+  ds_factor: 1
+  dist_shape_update: True
+  epochs: 1
+  init_batch: 50
+  init_method: 'bare'
+  max_shifts_online: 20
+  minibatch_shape: 50
+  motion_correct: True
+  normalize: True
+  show_movie: False
+  sniper_mode: False
+  min_SNR: 2.5  # 2.5 is default
+  rval_thr: 0.9 
+
+motion:
+  pw_rigid: False
