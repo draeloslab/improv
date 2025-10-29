@@ -1,0 +1,10 @@
+[run]
+patch = subprocess,_exit
+concurrency = multiprocessing
+sigterm = true
+parallel = true
+include =
+    **/improv/improv/**
+
+[report]
+ignore_errors = true
