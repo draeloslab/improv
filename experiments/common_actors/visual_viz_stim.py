@@ -112,9 +112,9 @@ class CaimanVisualStim(Actor):
             logger.error('Visual: Exception in get data: {}'.format(e))
         # logger.info('visual_viz_stim time: {}'.format(self.total_times))
         try:
-            stim_in = self.links['optim_in'].get(timeout=0.0001)
-            self.selected_neuron = stim_in
-            self.selectedNeuron = int(stim_in[0])
+            # stim_in = self.links['optim_in'].get(timeout=0.0001)
+            # self.selected_neuron = stim_in
+            self.selectedNeuron = 0
             # self.stimTimes.append(int(stim_in[3]))
         except Empty as e:
             pass
@@ -144,32 +144,3 @@ class CaimanVisualStim(Actor):
         ''' Return the raw and colored frames for display
         '''
         return self.raw, self.color
-
-    # def selectNeurons(self, x, y):
-    #     ''' x and y are coordinates
-    #         identifies which neuron is closest to this point
-    #         and updates plotEstimates to use that neuron
-    #     '''
-    #     neurons = [o['neuron_id']-1 for o in self.coords]
-    #     com = np.array([o['CoM'] for o in self.coords])
-    #     dist = cdist(com, [np.array([self.raw.shape[0]-x, self.raw.shape[1]-y])])
-    #     if np.min(dist) < 50:
-    #         selected = neurons[np.argmin(dist)]
-    #         self.selectedNeuron = selected
-    #         print('ID for selected neuron is :', selected)
-    #         print(self.tune[0][self.selectedNeuron])
-    #         self.com1 = [np.array([self.raw.shape[0]-com[selected][0], self.raw.shape[1]-com[selected][1]])]
-    #     else:
-    #         logger.error('No neurons nearby where you clicked')
-    #         self.com1 = [com[0]]
-    #     return self.com1
-
-    # def getFirstSelect(self):
-    #     first = None
-    #     if self.coords:
-    #         com = [o['CoM'] for o in self.coords]
-    #         #first = [np.array([self.raw.shape[0]-com[0][1], com[0][0]])]
-    #         first = [np.array([self.raw.shape[0]-com[0][0], self.raw.shape[1]-com[0][1]])]
-    #     return first
-
-    

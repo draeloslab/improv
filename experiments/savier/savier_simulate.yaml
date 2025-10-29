@@ -22,16 +22,15 @@ actors:
     ip: 127.0.0.1 #192.168.1.1 #127.0.0.1 IP address is for running a pseudo-online run
     ports: [50154, 5000,5007,5008,5009,5010,5011,4701,4703,5865,5005,5017,5018] 
     output: output/
-    # red_chan_image: output/red_channel_image.npy
     init_filename: output/a.hdf5
     init_frame: 60
     
-  Stimulus:
-    package: actors.stimulus
-    class: VisualStimulus
-    ip: '*'
-    port: 6006
-    stimuli: stimuli.npy
+  # Stimulus:
+  #   package: actors.stimulus
+  #   class: VisualStimulus
+  #   ip: '*'
+  #   port: 6006
+  #   stimuli: stimuli.npy
 
   Processor:
     package: experiments.common_actors.caiman_processor
@@ -44,26 +43,26 @@ actors:
     class: CaimanVisualStim
     
   Analysis:
-    package: experiments.common_actors.analysis_viz 
+    package: experiments.common_actors.analysis_viz
     class: VizStimAnalysis
     stimuli: stimuli.npy
     before_amount: 5
-    after_amount: 50
+    after_amount: 1
     calc_color: False
 
-  Optimizer:
-    package: experiments.common_actors.optimizer
-    class: BayesOptimizer #RandomSampler 
-    param_file: bayesopt_parameters.yaml
+  # Optimizer:
+  #   package: experiments.common_actors.optimizer
+  #   class: BayesOptimizer #RandomSampler 
+  #   param_file: bayesopt_parameters.yaml
 
 connections:
   Acquirer.q_out: [Processor.q_in, Visual.raw_frame_queue]
   Processor.q_out: [Analysis.q_in]
   Analysis.q_out: [Visual.q_in]
-  Acquirer.stim_queue: [Analysis.input_stim_queue, Visual.stim_in]
-  Analysis.stim_out: [Optimizer.q_in] 
-  Optimizer.stim_ind_out: [Stimulus.stim_ind_in]
-  Optimizer.q_out: [Visual.optim_in]
+  Acquirer.stim_queue: [Visual.stim_in]
+  # Analysis.stim_out: [Optimizer.q_in] 
+  # Optimizer.stim_ind_out: [Stimulus.stim_ind_in]
+  # Optimizer.q_out: [Visual.optim_in]
 
 redis_config:
   port: 6379

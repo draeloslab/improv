@@ -159,23 +159,23 @@ class VizStimAnalysis(Actor):
 
             self.coords = [o['coordinates'] for o in self.coordDict]
             
-            # Compute tuning curves based on input stimulus
-            # Just do overall average activity for now
-            try: 
-                ## stim format: stim, stimonOff, angle, vel, freq, contrast
-                # logger.info('ANALYSIS - inside try block ------------')
-                sig = self.links['input_stim_queue'].get(timeout=0.0001)
-                self.updateStim_start(sig)
-                logger.info('we called updatedStim_start')
-                self.stimText = list(sig.values())
-            except Empty as e:
-                pass #no change in input stimulus
-                # logger.error(f'an error occcured: {e}', exc_info=True)
-            except Exception as e:
-                logger.error(f'an error occcured: {e}', exc_info=True)
+            # # Compute tuning curves based on input stimulus
+            # # Just do overall average activity for now
+            # try:
+            #     ## stim format: stim, stimonOff, angle, vel, freq, contrast
+            #     # logger.info('ANALYSIS - inside try block ------------')
+            #     sig = self.links['input_stim_queue'].get(timeout=0.0001)
+            #     self.updateStim_start(sig)
+            #     logger.info('we called updatedStim_start')
+            #     self.stimText = list(sig.values())
+            # except Empty as e:
+            #     pass #no change in input stimulus
+            #     # logger.error(f'an error occcured: {e}', exc_info=True)
+            # except Exception as e:
+            #     logger.error(f'an error occcured: {e}', exc_info=True)
 
             self.stimAvg_start()
-            
+
             self.globalAvg = np.mean(self.estsAvg[:,:8], axis=0)
             self.tune = [self.estsAvg[:,:8], self.globalAvg]
 
@@ -200,7 +200,7 @@ class VizStimAnalysis(Actor):
             # logger.info('BEFORE putAnalysis() -- Call = {}'.format(self.Call))
             # logger.info('BEFORE putAnalysis() -- Cx = {}'.format(self.Cx))
             self.putAnalysis()
-            self.putStimulus()
+            # self.putStimulus()
             self.timestamp.append([time.time(), self.frame])
             self.total_times.append(time.time()-t)
         except ObjectNotFoundError:
