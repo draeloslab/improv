@@ -44,7 +44,7 @@ actors:
 
   StimDesign:
     package: actors.design_stim
-    class: StimDesigner
+    class: ImprovStimDesigner
 
 
 connections:

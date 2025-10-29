@@ -1,0 +1,7 @@
+jax_platform_name: 'cpu'
+attempt_to_cache: False
+
+bwrun_save_path: ./output/al_generated/bw_runs
+plot_save_path: ./output/al_generated/plots
+cache_path: ./output/al_generated/caches
+dataset_path: /home/jgould/Documents/AdaptiveLatents/workspace/datasets
