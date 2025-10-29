@@ -42,11 +42,16 @@ actors:
     after_amount: 1
     calc_color: False
 
+  StimDesign:
+    package: actors.design_stim
+    class: StimDesigner
+
 
 connections:
   Acquirer.q_out: [Processor.q_in, Visual.raw_frame_queue]
   Processor.q_out: [Analysis.q_in]
   Analysis.q_out: [Visual.q_in]
+  Analysis.stim_out: [StimDesign.q_in]
   Acquirer.stim_queue: [Visual.stim_in]
 
 redis_config:

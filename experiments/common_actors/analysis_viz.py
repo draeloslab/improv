@@ -200,7 +200,7 @@ class VizStimAnalysis(Actor):
             # logger.info('BEFORE putAnalysis() -- Call = {}'.format(self.Call))
             # logger.info('BEFORE putAnalysis() -- Cx = {}'.format(self.Cx))
             self.putAnalysis()
-            # self.putStimulus()
+            self.putStimulus()
             self.timestamp.append([time.time(), self.frame])
             self.total_times.append(time.time()-t)
         except ObjectNotFoundError:
@@ -293,15 +293,9 @@ class VizStimAnalysis(Actor):
         self.puttime.append(time.time()-t)
 
     def putStimulus(self):
-        # pass
-        # logger.info('stimX len: {}'.format(len(self.stimX)))
-        # logger.info('stimY len: {}'.format(len(self.stimY)))
         ids = []
-        ids.append(self.client.put(self.stimX))   #, 'stimX'+str(self.frame)))
-        ids.append(self.client.put(self.stimY))   #, 'stimY'+str(self.frame)))
-        ids.append(self.client.put(self.frame))
-        ids.append(self.client.put(self.testNum)) #, 'stim_testNum'+str(self.frame)))
-        ids.append(self.client.put(self.nID))     #, 'stim_nID'+str(self.frame)))
+        ids.append(self.client.put(self.C))
+        ids.append(self.client.put(self.coords))
         self.links['stim_out'].put(ids)
 
     def stimAvg_start(self):
