@@ -1,6 +1,6 @@
 import time
 # import serial
-import zmq
+import socket
 import numpy as np
 import logging
 from pathlib import Path
@@ -34,15 +34,14 @@ class Receiver(Actor):
     def setup(self):
         logger.info("Beginning setup for UDPReceiver")
 
-        # ZMQ connection parameters
+        # UDP connection parameters
         self.UDP_IP_receive = "0.0.0.0"  # Listen on all interfaces
         self.UDP_PORT_receive = 11114
         
-        # Create and bind ZMQ socket
-        self.context = zmq.Context()
-        self.sock_receive = self.context.socket(zmq.PULL)
-        self.sock_receive.bind(f"tcp://{self.UDP_IP_receive}:{self.UDP_PORT_receive}")
-        self.sock_receive.setsockopt(zmq.RCVTIMEO, 100)  # 100ms timeout
+        # Create and bind socket
+        self.sock_receive = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock_receive.bind((self.UDP_IP_receive, self.UDP_PORT_receive))
+        # self.sock_receive.settimeout(0.1)  # Non-blocking with short timeout
         
         # Data parsing parameters
         self.data_lengths = [            # should add up to 832 (July 2022)
@@ -68,6 +67,7 @@ class Receiver(Actor):
         # Initialize data storage lists (similar to processor.py)
         self.timestamps = []
         self.fpos_data = []
+
 
 
         timestamp = time.strftime("%Y%m%d-%H%M")
@@ -128,9 +128,10 @@ class Receiver(Actor):
         """Main execution step - receive and parse UDP packet."""
         try:
 
-            # Receive ZMQ message with timeout
-            data = self.sock_receive.recv()
-            logger.debug("Received ZMQ message")
+            # Receive UDP packet with timeout
+            # self.sock_receive.settimeout(1)  # 1 second timeout #NOTE bro what the hell is this
+            data = self.sock_receive.recv(1500)
+            logger.debug("Received UDP packet")
             
             # Parse the packet
             eTime, feat, dsize, neural_data, fpos, msCount, xpcBinSize, enable, \
@@ -140,28 +141,37 @@ class Receiver(Actor):
             current_time = time.time()
             self.timestamps.append(current_time)
             self.fpos_data.append(xpc_dict.copy())  # Use copy() to ensure we store the data properly
+            # logger.info(f'Append fpos {self.fpos_data[-1]}')
+            # logger.info(f'fpos length {len(self.fpos_data)}')
+
             
             # Log key data
             logger.debug(f"Parsed packet - fpos: {fpos}, msCount: {msCount}, timestamp: {current_time}")
             
             
-        except zmq.Again:
+        except socket.timeout:
             # No data received within timeout - this is normal
+            logger.debug("No UDP packet received within timeout")
             pass
         except Exception as e:
-            logger.error(f"Error receiving/parsing ZMQ data: {e}")
+            logger.error(f"Error receiving/parsing UDP data: {e}")
 
     def stop(self):
         logger.info("Stopping UDPReceiver")
         try:
             self.sock_receive.close()
-            self.context.term()
         except Exception as e:
             logger.error(f"Error closing socket: {e}")
-        
+        self.fpos_data = np.array(self.fpos_data)
+        self.timestamps = np.array(self.timestamps)
+        logger.info(f"Final fPos data shape: {self.fpos_data.shape}")
+        logger.info(f"Final timestamps shape: {self.timestamps.shape}")
         # Save collected data to numpy files (similar to processor.py style)
         try:
+            logger.info(f"Saving timestamps: {self.timestamps}")
             np.save(self.out_folder / "Reciever_timestamps.npy", self.timestamps)
+            logger.info(f"Timestamps saved: {self.timestamps}")
+            # logger.info(f"Saving fPos data: {self.fpos_data}")
             np.save(self.out_folder / "fpos_data.npy", self.fpos_data)
             logger.info(f"Timestamps and fPos data saved to {self.out_folder}")
         except Exception as e:
