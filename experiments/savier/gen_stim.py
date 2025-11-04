@@ -7,7 +7,7 @@ logger.setLevel(logging.INFO)
 class StimulusSpace():
     def __init__(self): 
 
-        x1 = np.array([0, 45, 90, 135, 180, 225, 270, 315]) #np.arange(0, 331, 30)
+        x1 = np.array([0, 45, 90, 135, 180, 225, 270, 315]) 
         x2 = np.array([0.0, 0.02, 0.04, 0.06, 0.08, 0.10, 0.12]) 
         x3 = np.array([50, 137, 225, 312, 400])
         x4 = np.array([1, 3, 10, 20])
@@ -20,14 +20,25 @@ class StimulusSpace():
         stim = np.array([x1, x2, x3, x4, x5, x6, x7, x8], dtype=object)
         stim_optim = np.array([x1, x2, x3, x4, x7], dtype=object)
 
+
+        param_space_grid = np.meshgrid(*stim, indexing='ij')
+        self.param_space = np.stack(param_space_grid, axis=-1).reshape(-1, len(stim)) 
+        self.param_space_size = self.param_space.shape[0]
+
+        optim_param_space_grid = np.meshgrid(*stim_optime, indexing='ij')
+        self.optim_param_space = np.stack(optim_param_space_grid, axis=-1).reshape(-1, len(stim)) 
+        self.optim_param_space_size = self.optim_param_space.shape[0]
+
+        #NOTE: to find the corresponding index for a given stim (np.argwhere((stim == param_space).all(axis=1))[0][0]) 
+
         calibration_stim, self.calibration_stim_count = self.calibration_stim(stim)
 
         self.initial_stim_count = 8
         initial_stim = self.initial_stim(stim_optim, initial_type='baseline')
 
         total_stim_time = 10 # duration of stimuli (in sec)
-        hold_after = 5 # hold after period  (in sec)
-        stationary_t = 0 # stationary time in the beginning (in sec)
+        hold_after = 5       # hold after period  (in sec)
+        stationary_t = 0     # stationary time in the beginning (in sec)
 
         # put stimuli, labels, and initial stim in dictionary
         self.stim_space = {
@@ -96,3 +107,21 @@ class StimulusSpace():
             parameters.append(self.stim_space['stimuli'][d][idx])
         
         return parameters
+    
+    def param_to_ridx(self, stimuli, set_type):
+
+        if set_type == 'calibration': # is this going to overcomplicate things? but if the param spaces are separate? how would that work for the analyis? 
+            row_index = np.argwhere((stimuli == self.param_space).all(axis=1))[0][0]
+        else:
+            row_index = np.argwhere((stimuli == self.optim_param_space).all(axis=1))[0][0]
+
+        return row_index
+
+    def ridx_to_param(self, row_index, set_type):
+        
+        if set_type == 'calibration':
+            stimuli = self.param_space[row_index]
+        else:
+            stimuli = self.optim_param_space[row_index]
+
+        return stimuli
