@@ -138,7 +138,7 @@ class Receiver(Actor):
             # Store timestamp and fPos data (similar to processor.py style)
             current_time = time.time()
             self.timestamps.append(current_time)
-            self.fpos_data.append(fpos.copy())  # Use copy() to ensure we store the data properly
+            self.fpos_data.append(xpc_dict.copy())  # Use copy() to ensure we store the data properly #TODO need to change to xpc_dict.copy()
             
             # Log key data
             logger.debug(f"Parsed packet - fpos: {fpos}, msCount: {msCount}, timestamp: {current_time}")

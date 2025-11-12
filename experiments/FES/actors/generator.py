@@ -78,7 +78,7 @@ class Generator(Actor):
                 return
             def resize_frame(frame, resize):
                 return cv2.resize(frame, (int(frame.shape[1] * resize), int(frame.shape[0] * resize)))
-            self.frame = resize_frame(self.frame, self.resize)
+            # self.frame = resize_frame(self.frame, self.resize)
             # logger.info(f'Frame : {(self.frame.shape)}')
             # logger.info(f'Client: {self.client}')
 

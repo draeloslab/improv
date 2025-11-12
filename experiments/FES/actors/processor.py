@@ -52,18 +52,18 @@ class Processor(Actor):
             with open(f'{source_folder}/config.yaml', 'r') as file:
                 config = yaml.safe_load(file)
 
-            train_dir = Path('/home/chesteklab/Desktop/newCameraLightsHand-Jake-2025-10-23/dlc-models-pytorch/iteration-1/newCameraLightsHandOct23-trainset95shuffle2/train')
+            train_dir = Path('/home/chesteklab/Desktop/napierNewManipulandum-jake-2025-11-04/dlc-models-pytorch/iteration-2/napierNewManipulandumNov4-trainset95shuffle1/train')
             # train_dir = Path("/home/chesteklab/Desktop/dlc-models-pytorch/iteration-2/manipulandum_pytorchMay13-trainset95shuffle1/train")
             # train_dir = Path("/home/chesteklab/Desktop/humanHand-jake-2025-09-18/dlc-models-pytorch/iteration-1/humanHandSep18-trainset95shuffle1/train")
             pytorch_config_path = train_dir / "pytorch_config.yaml"
-            snapshot_path = train_dir / "snapshot-best-070.pt"
+            snapshot_path = train_dir / "snapshot-best-020.pt"
 
             # for top-down models, otherwise None
             detector_snapshot_path = None
 
             # video and inference parameters
             max_num_animals = 1
-            batch_size = 16
+            batch_size = 1
             detector_batch_size = 8
 
             # read model configuration
@@ -113,7 +113,7 @@ class Processor(Actor):
             self.frames_log = 200 # num frames after which to log
             # self.recent_predictions = [deque(maxlen=3) for _ in range(5)]  #want to keep this low to avoid lag
             self.recent_predictions = [None for _ in range(5)]
-            self.alpha = 0.9 #Smoothing factor for EMA
+            self.alpha = 0.95 #Smoothing factor for EMA
             self.interp_thresh = 0 #threshold below which to use last known good position
 
 
@@ -184,27 +184,27 @@ class Processor(Actor):
                     self.prediction = raw_prediction[0]['bodyparts'][0]  # Get the first (and only) frame's bodyparts
                     # smoothed_prediction = self.kalman_filter.process(self.prediction, frame_time=dlc_start)
                     # Apply exponential moving average smoothing to predictions
-                    # smoothed_prediction= self.prediction
-                    smoothed_prediction = np.zeros_like(self.prediction)
+                    smoothed_prediction= self.prediction
+                    # smoothed_prediction = np.zeros_like(self.prediction)
                     
-                    for i, point in enumerate(self.prediction):
-                        x, y, likelihood = point
+                    # for i, point in enumerate(self.prediction):
+                    #     x, y, likelihood = point
                         
-                        # If this is the first prediction for this bodypart, use it directly
-                        if self.recent_predictions[i] is None:
-                            smoothed_x, smoothed_y = x, y
-                        # If confidence is low, use the last known good position
-                        elif likelihood < self.interp_thresh:
-                            smoothed_x, smoothed_y = self.recent_predictions[i]
-                        # Otherwise, apply exponential moving average smoothing
-                        else:
-                            prev_x, prev_y = self.recent_predictions[i]
-                            smoothed_x = self.alpha * x + (1 - self.alpha) * prev_x
-                            smoothed_y = self.alpha * y + (1 - self.alpha) * prev_y
+                    #     # If this is the first prediction for this bodypart, use it directly
+                    #     if self.recent_predictions[i] is None:
+                    #         smoothed_x, smoothed_y = x, y
+                    #     # If confidence is low, use the last known good position
+                    #     elif likelihood < self.interp_thresh:
+                    #         smoothed_x, smoothed_y = self.recent_predictions[i]
+                    #     # Otherwise, apply exponential moving average smoothing
+                    #     else:
+                    #         prev_x, prev_y = self.recent_predictions[i]
+                    #         smoothed_x = self.alpha * x + (1 - self.alpha) * prev_x
+                    #         smoothed_y = self.alpha * y + (1 - self.alpha) * prev_y
                         
-                        # Store the smoothed position for next frame
-                        self.recent_predictions[i] = (smoothed_x, smoothed_y)
-                        smoothed_prediction[i] = [smoothed_x, smoothed_y, likelihood]
+                    #     # Store the smoothed position for next frame
+                    #     self.recent_predictions[i] = (smoothed_x, smoothed_y)
+                    #     smoothed_prediction[i] = [smoothed_x, smoothed_y, likelihood]
                     
                     # Save prediction for analysis
                     self.predictions.append(smoothed_prediction)

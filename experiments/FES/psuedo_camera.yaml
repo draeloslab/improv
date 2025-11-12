@@ -15,14 +15,14 @@ actors:
     class: Processor
     pred_active: True
 
-  # Generator:
-  #   package: actors.generator
-  #   class: Generator
-
   Generator:
-    package: actors.camera_reader
-    class: CameraReader
-    camera_num: 0
+    package: actors.generator
+    class: Generator
+
+  # Generator:
+  #   package: actors.camera_reader
+  #   class: CameraReader
+  #   camera_num: 0
 
   VideoSaver0:
     package: actors.video_saver
@@ -30,10 +30,10 @@ actors:
     camera_num: 0
     method: spawn
 
-  Receiver:
-    package: actors.recieverActor
-    class: Receiver
-    method: spawn
+  # Receiver:
+  #   package: actors.recieverActor
+  #   class: Receiver
+  #   method: spawn
 
   # Sender:
   #   package: actors.sender_udp
