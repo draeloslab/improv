@@ -132,7 +132,7 @@ class CameraStreamWidget(QWidget):
         """Convert frame to QImage, plot predictions if available, and display it in QLabel."""
         height, width, channel = frame.shape
         bytes_per_line = channel * width
-        q_img = QImage(frame.data, width, height, bytes_per_line, QImage.Format_RGB888)
+        q_img = QImage(frame.data, width, height, bytes_per_line, QImage.Format_BGR888)
         
         # Only log predictions when they are actually present to reduce log spam
         if predictions is not None:

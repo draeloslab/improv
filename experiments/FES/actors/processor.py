@@ -177,7 +177,9 @@ class Processor(Actor):
                     dlc_start = time.perf_counter()
                     # self.prediction = self.dlc_live.get_pose(frame)
                     # frame = cv2.resize(frame, (int(frame.shape[1] * 0.75), int(frame.shape[0] * 0.75)))
-                    raw_prediction = self.pose_runner.inference([frame])
+                    # Convert BGR to RGB for the PyTorch model (trained with RGB images)
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    raw_prediction = self.pose_runner.inference([frame_rgb])
                     self.dlc_latencies.append(time.perf_counter() - dlc_start)
                     # Extract the bodyparts array from the prediction dictionary
                     # The format is [{'bodyparts': array([[[x, y, likelihood], ...]])}]
