@@ -52,6 +52,8 @@ class Processor(Actor):
             with open(f'{source_folder}/config.yaml', 'r') as file:
                 config = yaml.safe_load(file)
 
+            self.resize = config['resize']
+
             train_dir = Path('/home/chesteklab/Desktop/napierNewManipulandum-jake-2025-11-04/dlc-models-pytorch/iteration-2/napierNewManipulandumNov4-trainset95shuffle1/train')
             # train_dir = Path("/home/chesteklab/Desktop/dlc-models-pytorch/iteration-2/manipulandum_pytorchMay13-trainset95shuffle1/train")
             # train_dir = Path("/home/chesteklab/Desktop/humanHand-jake-2025-09-18/dlc-models-pytorch/iteration-1/humanHandSep18-trainset95shuffle1/train")
@@ -176,7 +178,7 @@ class Processor(Actor):
                     # Perform inference
                     dlc_start = time.perf_counter()
                     # self.prediction = self.dlc_live.get_pose(frame)
-                    # frame = cv2.resize(frame, (int(frame.shape[1] * 0.75), int(frame.shape[0] * 0.75)))
+                    frame = cv2.resize(frame, (int(frame.shape[1] * self.resize), int(frame.shape[0] * self.resize)))
                     # Convert BGR to RGB for the PyTorch model (trained with RGB images)
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     raw_prediction = self.pose_runner.inference([frame_rgb])

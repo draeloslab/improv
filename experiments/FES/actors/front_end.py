@@ -56,6 +56,8 @@ class CameraStreamWidget(QWidget):
             with open(f'{source_folder}/config.yaml', 'r') as file:
                 config = yaml.safe_load(file)
 
+            self.resize = config['resize']
+
             self.threshold = config['threshold']
 
             # Set up GUI layout
@@ -148,6 +150,8 @@ class CameraStreamWidget(QWidget):
             for i, point in enumerate(predictions):
             # for point in predictions:
                 x, y, likelihood = point
+                x = x/self.resize
+                y = y/self.resize
                 if likelihood > 0:
                     painter.setPen(QPen(QColor(255, 0, 0), 2))  # Red color, 2px width
                     painter.drawEllipse(int(x), int(y), 50, 50)
