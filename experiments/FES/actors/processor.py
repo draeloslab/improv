@@ -54,11 +54,13 @@ class Processor(Actor):
 
             self.resize = config['resize']
 
-            train_dir = Path('/home/chesteklab/Desktop/napierNewManipulandum-jake-2025-11-04/dlc-models-pytorch/iteration-2/napierNewManipulandumNov4-trainset95shuffle1/train')
+
+            train_dir = Path(config['model_path'])
+            # train_dir = Path('/home/chesteklab/Desktop/napierNewManipulandum-jake-2025-11-04/dlc-models-pytorch/iteration-2/napierNewManipulandumNov4-trainset95shuffle1/train')
             # train_dir = Path("/home/chesteklab/Desktop/dlc-models-pytorch/iteration-2/manipulandum_pytorchMay13-trainset95shuffle1/train")
             # train_dir = Path("/home/chesteklab/Desktop/humanHand-jake-2025-09-18/dlc-models-pytorch/iteration-1/humanHandSep18-trainset95shuffle1/train")
             pytorch_config_path = train_dir / "pytorch_config.yaml"
-            snapshot_path = train_dir / "snapshot-best-020.pt"
+            snapshot_path = train_dir / "snapshot-best-010.pt"
 
             # for top-down models, otherwise None
             detector_snapshot_path = None
@@ -114,8 +116,8 @@ class Processor(Actor):
             self.frame_sentTime = 0
             self.frames_log = 200 # num frames after which to log
             # self.recent_predictions = [deque(maxlen=3) for _ in range(5)]  #want to keep this low to avoid lag
-            self.recent_predictions = [None for _ in range(5)]
-            self.alpha = 0.95 #Smoothing factor for EMA
+            self.recent_predictions = [None for _ in range(3)]
+            self.alpha = 0.8 #Smoothing factor for EMA
             self.interp_thresh = 0 #threshold below which to use last known good position
 
 
@@ -186,6 +188,7 @@ class Processor(Actor):
                     # Extract the bodyparts array from the prediction dictionary
                     # The format is [{'bodyparts': array([[[x, y, likelihood], ...]])}]
                     self.prediction = raw_prediction[0]['bodyparts'][0]  # Get the first (and only) frame's bodyparts
+                    logger.info(f"Raw prediction: {self.prediction}")
                     # smoothed_prediction = self.kalman_filter.process(self.prediction, frame_time=dlc_start)
                     # Apply exponential moving average smoothing to predictions
                     smoothed_prediction= self.prediction
@@ -266,8 +269,8 @@ class Processor(Actor):
         if len(prediction) < 3:
             logger.error(f"Cannot calculate angle: need 3 points, got {len(prediction)}")
             return None
-            
-        p2, p3, p4 = prediction[1, :2], prediction[2, :2], prediction[3, :2]
+
+        p2, p3, p4 = prediction[0, :2], prediction[1, :2], prediction[2, :2]
         #  DIP=0, PIP=1, MCP=2, Wrist=3, currently getting angle at MCP
         # Define vectors from point 3 to points 2 and 4
         v3_to_2 = p2 - p3

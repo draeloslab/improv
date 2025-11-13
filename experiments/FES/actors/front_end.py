@@ -143,8 +143,8 @@ class CameraStreamWidget(QWidget):
             painter.begin(q_img)
             painter.setBrush(QBrush(QColor(255, 0, 0)))
 
-            labels = ["DIP", "PIP", "MCP", "Wrist"]
-            # labels = ["Wrist", "MCP", "End"]
+            # labels = ["DIP", "PIP", "MCP", "Wrist"]
+            labels = ["End", "MCP", "Wrist"]
 
             prev_point = None
             for i, point in enumerate(predictions):
@@ -180,6 +180,7 @@ class CameraStreamWidget(QWidget):
         ax.set_xlabel("Frame")
         ax.set_ylabel("Angle (°)")
         ax.set_ylim(self.y_min-5, self.y_max+5)  # Set y-limits based on the angles
+        # ax.set_ylim(100, 200)  # Set y-limits to a fixed range for better visualization
 
         # Convert Matplotlib figure to QImage
         canvas = FigureCanvasAgg(fig)
