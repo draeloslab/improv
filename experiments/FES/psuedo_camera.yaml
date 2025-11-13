@@ -36,8 +36,8 @@ actors:
   #   method: spawn
 
   # Sender:
-  #   package: actors.sender_udp
-  #   class: SenderUDP
+  #   package: actors.sender
+  #   class: Sender
   #   method: spawn
 
 connections:

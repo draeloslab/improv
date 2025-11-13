@@ -71,7 +71,7 @@ class Sender(Actor):
             logger.error(f"Could not get element! {e}")
             return
         
-        _ ,_ ,angle = element
+        _ ,angle = element
         logger.info(f'recieved angle {angle}, and type {type(angle)}')
         
 

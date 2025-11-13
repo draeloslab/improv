@@ -1,6 +1,6 @@
 fps: 30
-model_path: '/home/chesteklab/Desktop/humanmanipulandumMarkers-jake-2025-10-31/dlc-models-pytorch/iteration-0/humanmanipulandumMarkersOct31-trainset95shuffle1/train'
-video_path: '/home/chesteklab/Desktop/humanmanipulandumMarkers-jake-2025-10-31/videos/camera_video_0.mp4'
+model_path: '/home/chesteklab/Desktop/napierNewManipulandum-jake-2025-11-04/dlc-models-pytorch/iteration-2/napierNewManipulandumNov4-trainset95shuffle1/train'
+video_path: '/home/chesteklab/Desktop/napierNewManipulandum-jake-2025-11-04/videos/camera_video_0.mp4'
 threshold: 0.5
 output_path: '/home/chesteklab/predictions'
 resize: 0.5

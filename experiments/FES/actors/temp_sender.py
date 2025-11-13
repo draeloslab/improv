@@ -91,6 +91,7 @@ def main_loop():
 
             # Send the packet over UART.
             ser.write(valspack)
+            print(f"Sent packet: {valspack.hex()}")
 
             # Reset the timer flag.
             timer_ready = False
