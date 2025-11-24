@@ -117,8 +117,10 @@ class Processor(Actor):
             self.frames_log = 200 # num frames after which to log
             # self.recent_predictions = [deque(maxlen=3) for _ in range(5)]  #want to keep this low to avoid lag
             self.recent_predictions = [None for _ in range(5)]
-            self.alpha = 0.8 #Smoothing factor for EMA
-            self.interp_thresh = 0 #threshold below which to use last known good position
+            self.alpha = config['alpha']
+            # self.alpha = 0.6 #Smoothing factor for EMA
+            self.interp_thresh = config['threshold']
+            # self.interp_thresh = 0 #threshold below which to use last known good position
 
 
             timestamp = time.strftime("%Y%m%d-%H%M")
@@ -126,6 +128,7 @@ class Processor(Actor):
             self.out_folder = Path(f"{string}/{timestamp}")
             self.out_folder.mkdir(parents=True, exist_ok=True)
             logger.info(f"Output folder set to {self.out_folder}")
+            logger.info(f"Using alpha: {self.alpha} and interp_thresh: {self.interp_thresh} and resize: {self.resize}")
             logger.info("Completed setup for Processor")
 
     def stop(self):
@@ -222,6 +225,11 @@ class Processor(Actor):
                     else:
                         angle = None
                         logger.warning(f"Not enough bodyparts for angle calculation. Got {len(smoothed_prediction)}, need 3.")
+
+                    #Angle Smoothing
+                    if angle is not None and hasattr(self, 'prev_angle'):
+                        angle = self.alpha * angle + (1 - self.alpha) * self.prev_angle
+                    self.prev_angle = angle if angle is not None else getattr(self, 'prev_angle', None)
 
                     dlc_end = time.perf_counter()
 

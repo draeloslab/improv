@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 # Create a file handler
-log_file = "processor.log"
+log_file = "sender.log"
 file_handler = logging.FileHandler(log_file)
 file_handler.setLevel(logging.INFO)
 
@@ -66,13 +66,16 @@ class Sender(Actor):
 
         #Grab angle from processor
         try:
-            element = self.q_in.get()
+            element = self.q_in.get(timeout=0.001)  # Non-blocking get with small timeout
+            _ ,angle = element
+            self.last_angle = angle  # Store the angle for reuse
+            # logger.info(f'recieved angle {angle}, and type {type(angle)}')
         except Exception as e:
-            logger.error(f"Could not get element! {e}")
-            return
-        
-        _ ,angle = element
-        logger.info(f'recieved angle {angle}, and type {type(angle)}')
+            # No new data available, use previous angle if it exists
+            if not hasattr(self, 'last_angle'):
+                logger.debug(f"No element available yet and no previous value: {e}")
+                return  # No data to send
+            angle = self.last_angle
         
 
         # Create message packet
@@ -80,6 +83,8 @@ class Sender(Actor):
 
         # Send the message through UART
         self.ser.write(valspack)
+        # logger.info(f"Sent packet: {valspack.hex()}")
+
 
 
     def stop(self):

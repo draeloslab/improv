@@ -134,7 +134,7 @@ class CameraStreamWidget(QWidget):
         """Convert frame to QImage, plot predictions if available, and display it in QLabel."""
         height, width, channel = frame.shape
         bytes_per_line = channel * width
-        q_img = QImage(frame.data, width, height, bytes_per_line, QImage.Format_BGR888)
+        q_img = QImage(frame.data, width, height, bytes_per_line, QImage.Format_RGB888)
         
         # Only log predictions when they are actually present to reduce log spam
         if predictions is not None:
@@ -143,8 +143,8 @@ class CameraStreamWidget(QWidget):
             painter.begin(q_img)
             painter.setBrush(QBrush(QColor(255, 0, 0)))
 
-            # labels = ["DIP", "PIP", "MCP", "Wrist"]
-            labels = ["End", "MCP", "Wrist"]
+            labels = ["DIP", "PIP", "MCP", "Wrist"]
+            # labels = ["End", "MCP", "Wrist"]
 
             prev_point = None
             for i, point in enumerate(predictions):
