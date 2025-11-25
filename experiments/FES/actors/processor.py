@@ -58,7 +58,7 @@ class Processor(Actor):
             train_dir = Path(config['model_path'])
             # train_dir = Path('/home/chesteklab/Desktop/napierNewManipulandum-jake-2025-11-04/dlc-models-pytorch/iteration-2/napierNewManipulandumNov4-trainset95shuffle1/train')
             # train_dir = Path("/home/chesteklab/Desktop/dlc-models-pytorch/iteration-2/manipulandum_pytorchMay13-trainset95shuffle1/train")
-            # train_dir = Path("/home/chesteklab/Desktop/humanHand-jake-2025-09-18/dlc-models-pytorch/iteration-1/humanHandSep18-trainset95shuffle1/train")
+            # train_dir = Path("/home/chesteklab/Desktop/human-manipulandum-jake-2025-10-29/dlc-models-pytorch/iteration-0/human-manipulandumOct29-trainset95shuffle2/train")
             pytorch_config_path = train_dir / "pytorch_config.yaml"
             snapshot_path = train_dir / "snapshot-best-020.pt"
 
@@ -186,7 +186,7 @@ class Processor(Actor):
                     frame = cv2.resize(frame, (int(frame.shape[1] * self.resize), int(frame.shape[0] * self.resize)))
                     # Convert BGR to RGB for the PyTorch model (trained with RGB images)
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    raw_prediction = self.pose_runner.inference([frame_rgb])
+                    raw_prediction = self.pose_runner.inference([frame])
                     self.dlc_latencies.append(time.perf_counter() - dlc_start)
                     # Extract the bodyparts array from the prediction dictionary
                     # The format is [{'bodyparts': array([[[x, y, likelihood], ...]])}]
@@ -230,6 +230,9 @@ class Processor(Actor):
                     if angle is not None and hasattr(self, 'prev_angle'):
                         angle = self.alpha * angle + (1 - self.alpha) * self.prev_angle
                     self.prev_angle = angle if angle is not None else getattr(self, 'prev_angle', None)
+
+                    if np.abs(angle- self.prev_angle) > 50:
+                        angle = self.prev_angle  # ignore sudden large jumps
 
                     dlc_end = time.perf_counter()
 
