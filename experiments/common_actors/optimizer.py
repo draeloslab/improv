@@ -56,15 +56,15 @@ class BayesOptimizer(Actor):
         self.optim = Optimizer(self.config, kernels) #gamma[:self.d], var, nu, eta, self.config.x_star)
         logger.info(f"Optimizer is using {kernels} with {self.stopping_crit} as the stopping criterion")
 
-        # List of all stimuli combinations
+        # List of all stimuli combinations (FIXME: replace this section with flattened smaller param space)
         # TODO: potentially make xs the meshgrid of the subset parameter space (so the 5 parameters we're optimizing?)
-        xs = np.meshgrid(*self.stimuli_optim, indexing='ij') #,x3,x4])
-        x_star = np.empty(xs[0].shape + (self.d,))
-        for i in range(self.d):
-            x_star[...,i] = xs[i]
+        # xs = np.meshgrid(*self.stimuli_optim, indexing='ij') #,x3,x4])
+        # x_star = np.empty(xs[0].shape + (self.d,))
+        # for i in range(self.d):
+        #     x_star[...,i] = xs[i]
 
-        self.stim_star = x_star.reshape(-1, self.d)
-        logger.info('stim_star: {}'.format(self.stim_star))
+        # self.stim_star = x_star.reshape(-1, self.d)
+        # logger.info('stim_star: {}'.format(self.stim_star)) 
 
         # before proceeding, check if dimensions (in gen_stim & bayesopt.yaml) matched
         stimuli_length = [len(i) for i in self.stimuli_optim]
@@ -97,7 +97,6 @@ class BayesOptimizer(Actor):
     def setup(self):
     
         self.stop_sending = False
-
         if self.calibration is True:
             self.initial = False
         else:
@@ -168,16 +167,19 @@ class BayesOptimizer(Actor):
             #TODO: write section for the sending the calibration stimulus set? should be similiar to the initial stim section (i.e. flags, counter)
             flag = False
             if self.stim_ind is None:
+                # logger.info('calibration_stim set: {}'.format(self.stim_space['calibration_stim']))
+                # logger.info('counter is {}'.format(self.counter))
                 self.stim_ind = self.stim_space['calibration_stim'][self.counter]
             
             if (time.time() - self.timer) >= self.total_stim_time:
                 self.links['stim_ind_out'].put(self.stim_ind)
                 stim_flag = 'calibration'
                 self.links['stim_flag_out'].put(stim_flag)
+                self.stim_ind = None
                 self.counter += 1
                 self.timer = time.time()
             
-            if self.counter - 1 >= self.stimuli_space.calibration_stim_count:
+            if self.counter >= self.stimuli_space.calibration_stim_count:
                 flag = True
             
             if flag:
@@ -222,6 +224,7 @@ class BayesOptimizer(Actor):
     
         elif self.newN:
             stim_flag = 'optimization'
+            self.links['stim_flag_out'].put(stim_flag)
             nonopt = np.array(list(set(np.arange(self.y0.shape[0]))-set(self.optimized_n)))
             logger.info('nonopt is {}, number of neurons '.format(nonopt,self.y0.shape[0]))
             # ready = [i for i in nonopt if self._obs_count(i) >= 8]  #self.min_init_obs = 8
@@ -245,9 +248,9 @@ class BayesOptimizer(Actor):
                     logger.info('Trying again with neuron {}'.format(self.nID))
                     self.optimized_n.append(self.nID)
                 
-                print(self.y0.shape, self.X.shape, self.X0.shape)
+                
                 # logger.info(f'y0 shape {self.y0.shape}; X shape {self.X.shape}; X0 shape {self.X0.shape}')
-                if self.X.shape[1] < self.y0.shape[1]:
+                if self.X.shape[1] < self.y0.shape[1]: #NOTE: what are these conditions? X.shape is going to change because it is just the row index, right? 
                     self.optim.initialize_GP(self.X[:, :].T, self.y0[self.nID, -self.X.shape[1]:].T)
                     logger.info(f"condition 1. initialize with {self.X.shape} stim")  # not run in general
                     # logger.info(f"X is {self.X[:, :].T}, y is {self.y0[self.nID, -self.X.shape[1]:].T}")
@@ -283,20 +286,22 @@ class BayesOptimizer(Actor):
                 self.q_out.put(ids)
 
                 # immediately calculates suggested next stim
-                ind, xt_1 = self.optim.max_acq()
-                logger.info('INITIALIZATION - suggest next stim: {}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
-                next_ind = []
-                for i in range(self.d):
-                    next_ind.append(np.where(self.stimuli_optim[i] == self.stim_star[ind][i])[0][0])
-                self.stim_ind = next_ind  # prevents duplicate update on X[:,-1], y[-1]
+                ind, xt_1 = self.optim.max_acq() #isn't the ind, technically going to be the row index? 
+                logger.info('optim.max_acq: {}'.format(ind))
+                self.stim_ind = ind
+                # logger.info('INITIALIZATION - suggest next stim: {}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
+                # next_ind = []
+                # for i in range(self.d):
+                #     next_ind.append(np.where(self.stimuli_optim[i] == self.stim_star[ind][i])[0][0]) #NOTE: hmmmmmmmm
+                # self.stim_ind = next_ind  # prevents duplicate update on X[:,-1], y[-1]
         
         else:
             # need to update the GP
             t_update = time.time()
             if self.stim_ind is None: 
-                X = np.zeros(self.d) 
-                for i in range(self.d):
-                    X[i] = self.GP_stimuli[i][int(self.X[i,-1])]
+                # X = np.zeros(self.d) 
+                # for i in range(self.d):
+                #     X[i] = self.GP_stimuli[i][int(self.X[i,-1])] #NOTE: this is bascially matching the stimulus with teh stim set, so we don't need this anymore 
 
                 logger.info('optim {} (test: {}), update GP with {}, {}'.format(self.nID, self.test_count, X, self.y0[self.nID, -1]))
                 self.optim.update_GP(np.squeeze(X), self.y0[self.nID,-1])
@@ -320,7 +325,9 @@ class BayesOptimizer(Actor):
                 self.total_times_update.append([dt.now(), time.time() - t_update])
 
                 if stopCrit < self.stopping_crit: 
-                    peak = self.stim_star[np.argmax(self.optim.f)]
+                    logger.info('optim.f: {}'.format(self.optim.f))
+                    logger.info('np.argmax(self.optim.f): {}'.format(np.argmax(self.optim.f)))
+                    # peak = self.stim_star[np.argmax(self.optim.f)] #TODO: need to check what np.argmax returns here (is it just the row index? so i don't need stim_star?)
                     logger.info('Satisfied with this neuron, moving to next. Est peak: {}'.format(peak))
                     # self.nID += 1
                     self.newN = True
@@ -336,7 +343,7 @@ class BayesOptimizer(Actor):
                     self.goback_neurons.append(self.nID)
                     self.newN = True
                     self.stopping_list.append(self.stopping)
-                    peak = self.stim_star[np.argmax(self.optim.f)]
+                    # peak = self.stim_star[np.argmax(self.optim.f)]
                     self.peak_list.append(peak)
                     self.optim_f_list.append(self.optim.f)
                     np.save('output/saved_GP_est_'+str(self.nID)+'.npy', np.array(self.saved_GP_est))
@@ -344,11 +351,12 @@ class BayesOptimizer(Actor):
 
                 else:
                     ind, xt_1 = self.optim.max_acq()
-                    logger.info('suggest next stim: {}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
-                    next_ind = []
-                    for i in range(self.d):
-                        next_ind.append(np.where(self.stimuli_optim[i] == self.stim_star[ind][i])[0][0])
-                    self.stim_ind = next_ind
+                    self.stim_ind = ind
+                    # logger.info('suggest next stim: {}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
+                    # next_ind = []
+                    # for i in range(self.d):
+                    #     next_ind.append(np.where(self.stimuli_optim[i] == self.stim_star[ind][i])[0][0]) #NOTE: hmmmmmmmm
+                    # self.stim_ind = next_ind
 
             # Need to send ind to stimulus actor to create this stim request ??
             if (time.time() - self.timer) >= self.total_stim_time:
@@ -403,6 +411,7 @@ class RandomSampler(Actor):
         logger.info('shuffling a copy of stim_star {} with shape {}'.format(self.stim_star_shuffle, self.stim_star_shuffle.shape))
         logger.info(f"now this is self.stim_star {self.stim_star}")
         self.total_times = []
+
 
     def setup(self):
     
