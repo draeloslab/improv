@@ -11,39 +11,45 @@ class StimulusSpace():
         x2 = np.array([0.0, 0.02, 0.04, 0.06, 0.08, 0.10, 0.12]) 
         x3 = np.array([50, 137, 225, 312, 400])
         x4 = np.array([1, 3, 10, 20])
-        x5 = np.array([800, 850, 900])
-        x6 = np.array([950, 1000, 1050])
+        x5 = np.array([250, 850, 1450])
+        x6 = np.array([600, 1000, 1300])
         x7 = np.array([0, 50, 100])
         x8 = np.array([0,1])
 
         labels = ['angle', 'speed', 'size', 'frequency', 'center_x', 'center_y', 'contrast', 'shape']
-        stim = np.array([x1, x2, x3, x4, x5, x6, x7, x8], dtype=object)
-        stim_optim = np.array([x1, x2, x3, x4, x7], dtype=object)
+        self.stim = np.array([x1, x2, x3, x4, x5, x6, x7, x8], dtype=object)
+        self.stim_optim = np.array([x1, x2, x3, x4, x7], dtype=object)
 
+        param_space_grid = np.meshgrid(*self.stim, indexing='ij')
+        param_space = np.stack(param_space_grid, axis=-1).reshape(-1, len(self.stim)) 
+        # replace size, center_x, center_y params with -99 for the drift gratings stimuli (NOTE: tried to replace with NaN but it was having trouble with np.where)
+        mask = param_space[:, 7] == 1
+        for i in [2, 4, 5]:
+            param_space[mask, i] = np.nan 
+        temp = param_space.copy()
+        mask = np.isnan(temp)
+        temp[mask] = -99
+        param_space = np.unique(temp, axis=0)
+        # param_space[param_space == -99] = np.nan
+        self.param_space = param_space
 
-        param_space_grid = np.meshgrid(*stim, indexing='ij')
-        self.param_space = np.stack(param_space_grid, axis=-1).reshape(-1, len(stim)) 
         self.param_space_size = self.param_space.shape[0]
-
-        optim_param_space_grid = np.meshgrid(*stim_optime, indexing='ij')
-        self.optim_param_space = np.stack(optim_param_space_grid, axis=-1).reshape(-1, len(stim)) 
-        self.optim_param_space_size = self.optim_param_space.shape[0]
 
         #NOTE: to find the corresponding index for a given stim (np.argwhere((stim == param_space).all(axis=1))[0][0]) 
 
-        calibration_stim, self.calibration_stim_count = self.calibration_stim(stim)
+        calibration_stim, self.calibration_stim_count = self.calibration_stim(self.stim)
 
         self.initial_stim_count = 8
-        initial_stim = self.initial_stim(stim_optim, initial_type='baseline')
+        initial_stim = self.initial_stim(self.stim)
 
         total_stim_time = 10 # duration of stimuli (in sec)
         hold_after = 5       # hold after period  (in sec)
         stationary_t = 0     # stationary time in the beginning (in sec)
 
-        # put stimuli, labels, and initial stim in dictionary
+        # put stimuli, labels, and initial stim in dictionary (FIXME: consider reorganzing this dictionary (less stuff))
         self.stim_space = {
-            'stimuli': stim,
-            'stimuli_optim': stim_optim,
+            'stimuli': self.stim,
+            'stimuli_optim': self.stim_optim,
             'labels': labels,
             'calibration_stim': calibration_stim,
             'initial_stim': initial_stim,
@@ -52,43 +58,36 @@ class StimulusSpace():
             'stat_t': stationary_t, 
         }
 
+    #FIXME: need to put these functions into index space 
     def calibration_stim(self, stim):
+        
+        calibration_stim = []
+        drift_grating = self.param_space[(self.param_space[:,7] == 1) & (self.param_space[:,1] == 0.02) & (self.param_space[:,3] == 3) & (self.param_space[:,6] == 50)]
+        for param in drift_grating:
+            row_index = self.param_to_ridx(param)
+            calibration_stim.append(row_index)
+        
+        stationary_spots = [[0,0,0,0,1,1,1,0], [0,0,0,0,0,2,1,0], [0,0,0,0,2,2,1,0], [0,0,0,0,2,0,1,0], [0,0,0,0,0,0,1,0]]
+        moving_spots = [[i,2,0,1,0,0,1,0] for i in range(0,6,2)]
+        spots = stationary_spots + moving_spots
 
-        drift_gratings = [[i, 2, 0, 2, 0, 0, 1, 1] for i in range(len(stim[0]))]
-        stationary_spots = [[0,0,0,0,1,1,1,0], [0,0,0,0,0,0,1,0], [0,0,0,0,0,2,1,0], [0,0,0,0,2,2,1,0], [0,0,0,0,2,0,1,0]]
-        moving_spots = [[0,2,0,1,0,0,1,0], [0,2,0,1,0,2,1,0], [0,2,0,1,2,2,1,0], [0,2,0,1,2,0,1,0], [0,2,0,1,1,1,1,0]]
+        for params in spots:
+            param = self.idx_to_param(params)
+            row_index = self.param_to_ridx(param)
+            calibration_stim.append(row_index)
 
-        calibration_stim = drift_gratings + stationary_spots + moving_spots
-        calibration_stim_count = len(calibration_stim)
+        return calibration_stim, len(calibration_stim)
 
-        return calibration_stim, calibration_stim_count
-
-    def initial_stim(self, stim, initial_type):
+    
+    def initial_stim(self, stim):
         initial_stim = []
         np.random.seed(42)
-        if initial_type == 'baseline':
-            scramle_dim1_param = stim[0].copy()
-            np.random.shuffle(scramle_dim1_param)
-            scramle_dim1_idx = [np.where(stim[0] == value)[0][0] for value in scramle_dim1_param]
-            for i in range(self.initial_stim_count):
-                idx = i % len(scramle_dim1_idx)
-                # idx1 = i % len(stim[4])
-                initial_stim.append([scramle_dim1_idx[idx], 1, 1, 0, 0])  # use high contrast #idx1])
-            # initial_stim = [[i, 0, 1, 0] for i in scramle_dim1_idx]
-            
-        else:
-            shuffled_stim_list = [x.copy() for x in stim.tolist()]
-            # np.random.seed(42)
-            for x in shuffled_stim_list:
-                np.random.shuffle(x)
-        
-            # initial_stim = []
-            for i in range(self.initial_stim_count):
-                ind = []
-                for shuffle, original in zip(shuffled_stim_list, stim.tolist()):
-                    idx = i % len(shuffle)
-                    ind.append(np.argwhere(original == shuffle[idx])[0][0])
-                initial_stim.append(ind)
+        scramle_dim1_param = stim[0].copy()
+        np.random.shuffle(scramle_dim1_param)
+        for i in range(self.initial_stim_count):
+            i_stim = [scramle_dim1_param[i], stim[1][1], stim[2][1], stim[3][0], stim[4][0], stim[5][0], stim[6][1], stim[7][0]]
+            r_idx = self.param_to_ridx(i_stim)
+            initial_stim.append(r_idx)
 
         return initial_stim
 
@@ -96,7 +95,7 @@ class StimulusSpace():
         # translation from parameter space to index space
         indices = []
         for d, stim in enumerate(stimuli):
-            indices.append(np.argwhere(stim == self.stim_space['stimuli'][d])[0][0])
+            indices.append(np.argwhere(stim == self.stim[d])[0][0])
         
         return indices
 
@@ -104,24 +103,18 @@ class StimulusSpace():
         # translation from index space to parameter spacez
         parameters = []
         for d,idx in enumerate(indices):
-            parameters.append(self.stim_space['stimuli'][d][idx])
+            parameters.append(self.stim[d][idx])
         
         return parameters
     
-    def param_to_ridx(self, stimuli, set_type):
+    def param_to_ridx(self, stimuli):
 
-        if set_type == 'calibration': # is this going to overcomplicate things? but if the param spaces are separate? how would that work for the analyis? 
-            row_index = np.argwhere((stimuli == self.param_space).all(axis=1))[0][0]
-        else:
-            row_index = np.argwhere((stimuli == self.optim_param_space).all(axis=1))[0][0]
+        row_index = np.argwhere((stimuli == self.param_space).all(axis=1))[0][0]
 
         return row_index
 
-    def ridx_to_param(self, row_index, set_type):
+    def ridx_to_param(self, row_index):
         
-        if set_type == 'calibration':
-            stimuli = self.param_space[row_index]
-        else:
-            stimuli = self.optim_param_space[row_index]
+        stimuli = self.param_space[row_index]
 
         return stimuli
