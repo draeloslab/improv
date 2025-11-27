@@ -76,9 +76,9 @@ class VisualStimulus(Actor):
         # Listen to request from Optimizer actor? 
         try: 
             t = time.time()
-            indices = self.links['stim_ind_in'].get(timeout=0.0001)
-            logger.info('indices: {}'.format(indices))
-            parameters = self.stimuli_space.idx_to_param(indices) 
+            row_index = self.links['stim_ind_in'].get(timeout=0.0001)
+            logger.info('stim index: {}'.format(row_index))
+            parameters = self.stimuli_space.ridx_to_param(row_index) 
             logger.info('parameters: {}'.format(parameters))
             stim = self.create_frame(parameters)
 
