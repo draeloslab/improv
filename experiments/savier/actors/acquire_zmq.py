@@ -344,6 +344,8 @@ class ZMQAcquirer(Actor):
             center_y = int(msg_dict['texture']['center_y'])
             contrast = int(msg_dict['texture']['fg_intensity'])
             shape = 0 
+            
+            logger.info('Is speed = float(0)'.format(speed == float(0)))
             if speed == float(0):
                 logger.info('Calibration Stimulus: Flashing spot at ({},{})'.format(center_x, center_y))
             else:
@@ -353,10 +355,10 @@ class ZMQAcquirer(Actor):
             try:
                 angle = int(msg_dict['stimulus']['angle'])
                 speed = float(msg_dict['stimulus']['velocity'])
-                size = np.nan #int(msg_dict['texture']['length'])
+                size = -99 
                 freq = int(msg_dict['texture']['frequency'])
-                center_x = np.nan #int(msg_dict['texture']['center_x'])
-                center_y = np.nan #int(msg_dict['texture']['center_y'])
+                center_x = -99 
+                center_y = -99 
                 contrast = int(msg_dict['texture']['dark_value'])
                 shape = 1
             except Exception as e:
