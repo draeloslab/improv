@@ -67,11 +67,12 @@ class VizStimAnalysis(Actor):
         self.estsAvg = None
         
         #TODO: need to rewrite xs and ys based on the size of the parameter space? 
-        self.xs = np.zeros((self.stim_space_dims))
-        self.ys = np.zeros((1, self.stim_space_dims, 2))
+        self.xs = np.zeros((self.stim_space_dim))
+        self.ys = np.zeros((1, self.stim_space_dim, 2))
         
         #FIXME: hardcoded
-        dims = [getattr(self, f'x_{label}').shape[0] for label in self.stim_space['labels']]
+        dims = [x.shape[0] for x in self.stimuli]
+        # dims = [getattr(self, f'x_{label}').shape[0] for label in self.stim_space['labels']]
         self.all_y = np.zeros((500, *dims)) #NOTE: what is 500? 
         self.stim_count = np.zeros((dims))
 
@@ -153,6 +154,7 @@ class VizStimAnalysis(Actor):
 
             self.stimAvg_start()
             
+            #NOTE: we don't need this (we're not plotting this) 
             self.globalAvg = np.mean(self.estsAvg[:,:8], axis=0)
             self.tune = [self.estsAvg[:,:8], self.globalAvg]
 
@@ -192,11 +194,11 @@ class VizStimAnalysis(Actor):
         '''
         t = time.time()
         ids = []
-        ids.append(self.client.put(self.Cx))    #, 'Cx'+str(self.frame)))
+        ids.append(self.client.put(self.Cx))    #, 'Cx'+str(self.frame))) 
         ids.append(self.client.put(self.Call))  #, 'Call'+str(self.frame)))
         ids.append(self.client.put(self.Cpop))  #, 'Cpop'+str(self.frame)))
-        ids.append(self.client.put(self.tune))  #, 'tune'+str(self.frame)))
-        ids.append(self.client.put(self.color)) #, 'color'+str(self.frame)))
+        ids.append(self.client.put(self.tune))  #, 'tune'+str(self.frame))) (probably dont need)
+        ids.append(self.client.put(self.color)) #, 'color'+str(self.frame))) (we should rename bc it's not colored (motion correction))
         ids.append(self.client.put(self.coordDict)) #, 'analys_coords'+str(self.frame)))
         ids.append(self.client.put(self.allStims))  #, 'stim'+str(self.frame)))
         # ids.append(self.client.put(self.y_results, 'yres'+str(self.frame)))
@@ -230,6 +232,7 @@ class VizStimAnalysis(Actor):
             # added more neurons, grow the array
             self.ests = np.pad(self.ests, ((0,diff),(0,0),(0,0)), mode='constant')
 
+        if self.currentStim is not None:
             if self.stimStart == self.frame:
 
                 mean_val = np.mean(ests[:, self.frame-self.before_amount:self.frame], 1)
@@ -259,9 +262,9 @@ class VizStimAnalysis(Actor):
                 logger.info('we have {} neurons right now'.format(ests.shape[0]))
 
                 self.testNum += 1
-                sc = self.stim_count[int(idx) for idx in self.xs]
+                sc = self.stim_count[int(self.xs)]
                 numN = self.ests.shape[0]
-                idx = int(idx for idx in self.xs)
+                idx = int(self.xs)
                 self.all_y[(slice(0, numN), + idx)] = ((sc-1) * self.all_y[(slice(0, numN), ) + idx] + self.stimY[-1]) / sc
         
         self.estsAvg = np.squeeze(self.ests[:, :, 0] - self.ests[:, :, 1])
