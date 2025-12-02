@@ -1,6 +1,6 @@
 fps: 30
 model_path: '/home/chesteklab/Desktop/napierNewManipulandum-jake-2025-11-04/dlc-models-pytorch/iteration-2/napierNewManipulandumNov4-trainset95shuffle1/train'
-video_path: '/home/chesteklab/Desktop/napierNewManipulandum-jake-2025-11-04/videos/camera_video_0_11061025.mp4'
+video_path: '/home/chesteklab/camera_video/2025-11-25/091541/camera_video_0.mp4'
 threshold: 0.2
 output_path: '/home/chesteklab/predictions'
 resize: 0.75

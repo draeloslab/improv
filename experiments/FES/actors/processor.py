@@ -13,7 +13,7 @@ from collections import deque
 # from deeplabcut.pose_estimation_pytorch.apis.analyze_videos import video_inference
 from deeplabcut.pose_estimation_pytorch.config import read_config_as_dict
 from deeplabcut.pose_estimation_pytorch.apis.utils import get_inference_runners
-from .kalmanfilter import KalmanFilterPredictor
+# from .kalmanfilter import KalmanFilterPredictor
 from improv.store import ObjectNotFoundError
 
 logger = logging.getLogger(__name__)
@@ -83,17 +83,17 @@ class Processor(Actor):
             )
 
             # Initializing Kalman Filter with smoother parameters
-            self.kalman_filter = KalmanFilterPredictor(
-                adapt=True,
-                forward=0.002,
-                fps=30,  
-                nderiv=2,
-                priors=[10, 10],
-                initial_var=5,    
-                process_var=5,     
-                dlc_var=20,        
-                lik_thresh=0.5     
-            )
+            # self.kalman_filter = KalmanFilterPredictor(
+            #     adapt=True,
+            #     forward=0.002,
+            #     fps=30,  
+            #     nderiv=2,
+            #     priors=[1, 1],
+            #     initial_var=10,    
+            #     process_var=1,     
+            #     dlc_var=10,        
+            #     lik_thresh=0.5     
+            # )
 
             # self.model_path = f'{source_folder}/DLCLive/' + config['model_path']
             self.resize = config['resize']
@@ -115,12 +115,14 @@ class Processor(Actor):
             self.frame_num = 0
             self.frame_sentTime = 0
             self.frames_log = 200 # num frames after which to log
+            self.angle_queue = deque(maxlen=5)  # to store last 5 angles for smoothing
             # self.recent_predictions = [deque(maxlen=3) for _ in range(5)]  #want to keep this low to avoid lag
             self.recent_predictions = [None for _ in range(5)]
             self.alpha = config['alpha']
             # self.alpha = 0.6 #Smoothing factor for EMA
             self.interp_thresh = config['threshold']
             # self.interp_thresh = 0 #threshold below which to use last known good position
+            self.prev_angle = None
 
 
             timestamp = time.strftime("%Y%m%d-%H%M")
@@ -182,17 +184,23 @@ class Processor(Actor):
 
                     # Perform inference
                     dlc_start = time.perf_counter()
+                    kalman_time = time.time()
                     # self.prediction = self.dlc_live.get_pose(frame)
                     frame = cv2.resize(frame, (int(frame.shape[1] * self.resize), int(frame.shape[0] * self.resize)))
                     # Convert BGR to RGB for the PyTorch model (trained with RGB images)
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    raw_prediction = self.pose_runner.inference([frame])
+                    raw_prediction = self.pose_runner.inference([frame_rgb])  # this needs to be switched back to just frame for camera input
                     self.dlc_latencies.append(time.perf_counter() - dlc_start)
                     # Extract the bodyparts array from the prediction dictionary
                     # The format is [{'bodyparts': array([[[x, y, likelihood], ...]])}]
                     self.prediction = raw_prediction[0]['bodyparts'][0]  # Get the first (and only) frame's bodyparts
                     # logger.info(f"Raw prediction: {self.prediction}")
-                    # smoothed_prediction = self.kalman_filter.process(self.prediction, frame_time=dlc_start)
+                    # logger.info(f' Shape of prediction: {self.prediction.shape}')
+                    # logger.info(f' Prediction {self.prediction}')
+                    # logger.info(f"Time {kalman_time}")
+                    # smoothed_prediction = self.kalman_filter.process(self.prediction, frame_time=kalman_time)
+                    # logger.info(f"Smoothed prediction: {smoothed_prediction.shape}")
+                    # logger.info(f"Smoothed prediction: {smoothed_prediction}")
                     # Apply exponential moving average smoothing to predictions
                     smoothed_prediction= self.prediction
                     # smoothed_prediction = np.zeros_like(self.prediction)
@@ -227,12 +235,13 @@ class Processor(Actor):
                         logger.warning(f"Not enough bodyparts for angle calculation. Got {len(smoothed_prediction)}, need 3.")
 
                     #Angle Smoothing
-                    if angle is not None and hasattr(self, 'prev_angle'):
-                        angle = self.alpha * angle + (1 - self.alpha) * self.prev_angle
-                    self.prev_angle = angle if angle is not None else getattr(self, 'prev_angle', None)
+                    self.angle_queue.append(angle)
+                    smoothed_angle = np.mean(self.angle_queue) if len(self.angle_queue) > 0 else angle
 
-                    if np.abs(angle- self.prev_angle) > 50:
-                        angle = self.prev_angle  # ignore sudden large jumps
+                    # Apply sudden jump detection on the smoothed angle
+                    if self.prev_angle is not None and np.abs(smoothed_angle - self.prev_angle) > 10:
+                        smoothed_angle = self.prev_angle  # ignore sudden large jumps
+                    self.prev_angle = smoothed_angle
 
                     dlc_end = time.perf_counter()
 
@@ -258,7 +267,7 @@ class Processor(Actor):
                 
                 
                 try:
-                    self.q_out.put([smoothed_prediction, angle])
+                    self.q_out.put([smoothed_prediction, smoothed_angle])
 
                 except Exception as e:
                     logger.error(f"Processor Exception: {e}")

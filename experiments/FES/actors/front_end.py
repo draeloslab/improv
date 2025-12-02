@@ -165,7 +165,7 @@ class CameraStreamWidget(QWidget):
 
             painter.setPen(QPen(QColor(0, 255, 0), 2))  # Green color for text
             angle_text = f"Angle: {angle:.2f}°" if angle is not None else "Angle: N/A"
-            painter.drawText(10, 30, angle_text)
+            painter.drawText(10, 50, angle_text)
             painter.end()
 
         pixmap = QPixmap.fromImage(q_img)
