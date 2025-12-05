@@ -189,7 +189,7 @@ class Processor(Actor):
                     frame = cv2.resize(frame, (int(frame.shape[1] * self.resize), int(frame.shape[0] * self.resize)))
                     # Convert BGR to RGB for the PyTorch model (trained with RGB images)
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    raw_prediction = self.pose_runner.inference([frame])  # this needs to be switched back to just frame for camera input
+                    raw_prediction = self.pose_runner.inference([frame_rgb])  # this needs to be switched back to just frame for camera input
                     self.dlc_latencies.append(time.perf_counter() - dlc_start)
                     # Extract the bodyparts array from the prediction dictionary
                     # The format is [{'bodyparts': array([[[x, y, likelihood], ...]])}]
@@ -239,7 +239,7 @@ class Processor(Actor):
                     smoothed_angle = np.mean(self.angle_queue) if len(self.angle_queue) > 0 else angle
 
                     # Apply sudden jump detection on the smoothed angle
-                    if self.prev_angle is not None and np.abs(smoothed_angle - self.prev_angle) > 50:
+                    if self.prev_angle is not None and np.abs(smoothed_angle - self.prev_angle) > 5:
                         smoothed_angle = self.prev_angle  # ignore sudden large jumps
                     self.prev_angle = smoothed_angle
 

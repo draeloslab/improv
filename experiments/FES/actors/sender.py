@@ -53,7 +53,7 @@ class Sender(Actor):
         # Combine 10-bit values into one 64-bit integer
         temp_data = 0
         for i in range(self.NUM_SENSORS + 1):
-            temp_data |= int(adc_vals) << (i * 10)
+            temp_data |= adc_vals << (i * 10)
 
         # Extract bytes from temp_data and store in packed_vals
         for i in range(8):  # Remaining 8 bytes
@@ -68,9 +68,12 @@ class Sender(Actor):
         try:
             element = self.q_in.get(timeout=0.001)  # Non-blocking get with small timeout
             _ ,angle = element
+            angle = max(0,min(1023,int((angle- 120) * 14)))
+            # angle = angle*4
             self.last_angle = angle  # Store the angle for reuse
             # logger.info(f'recieved angle {angle}, and type {type(angle)}')
         except Exception as e:
+            logger.info(f'Error in sender {e}')
             # No new data available, use previous angle if it exists
             if not hasattr(self, 'last_angle'):
                 logger.debug(f"No element available yet and no previous value: {e}")

@@ -1,6 +1,7 @@
 import time
 import serial
 import struct
+import random
 
 # Constants
 # There are 5 flex/force sensors plus an extra frame sensor.
@@ -49,7 +50,8 @@ def analog_read(pin):
     Dummy function to simulate analog reading from a pin.
     Replace with actual analog read logic if needed.
     """
-    return 255
+    return max(0, min(1023, int((round(random.uniform(130, 190), 2)-130) * 16)))
+
 
 def pack_bytes(adc_vals):
     """
@@ -69,7 +71,7 @@ def pack_bytes(adc_vals):
     # Combine each sensor's 10-bit value into one large integer.
     temp_data = 0
     for i in range(total_sensors):
-        temp_data |= adc_vals[i] << (i * 10)
+        temp_data |= int(adc_vals[i]) << (i * 10)
 
     # Extract bytes from temp_data.
     for i in range(num_data_bytes):
