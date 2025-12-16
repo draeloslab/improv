@@ -123,6 +123,7 @@ class Processor(Actor):
             self.interp_thresh = config['threshold']
             # self.interp_thresh = 0 #threshold below which to use last known good position
             self.prev_angle = None
+            self.smoothed_prediction = None
 
 
             timestamp = time.strftime("%Y%m%d-%H%M")
@@ -189,7 +190,7 @@ class Processor(Actor):
                     frame = cv2.resize(frame, (int(frame.shape[1] * self.resize), int(frame.shape[0] * self.resize)))
                     # Convert BGR to RGB for the PyTorch model (trained with RGB images)
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    raw_prediction = self.pose_runner.inference([frame_rgb])  # this needs to be switched back to just frame for camera input
+                    raw_prediction = self.pose_runner.inference([frame])  # this needs to be switched back to just frame for camera input
                     self.dlc_latencies.append(time.perf_counter() - dlc_start)
                     # Extract the bodyparts array from the prediction dictionary
                     # The format is [{'bodyparts': array([[[x, y, likelihood], ...]])}]

@@ -15,14 +15,14 @@ actors:
   CameraReader0:
     package: actors.camera_reader
     class: CameraReader
-    camera_num: 0
+    camera_num: 2
     logging_metrics: false # if true, log the metrics (fps, latency, etc)
 
   # video savers: each video saver writes the frames readed to raw-video file    
   VideoSaver0:
     package: actors.video_saver
     class: VideoSaver
-    camera_num: 0
+    camera_num: 2
 
 connections:
   CameraReader0.q_out: [VideoSaver0.q_in, VideoScreen.camera0_in]
