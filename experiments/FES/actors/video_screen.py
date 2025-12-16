@@ -114,6 +114,7 @@ class VideoScreen(ManagedActor):
         frame_id = None
         predictions = None  # Initialize predictions with a default value
         angle = None
+        frame = None
 
         # Clear the frame queue for the specific camera
         # while not self.links[f"preds{camera_id}_in"].empty():
@@ -125,23 +126,27 @@ class VideoScreen(ManagedActor):
             # frame_start = time.perf_counter()
             if frame_id is not None:
                 frame = self.client.get(frame_id)
-                if isinstance(frame, np.ndarray) and len(frame.shape) == 3:
-                    pass
-                else:
-                # uncompressing the frame
-                    frame = cv2.imdecode(frame, cv2.IMREAD_COLOR)
-                self.frame_latencies.append(time.perf_counter()- frame_start)
+                try:
+                    if isinstance(frame, np.ndarray) and len(frame.shape) == 3:
+                        pass
+                    else:
+                    # uncompressing the frame
+                        frame = cv2.imdecode(frame, cv2.IMREAD_COLOR)
+                    self.frame_latencies.append(time.perf_counter()- frame_start)
+                except:
+                    logger.error(f'Suspect none in frame {frame}; camera id is {camera_id}')
 
             else:
-                frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
+                # frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
                 logger.debug('Was unable to grab frame!')
             # self.frame_latencies.append(time.perf_counter() - frame_start)
         except queue.Empty:
-            frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
+            pass
+            #frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
             # logger.debug(f'No frame available for camera {camera_id}')
         except KeyError:
-            frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
-            # logger.debug(f'No frame available for camera {camera_id}')
+            # frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
+            logger.debug(f'No frame available for camera {camera_id}')
         except Exception as e:
             logger.error(f"Error getting frame for camera {camera_id}: {e}")
             logger.info(len(self.frame_latencies))

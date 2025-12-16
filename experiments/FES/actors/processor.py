@@ -60,7 +60,7 @@ class Processor(Actor):
             # train_dir = Path("/home/chesteklab/Desktop/dlc-models-pytorch/iteration-2/manipulandum_pytorchMay13-trainset95shuffle1/train")
             # train_dir = Path("/home/chesteklab/Desktop/human-manipulandum-jake-2025-10-29/dlc-models-pytorch/iteration-0/human-manipulandumOct29-trainset95shuffle2/train")
             pytorch_config_path = train_dir / "pytorch_config.yaml"
-            snapshot_path = train_dir / "snapshot-best-020.pt"
+            snapshot_path = train_dir / "snapshot-best-010.pt"
 
             # for top-down models, otherwise None
             detector_snapshot_path = None

@@ -135,11 +135,20 @@ class RedisStoreInterface(StoreInterface):
             # TODO key; not sure it's worth the network overhead to check every
             # TODO key twice every time. we still need a better solution for
             # TODO this, but it will work now singlethreaded most of the time.
+            pckl = pickle.dumps(object, protocol=5)
+            if pckl is None:
+                logger.error("Could not pickle object {}".format(object_key))
 
-            self.client.set(object_key, pickle.dumps(object, protocol=5), nx=True,ex=100) # ex=60 # expire in 60 seconds
+            ret_val = self.client.set(object_key, pckl, nx=False, ex=9000) # ex=60 # expire in 60 seconds
         except Exception:
             logger.error("Could not store object {}".format(object_key))
             logger.error(traceback.format_exc())
+
+        if not ret_val: logger.error(f'Redis set returned {ret_val} for key {object_key}')
+        else: 
+            logger.error(f'Redis set successfully returned {ret_val} for key {object_key}')
+            ttl = self.client.ttl(object_key)
+            logger.debug(f"Key {object_key} TTL immediately after set: {ttl} seconds")
 
         return object_key
 
@@ -158,16 +167,32 @@ class RedisStoreInterface(StoreInterface):
         """
 
         try:
+            key_exists = self.client.exists(object_key)
+            if key_exists == 0:
+                logger.error(f'This key {object_key} does not exist')
+        except Exception:
+            pass
+
+        try:
             object_value = self.client.get(object_key)
+            # logger.error(f'Got an object using key {object_key} from the store')
         except Exception as e:
             logger.error(f"Could not get object {object_key} - error: {e}")
 
         if object_value:
             # buffers would also go here to force out-of-band deserialization
-            return pickle.loads(object_value)
+            try:
+                pckl = pickle.loads(object_value)
+                # logger.error('we loaded the pickle')
+                return pckl
+            except Exception as e:
+                logger.error(f"Could not deserialize object {object_key} - error: {e}")
+        else:
+            logger.error(f'Got object {object_value} from redis store')
+            return object_value
 
-        logger.warning("Object {} cannot be found.".format(object_key))
-        raise ObjectNotFoundError(object_key)
+        # logger.warning("This is a problem: Object {} cannot be found.".format(object_key))
+        # raise ObjectNotFoundError(object_key)
     
     def expire(self, object_key, time):
         """

@@ -49,6 +49,7 @@ class CameraStreamWidget(QWidget):
             self.y_max = -np.inf  # Initialize y_max to negative infinity
             self.y_min = np.inf  # Initialize y_min to positive infinity
             self.predictions = None
+            self.last_frame = [None for _ in range(self.visual.num_cameras)]
             
 
             # Load the configuration file
@@ -82,7 +83,7 @@ class CameraStreamWidget(QWidget):
             # Initialize a QTimer to update frames
             self.timer = QTimer()
             self.timer.timeout.connect(self.update_frames)
-            self.timer.start(30)  # Adjust the timer interval to match the frame rate [ms]
+            self.timer.start(33)  # Adjust the timer interval to match the frame rate [ms]
 
             logger.info(f'Front End Setup completed')
         except Exception as e:
@@ -92,14 +93,16 @@ class CameraStreamWidget(QWidget):
 
     def update_frames(self):
         """Update frames from each camera"""
-        for camera_id in range(self.visual.num_cameras):
+        for camera_id in [0, 2]: #range(self.visual.num_cameras):
             frame = None
             predictions = None
             angle = None
             try:
                 frame, predictions, angle = self.visual.getLastFrame(camera_id)
                 if frame is not None:
-                    self.display_frame(frame, predictions, self.camera_labels[camera_id], angle)
+                    self.last_frame[camera_id] = frame
+
+                self.display_frame(self.last_frame[camera_id], predictions, self.camera_labels[camera_id], angle)
                 
                 # Update the angle plot if an angle is provided
                 
@@ -132,6 +135,8 @@ class CameraStreamWidget(QWidget):
 
     def display_frame(self, frame, predictions, label, angle):
         """Convert frame to QImage, plot predictions if available, and display it in QLabel."""
+        if frame is None:
+            return
         height, width, channel = frame.shape
         bytes_per_line = channel * width
         q_img = QImage(frame.data, width, height, bytes_per_line, QImage.Format_RGB888)

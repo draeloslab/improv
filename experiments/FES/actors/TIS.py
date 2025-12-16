@@ -215,6 +215,8 @@ class TIS:
             _,frame_enc = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 60])            
 
             try:
+                if frame_enc is None:
+                    logger.error(f"[Camera {self.camera_name}] Encoded frame is None!")
                 data_id = self.client.put(frame_enc)
                 self.q_out.put(data_id)
                 self.camera_latencies.append(time.perf_counter() - frame_time)
