@@ -14,25 +14,34 @@ actors:
     package: actors.processor
     class: Processor
     pred_active: True
+    camera_num: 0
 
   Processor2:
     package: actors.processor
     class: Processor
     pred_active: True
+    camera_num: 2
 
-  # Generator:
-  #   package: actors.generator
-  #   class: Generator
-
+#Uncomment this to run psuedo cameras
   Generator0:
-    package: actors.camera_reader
-    class: CameraReader
+    package: actors.generator
+    class: Generator
     camera_num: 0
 
   Generator2:
-    package: actors.camera_reader
-    class: CameraReader
+    package: actors.generator
+    class: Generator
     camera_num: 2
+
+  # Generator0:
+  #   package: actors.camera_reader
+  #   class: CameraReader
+  #   camera_num: 0
+
+  # Generator2:
+  #   package: actors.camera_reader
+  #   class: CameraReader
+  #   camera_num: 2
 
   VideoSaver0:
     package: actors.video_saver

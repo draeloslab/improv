@@ -15,14 +15,14 @@ actors:
     class: Processor
     pred_active: True
 
-  # Generator:
-  #   package: actors.generator
-  #   class: Generator
+  Generator0:
+    package: actors.generator
+    class: Generator
 
-  Generator:
-    package: actors.camera_reader
-    class: CameraReader
-    camera_num: 0
+  # Generator:
+  #   package: actors.camera_reader
+  #   class: CameraReader
+  #   camera_num: 0
 
   VideoSaver0:
     package: actors.video_saver
@@ -30,10 +30,10 @@ actors:
     camera_num: 0
     method: spawn
 
-  Receiver:
-    package: actors.recieverActor
-    class: Receiver
-    method: spawn
+  # Receiver:
+  #   package: actors.recieverActor
+  #   class: Receiver
+  #   method: spawn
 
   # Sender:
   #   package: actors.sender
@@ -41,7 +41,7 @@ actors:
   #   method: spawn
 
 connections:
-  Generator.q_out: [Processor0.q_in, VideoScreen.images0_in , VideoSaver0.q_in]
+  Generator0.q_out: [Processor0.q_in, VideoScreen.images0_in , VideoSaver0.q_in]
   # CameraReader0.q_out: [VideoSaver0.q_in, Processor0.q_in]
   # CameraReader1.q_out: [VideoSaver1.q_in, Processor1.q_in]
   # CameraReader2.q_out: [VideoSaver2.q_in, Processor2.q_in]

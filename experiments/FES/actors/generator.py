@@ -22,7 +22,7 @@ class Generator(Actor):
         super().__init__(*args, **kwargs)
 
     def setup(self):
-        logger.info("Beginning setup for Generator")
+        logger.info(f"Beginning setup for {self.name}")
 
          # load the configuration file
         source_folder = Path(__file__).resolve().parent.parent
@@ -30,12 +30,18 @@ class Generator(Actor):
         with open(f'{source_folder}/config.yaml', 'r') as file:
             config = yaml.safe_load(file)
 
+        
+        if '0' in self.name:
+            self.video_path = config['video_path_0']
+        elif '2' in self.name:
+            self.video_path = config['video_path_2']
+        else:
+            self.video_path = config['video_path']
 
-        self.video_path = config['video_path']
         self.cap = None
         self.frame_interval = 1.0 / config['fps']
         self.resize = config['resize']
-        self.name = "Generator"
+        # self.name = "Generator"
         self.frame_num = 1
         self.gen_times = []
         self.full_times = []

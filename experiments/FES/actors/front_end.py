@@ -44,10 +44,13 @@ class CameraStreamWidget(QWidget):
             self.q_sig = q_sig
             self.stop_program = False
             self.last_frame_ids = [None for _ in range(self.visual.num_cameras)]
-            self.angles = [0]  # Store angles for live plotting
+            self.angles = [0]  # Store angles for camera 0
+            self.angles_cam2 = [0]  # Store angles for camera 2
             self.recent_angles = deque(maxlen=5) #TODO make this a parameter
             self.y_max = -np.inf  # Initialize y_max to negative infinity
             self.y_min = np.inf  # Initialize y_min to positive infinity
+            self.y_max_cam2 = -np.inf  # Initialize y_max for camera 2
+            self.y_min_cam2 = np.inf  # Initialize y_min for camera 2
             self.predictions = None
             self.last_frame = [None for _ in range(self.visual.num_cameras)]
             
@@ -102,25 +105,27 @@ class CameraStreamWidget(QWidget):
                 if frame is not None:
                     self.last_frame[camera_id] = frame
 
-                self.display_frame(self.last_frame[camera_id], predictions, self.camera_labels[camera_id], angle)
+                self.display_frame(self.last_frame[camera_id], predictions, self.camera_labels[camera_id], angle, camera_id)
                 
                 # Update the angle plot if an angle is provided
                 
                 if angle is not None:
-                    # #Applying a moving average
-                    # self.recent_angles.append(angle)
-                    # smooted_angle = np.mean(self.recent_angles)
-                    # self.angles.append(smooted_angle)
-                    # if predictions[1:3,2].mean() < 0.5:  #Linear interpolation if the likelihood is low
-                    #     self.angles.append(self.angles[-1])
-                    # else:
-                    self.angles.append(angle)
-                    if len(self.angles) > 100:  # Limit to the latest 100 angles
-                        self.angles.pop(0)
-                    if angle > self.y_max:
-                        self.y_max = angle
-                    if angle < self.y_min:
-                        self.y_min = angle
+                    if camera_id == 0:
+                        self.angles.append(angle)
+                        if len(self.angles) > 100:  # Limit to the latest 100 angles
+                            self.angles.pop(0)
+                        if angle > self.y_max:
+                            self.y_max = angle
+                        if angle < self.y_min:
+                            self.y_min = angle
+                    elif camera_id == 2:
+                        self.angles_cam2.append(angle)
+                        if len(self.angles_cam2) > 100:  # Limit to the latest 100 angles
+                            self.angles_cam2.pop(0)
+                        if angle > self.y_max_cam2:
+                            self.y_max_cam2 = angle
+                        if angle < self.y_min_cam2:
+                            self.y_min_cam2 = angle
                     self.update_angle_plot()
                     
             except Exception as e:
@@ -133,7 +138,7 @@ class CameraStreamWidget(QWidget):
                     # Expected error for cameras 1 and 2 - no need to log as error
                     # logger.debug(f"Expected error for camera {camera_id}: {e}")
 
-    def display_frame(self, frame, predictions, label, angle):
+    def display_frame(self, frame, predictions, label, angle, camera_id=None):
         """Convert frame to QImage, plot predictions if available, and display it in QLabel."""
         if frame is None:
             return
@@ -148,7 +153,12 @@ class CameraStreamWidget(QWidget):
             painter.begin(q_img)
             painter.setBrush(QBrush(QColor(255, 0, 0)))
 
-            labels = ["DIP", "PIP", "MCP", "Wrist"]
+            # Set labels based on camera_id
+            if camera_id == 2:
+                labels = ["MRS"]
+            else:
+                labels = ["DIP", "PIP", "MCP", "Wrist"]
+            
             # labels = ["End", "MCP", "Wrist"]
 
             prev_point = None
@@ -179,13 +189,23 @@ class CameraStreamWidget(QWidget):
 
     def update_angle_plot(self):
         """Update the live plot of angles."""
-        fig, ax = plt.subplots()
-        ax.plot(self.angles, color="blue")
-        ax.set_title("Live Angle Plot")
-        ax.set_xlabel("Frame")
-        ax.set_ylabel("Angle (°)")
-        ax.set_ylim(self.y_min-5, self.y_max+5)  # Set y-limits based on the angles
-        # ax.set_ylim(100, 200)  # Set y-limits to a fixed range for better visualization
+        fig, ax1 = plt.subplots()
+        
+        # Plot camera 0 angles on primary y-axis (red)
+        ax1.plot(self.angles, color="red", label="Camera 0")
+        ax1.set_xlabel("Frame")
+        ax1.set_ylabel("Camera 0 Angle (°)", color="red")
+        ax1.tick_params(axis='y', labelcolor="red")
+        ax1.set_ylim(self.y_min-5, self.y_max+5)
+        
+        # Create secondary y-axis for camera 2 angles (blue)
+        ax2 = ax1.twinx()
+        ax2.plot(self.angles_cam2, color="blue", label="Camera 2")
+        ax2.set_ylabel("Camera 2 Angle (°)", color="blue")
+        ax2.tick_params(axis='y', labelcolor="blue")
+        ax2.set_ylim(self.y_min_cam2-5, self.y_max_cam2+5)
+        
+        ax1.set_title("Live Angle Plot")
 
         # Convert Matplotlib figure to QImage
         canvas = FigureCanvasAgg(fig)
