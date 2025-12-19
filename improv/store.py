@@ -139,16 +139,16 @@ class RedisStoreInterface(StoreInterface):
             if pckl is None:
                 logger.error("Could not pickle object {}".format(object_key))
 
-            ret_val = self.client.set(object_key, pckl, nx=False, ex=9000) # ex=60 # expire in 60 seconds
+            ret_val = self.client.set(object_key, pckl, nx=False, ex=60) # ex=60 # expire in 60 seconds
         except Exception:
             logger.error("Could not store object {}".format(object_key))
             logger.error(traceback.format_exc())
 
-        if not ret_val: logger.error(f'Redis set returned {ret_val} for key {object_key}')
+        # if not ret_val: logger.error(f'Redis set returned {ret_val} for key {object_key}')
         else: 
-            logger.error(f'Redis set successfully returned {ret_val} for key {object_key}')
+            # logger.error(f'Redis set successfully returned {ret_val} for key {object_key}')
             ttl = self.client.ttl(object_key)
-            logger.debug(f"Key {object_key} TTL immediately after set: {ttl} seconds")
+            # logger.debug(f"Key {object_key} TTL immediately after set: {ttl} seconds")
 
         return object_key
 

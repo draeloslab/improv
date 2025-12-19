@@ -52,7 +52,7 @@ class VideoSaver(ManagedActor):
                     f.write(frame_bytes)
 
                     # Set the expiration for the frame in the client
-                    self.client.expire(frame_id, 5)
+                    # self.client.expire(frame_id, 5)
 
         except Exception as e:
             logger.error(f"Error saving frames | {e}")

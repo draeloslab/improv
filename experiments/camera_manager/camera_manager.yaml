@@ -46,10 +46,10 @@ actors:
     class: VideoSaver
     camera_num: 2
 
-  Receiver:
-    package: actors.recieverActor
-    class: Receiver
-    method: spawn
+  # Receiver:
+  #   package: actors.recieverActor
+  #   class: Receiver
+  #   method: spawn
 
 
 connections:
