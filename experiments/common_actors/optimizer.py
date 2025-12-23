@@ -132,8 +132,10 @@ class BayesOptimizer(Actor):
             X = self.client.get(ids[0])
             Y = self.client.get(ids[1])
 
-            # logger.info('X, Y: {}, {}'.format(X, Y))
+            # logger.info('X: {}'.format(X))
 
+            if len(X) > 1:
+                X = X[-1]
             tmpX = np.squeeze(np.array(X)).T
             # logger.info(f'{tmpX.shape}, {len(Y)}----------------------------------------------------')
             sh = len(tmpX.shape)
@@ -168,13 +170,13 @@ class BayesOptimizer(Actor):
             flag = False
             if self.stim_ind is None:
                 # logger.info('calibration_stim set: {}'.format(self.stim_space['calibration_stim']))
-                # logger.info('counter is {}'.format(self.counter))
+                logger.info('Calibration counter is {}/{}'.format(self.counter+1, len(self.stim_space['calibration_stim'])))
                 self.stim_ind = self.stim_space['calibration_stim'][self.counter]
             
             if (time.time() - self.timer) >= self.total_stim_time:
                 self.links['stim_ind_out'].put(self.stim_ind)
-                stim_flag = 'calibration'
-                self.links['stim_flag_out'].put(stim_flag)
+                # stim_flag = 'calibration'
+                # self.links['stim_flag_out'].put(stim_flag)
                 self.stim_ind = None
                 self.counter += 1
                 self.timer = time.time()
@@ -194,9 +196,10 @@ class BayesOptimizer(Actor):
             flag = False
             if self.stim_ind is None:
                 # logger.info("what is the current counter: {}".format(self.counter))
-                if self.counter - 1 < self.stimuli_space.initial_stim_count:
-                    self.stim_ind = self.stim_space['initial_stim'][self.counter-1] ## FIXME: counter started with 1 (somehow)
-                elif self.counter -1 == self.stimuli_space.initial_stim_count:
+                if self.counter < self.stimuli_space.initial_stim_count:
+                    logger.info('Initial counter is {}/{}'.format(self.counter+1, len(self.stim_space['initial_stim'])))
+                    self.stim_ind = self.stim_space['initial_stim'][self.counter] ## FIXME: counter started with 1 (somehow)
+                elif self.counter == self.stimuli_space.initial_stim_count:
                     # self.stim_ind = self.stim_space['initial_stim'][-1]
                     np.random.seed(self.seed)
                     self.stim_ind = [np.random.choice(np.arange(0, stim)) for stim in self.stim_choice]
@@ -205,15 +208,15 @@ class BayesOptimizer(Actor):
 
             if (time.time() - self.timer) >= self.total_stim_time:
                 self.links['stim_ind_out'].put(self.stim_ind)
-                stim_flag = 'initial'
-                self.links['stim_flag_out'].put(stim_flag)
+                # stim_flag = 'initial'
+                # self.links['stim_flag_out'].put(stim_flag)
                 self.stim_ind = None
                 self.counter += 1  # FIXME: counter started with 1 (somehow)
                 # logger.info("self.counter just added by 1!")
                 self.timer = time.time()
             
             # make initialization 9 stim long so optimizer can init on first 8
-            if self.counter-1 >= self.stimuli_space.initial_stim_count + 1:  # FIXME: counter started with 1 (somehow)
+            if self.counter >= self.stimuli_space.initial_stim_count:  # FIXME: counter started with 1 (somehow)
                 flag = True
             
             if flag:
@@ -223,8 +226,11 @@ class BayesOptimizer(Actor):
             
     
         elif self.newN:
-            stim_flag = 'optimization'
-            self.links['stim_flag_out'].put(stim_flag)
+            # stim_flag = 'optimization'
+            # self.links['stim_flag_out'].put(stim_flag)
+            logger.info('X {}, {}'.format(self.X, self.X.shape))
+            if self.X.shape[0] == 8:
+                X = self.stimuli_space.param_space_shrinking(self.X) # this is translating X from 8D to 5D? 
             nonopt = np.array(list(set(np.arange(self.y0.shape[0]))-set(self.optimized_n)))
             logger.info('nonopt is {}, number of neurons '.format(nonopt,self.y0.shape[0]))
             # ready = [i for i in nonopt if self._obs_count(i) >= 8]  #self.min_init_obs = 8
@@ -303,8 +309,8 @@ class BayesOptimizer(Actor):
                 # for i in range(self.d):
                 #     X[i] = self.GP_stimuli[i][int(self.X[i,-1])] #NOTE: this is bascially matching the stimulus with teh stim set, so we don't need this anymore 
 
-                logger.info('optim {} (test: {}), update GP with {}, {}'.format(self.nID, self.test_count, X, self.y0[self.nID, -1]))
-                self.optim.update_GP(np.squeeze(X), self.y0[self.nID,-1])
+                logger.info('optim {} (test: {}), update GP with {}, {}'.format(self.nID, self.test_count, X[:,-1], self.y0[self.nID, -1]))
+                self.optim.update_GP(np.squeeze(X[:, -1]), self.y0[self.nID,-1])
 
                 curr_unc = np.diagonal(self.optim.sigma).reshape((self.stim_choice))
                 curr_est = self.optim.f.reshape((self.stim_choice))
@@ -361,7 +367,7 @@ class BayesOptimizer(Actor):
             # Need to send ind to stimulus actor to create this stim request ??
             if (time.time() - self.timer) >= self.total_stim_time:
                 self.links['stim_ind_out'].put(self.stim_ind)
-                self.links['stim_flag_out'].put(stim_flag)
+                # self.links['stim_flag_out'].put(stim_flag)
                 self.stim_ind = None
                 self.timer = time.time()
                 
