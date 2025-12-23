@@ -24,6 +24,10 @@ class VizStimAnalysis(Actor):
         self.stim_space_dim = self.stimuli_space.param_space_size
         # self.stimuli = np.array([np.sort(stim) for stim in self.stim_space['stimuli']], dtype=object)
         self.stimuli = self.stim_space['stimuli']
+        self.d = self.stimuli.shape[0]
+        self.param_space = self.stimuli_space.param_space
+        self.param_space_size = self.stimuli_space.param_space_size 
+        self.param_index_space = self.stimuli_space.param_index_space
         # logger.info('reading in stim: {}'.format(self.stimuli))
 
 
@@ -39,7 +43,7 @@ class VizStimAnalysis(Actor):
         np.seterr(divide='ignore')
 
         # TODO: same as behaviorAcquisition, need number of stimuli here. Make adaptive later
-        self.num_stim = 12 
+        self.num_stim = self.stim_space_dim
         self.frame = 0
         # self.curr_stim = 0 #start with zeroth stim unless signaled otherwise
         self.stim = {}
@@ -66,15 +70,11 @@ class VizStimAnalysis(Actor):
         self.allStims = {}
         self.estsAvg = None
         
-        #TODO: need to rewrite xs and ys based on the size of the parameter space? 
-        self.xs = np.zeros((self.stim_space_dim))
+        self.xs = np.empty((0, self.d), dtype=int) #np.zeros((self.stim_space_dim))
         self.ys = np.zeros((1, self.stim_space_dim, 2))
         
-        #FIXME: hardcoded
-        dims = [x.shape[0] for x in self.stimuli]
-        # dims = [getattr(self, f'x_{label}').shape[0] for label in self.stim_space['labels']]
-        self.all_y = np.zeros((500, *dims)) #NOTE: what is 500? 
-        self.stim_count = np.zeros((dims))
+        self.all_y = np.zeros((500, self.param_space_size)) #NOTE: what is 500? 
+        self.stim_count = np.zeros((self.param_space_size, ), dtype=int) #np.zeros((dims), dtype=int)
 
         self.stimX = []
         self.stimY = []
@@ -158,7 +158,8 @@ class VizStimAnalysis(Actor):
             self.globalAvg = np.mean(self.estsAvg[:,:8], axis=0)
             self.tune = [self.estsAvg[:,:8], self.globalAvg]
 
-
+            self.color, self.tc_list = self.plotColorFrame()
+            
             if self.frame >= self.window:
                 window = self.window
                 self.Cx = np.arange(self.frame-window,self.frame)
@@ -174,6 +175,9 @@ class VizStimAnalysis(Actor):
 
             self.putAnalysis()
             self.putStimulus()
+
+            
+
             self.timestamp.append([time.time(), self.frame])
             self.total_times.append(time.time()-t)
 
@@ -187,7 +191,33 @@ class VizStimAnalysis(Actor):
     
 
     def updateStim_start(self, stim):
-        pass
+
+        frame = list(stim.keys())[0]
+        whichStim = int(stim[frame])
+        self.current_stim = whichStim
+
+        multi_idx = self.param_index_space[whichStim]
+        multi_idx = np.asarray(multi_idx, dtype=int)
+        logger.info('multi_idx: {}'.format(multi_idx))
+
+        self.xs = np.vstack([self.xs, multi_idx])
+        logger.info('xs: {}'.format(self.xs))
+        
+        self.stim_count[whichStim] += 1
+        # logger.info('stim_count: {}'.format(self.stim_count))
+
+        curStim = 1
+        
+        self.allStims[frame] = stim
+        if self.lastOnOff is None:
+            self.lastOnOff = curStim
+        elif curStim == 1:
+            self.stimStart = frame
+            self.currentStim = whichStim
+
+            logger.info('Stim {} started at frame {}'.format(self.currentStim, self.stimStart))
+        logger.info('Frame: {} On off: {}'.format(self.frame, self.lastOnOff))
+        logger.info('Current data frame is : {}'.format(self.frame))
 
     def putAnalysis(self):
         ''' Throw things to DS and put IDs in queue for Visual
@@ -201,9 +231,6 @@ class VizStimAnalysis(Actor):
         ids.append(self.client.put(self.color)) #, 'color'+str(self.frame))) (we should rename bc it's not colored (motion correction))
         ids.append(self.client.put(self.coordDict)) #, 'analys_coords'+str(self.frame)))
         ids.append(self.client.put(self.allStims))  #, 'stim'+str(self.frame)))
-        # ids.append(self.client.put(self.y_results, 'yres'+str(self.frame)))
-        # ids.append(self.client.put(self.stimText, 'yres'+str(self.frame)))
-        # ids.append(self.client.put(self.all_y, 'all_y'))
         ids.append(self.client.put(self.tc_list)) #, 'tc_list'))
         ids.append(self.frame)
         
@@ -262,10 +289,12 @@ class VizStimAnalysis(Actor):
                 logger.info('we have {} neurons right now'.format(ests.shape[0]))
 
                 self.testNum += 1
-                sc = self.stim_count[int(self.xs)]
                 numN = self.ests.shape[0]
-                idx = int(self.xs)
-                self.all_y[(slice(0, numN), + idx)] = ((sc-1) * self.all_y[(slice(0, numN), ) + idx] + self.stimY[-1]) / sc
+                
+                sc = self.stim_count[self.currentStim]
+                idx = int(self.currentStim)
+                # self.all_y[(slice(0, numN), + idx)] = ((sc-1) * self.all_y[(slice(0, numN), ) + idx] + self.stimY[-1]) / sc
+                self.all_y[:numN, idx] = ((sc-1) * self.all_y[:numN, idx] + self.stimY[-1]) / sc
         
         self.estsAvg = np.squeeze(self.ests[:, :, 0] - self.ests[:, :, 1])
         self.estsAvg = np.where(np.isnan(self.estsAvg), 0, self.estsAvg)
@@ -273,3 +302,111 @@ class VizStimAnalysis(Actor):
         self.estsAvg[self.estsAvg < 0] = 0
 
         self.stimtime.append(time.time() - t)
+
+    def plotColorFrame(self):
+        ''' Computes colored nicer background+components frame
+        '''
+        t = time.time()
+        image = self.image
+        color = np.stack([image, image, image, image], axis=-1).astype(np.uint8).copy()
+        color[...,3] = 255
+        tc_list = []
+            #TODO: don't stack image each time?
+        if self.calc_color:
+            if self.coords is not None:
+                # activity = np.zeros((len(self.coords),self.C.shape[0]))
+                for i,c in enumerate(self.coords):
+                    #c = np.array(c)
+                    try:
+                        pixels = c[~np.isnan(c).any(axis=1)].astype(int)
+                        #TODO: Compute all colors simultaneously! then index in...
+                        tc = self._tuningColor(i, color[pixels[:,1], pixels[:,0]])
+                        tc_list.append(tc)
+                        cv2.fillConvexPoly(color, pixels, tc)
+                    except Exception as e:
+                        logger.error('Error in fill poly: {}'.format(e))
+                        pass
+                    
+                    
+                    # if pixels.size > 0:
+                    #     npx = np.unique(pixels, axis=0)
+                    #     act = self.C[:,npx[:,1],npx[:,0]]
+                    #     activity[i] = np.sum(act, axis=1)
+
+        ## Note: try pixelwise C display
+
+        # TODO: keep list of neural colors. Compute tuning colors and IF NEW, fill ConvexPoly. 
+
+        self.colortime.append(time.time()-t)
+        # TODO: not sure if this is ok
+        if not tc_list: # tc_list is empty
+            tc_list = None
+        return color, tc_list
+
+    def _tuningColor(self, ind, inten):
+        ''' ind identifies the neuron by number
+        '''
+        ests = self.estsAvg
+        #ests = self.tune_k[0] 
+        if ests[ind] is not None: 
+            try:
+                return self.manual_Color_Sum(ests[ind])                
+            except ValueError:
+                return (255,255,255,0)
+            except Exception:
+                print('inten is ', inten)
+                print('ests[i] is ', ests[ind])
+        else:
+            return (255,255,255,50)
+
+    def manual_Color_Sum(self, x):
+        ''' x should be length 12 array for coloring
+            or, for k coloring, length 8
+            Using specific coloring scheme from Naumann lab
+        '''
+        if x.shape[0] == 8:
+            mat_weight = np.array([
+            [1, 0.25, 0],
+            [0.75, 1, 0],
+            [0, 1, 0],
+            [0, 0.75, 1],
+            [0, 0.25, 1],
+            [0.25, 0, 1.],
+            [1, 0, 1],
+            [1, 0, 0.25],
+        ])
+        elif x.shape[0] == 12:
+            mat_weight = np.array([
+                [1, 0.25, 0],
+                [0.75, 1, 0],
+                [0, 2, 0],
+                [0, 0.75, 1],
+                [0, 0.25, 1],
+                [0.25, 0, 1.],
+                [1, 0, 1],
+                [1, 0, 0.25],
+                [1, 0, 0],
+                [0, 0, 1],
+                [0, 0, 1],
+                [1, 0, 0]
+            ])
+        else:
+            print('Wrong shape for this coloring function')
+            return (255, 255, 255, 10)
+
+        color = x @ mat_weight
+
+        blend = 0.8  
+        thresh = 0.1   
+        thresh_max = blend * np.max(color)
+
+        color = np.clip(color, thresh, thresh_max)
+        color -= thresh
+        color /= thresh_max
+        color = np.nan_to_num(color)
+
+        if color.any() and np.linalg.norm(color-np.ones(3))>0.1: #0.35:
+            color *=255
+            return (color[0], color[1], color[2], 255)       
+        else:
+            return (255, 255, 255, 10)
