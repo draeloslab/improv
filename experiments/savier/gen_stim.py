@@ -21,19 +21,23 @@ class StimulusSpace():
         self.stim_optim = np.array([x1, x2, x3, x4, x7], dtype=object)
 
         param_space_grid = np.meshgrid(*self.stim, indexing='ij')
-        param_space = np.stack(param_space_grid, axis=-1).reshape(-1, len(self.stim)) 
-        # replace size, center_x, center_y params with -99 for the drift gratings stimuli (NOTE: tried to replace with NaN but it was having trouble with np.where)
-        mask = param_space[:, 7] == 1
-        for i in [2, 4, 5]:
-            param_space[mask, i] = np.nan 
-        temp = param_space.copy()
-        mask = np.isnan(temp)
-        temp[mask] = -99
-        param_space = np.unique(temp, axis=0)
-        # param_space[param_space == -99] = np.nan
-        self.param_space = param_space
+        param_space_full = np.stack(param_space_grid, axis=-1).reshape(-1, len(self.stim)) 
 
+        index_grids = np.meshgrid(*(np.arange(len(s)) for s in self.stim), indexing='ij')
+        param_index_space_full = np.stack(index_grids, axis=-1).reshape(-1, len(self.stim))
+
+        # replace size, center_x, center_y params with -99 for the drift gratings stimuli (NOTE: tried to replace with NaN but it was having trouble with np.where)
+        mask = param_space_full[:, 7] == 1
+        for i in [2, 4, 5]:
+            param_space_full[mask, i] = np.nan 
+        temp = param_space_full.copy()
+        mask_nan = np.isnan(temp)
+        temp[mask_nan] = -99
+
+        param_space, idx = np.unique(temp, axis=0, return_index=True)
+        self.param_space = param_space
         self.param_space_size = self.param_space.shape[0]
+        self.param_index_space = param_index_space_full[idx]
 
         #NOTE: to find the corresponding index for a given stim (np.argwhere((stim == param_space).all(axis=1))[0][0]) 
 
@@ -118,3 +122,13 @@ class StimulusSpace():
         stimuli = self.param_space[row_index]
 
         return stimuli
+
+    
+    def param_space_shrinking(self, stimuli):
+
+        stimuli_copy = self.stimuli.copy()
+
+        stimuli_optim = np.delete(stimuli_copy, [4,5,7], axis=1)
+        # param_space_optim = param_space_optim[13:]
+
+        return stimuli_optim
