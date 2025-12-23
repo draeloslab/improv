@@ -86,23 +86,10 @@ class ZMQAcquirer(Actor):
             f.create_dataset("default", data=self.imgs)
             f.close()
 
-        # if not os.path.exists(self.red_chan_image):
-        #     if len(self.saveArrayRedChan) > 1:
-        #         mean_red = np.mean(np.array(self.saveArrayRedChan), axis=0)
-        #         np.save(self.red_chan_image, mean_red)
-
         self.frame_num = 0
         self.track = 0
 
         self.kill_flag = True
-
-        # ## reconnect socket
-        # self.socket.close()
-        # self.socket = context.socket(zmq.SUB)
-        # for port in self.ports:
-        #     self.socket.connect("tcp://"+str(self.ip)+":"+str(port))
-        #     print('RE-Connected to '+str(self.ip)+':'+str(port))
-        # self.socket.setsockopt(zmq.SUBSCRIBE, b'')
 
 
     def stop(self):
@@ -139,7 +126,7 @@ class ZMQAcquirer(Actor):
             # No messages available
             pass 
         except Exception as e:
-            print('error: {}'.format(e))
+            logger.info('error: {}'.format(e))
 
     def get_message(self, timeout=0.001):
         #  try receiving microscope message: 
@@ -169,6 +156,7 @@ class ZMQAcquirer(Actor):
         except pickle.UnpicklingError:
             pass
         except Exception as e:
+            # logger.info('error: {}'.format(e))
             logger.info('error from pickle load: {} - {}'.format({type(e).__name__}, e))
 
         
@@ -191,21 +179,6 @@ class ZMQAcquirer(Actor):
             self.total_times_frame.append(time.time() - t0)
             self.timestamp_frame.append([dt.now(), self.frame_num])
             # self.track += 1
-
-        # elif str(tag) in 'tail':
-        #     if not self.tailF:
-        #         logger.info('Receiving tail information')
-        #         self.tailF = True
-        #     self._collect_tail(msg_dict)
-
-        # elif 'scan' in tag:track
-        #     if 'scanner2' in msg_dict['source']:
-        #         logger.info('Photostim happened at frame {}'.format(self.frame_num))
-        #         self.photostims.append(self.frame_num)
-
-        # else:
-        #     logger.info('Had an error in tag: {}'.format(tag))
-        #     logger.info('{}'.format(msg))
 
 
     def _collect_frame(self, array):
@@ -261,18 +234,8 @@ class ZMQAcquirer(Actor):
             pass 
             # print(msg)  
         elif 'motionOn' in category:
-            try:
-                stim_flag = self.links['stim_flag_in'].get(timeout=0.0001)
-                logger.info('Acquirer stim flag: {}'.format(stim_flag))
-            except Exception as e:
-                logger.info('Error in receiving stim flag from optimizer: {}'.format(e))
-
-            if stim_flag == 'calibration':
-                self.calibration_stim_set(msg_dict)
-            elif stim_flag == 'initial':
-                self.initial_stim_set(msg_dict)
-            else:
-                self.optimization_stim_set(msg_dict)
+            self.stim_count += 1
+            self.stim_set(msg_dict)
 
             logger.info('Number of stimuli: {}'.format(self.stim_count))
 
@@ -287,7 +250,7 @@ class ZMQAcquirer(Actor):
         msg_unpacked = msg 
 
         category = None
-        if 'motionOn' in msg_unpacked:
+        if 'motionOn' in msg_unpacked or 'stimChange: {' in msg_unpacked: # since flashing spots has speed of 0, the tag is not motionOn but instead stimChange (which causes issues later on)
             category = 'motionOn'
         elif 'queueAddition' in msg_unpacked:
             category = 'queueAddition'
@@ -333,7 +296,8 @@ class ZMQAcquirer(Actor):
             stim = 0
         return stim
 
-    def calibration_stim_set(self, msg_dict):
+
+    def stim_set(self, msg_dict):
 
         if msg_dict['texture']['texture_name'] == 'gray_ellipse':
             angle = int(msg_dict['stimulus']['angle'])
@@ -343,13 +307,18 @@ class ZMQAcquirer(Actor):
             center_x = int(msg_dict['texture']['center_x'])
             center_y = int(msg_dict['texture']['center_y'])
             contrast = int(msg_dict['texture']['fg_intensity'])
-            shape = 0 
-            
-            logger.info('Is speed = float(0)'.format(speed == float(0)))
+            shape = 0
+                        
+            # logger.info('Is speed = float(0): {}'.format(speed == float(0)))
             if speed == float(0):
-                logger.info('Calibration Stimulus: Flashing spot at ({},{})'.format(center_x, center_y))
+                logger.info('Stimulus: Flashing spot at ({},{})'.format(center_x, center_y))
             else:
-                logger.info('Calibration Stimulus: Moving dots at angle {} and speed {}'.format(angle, speed))
+                if angle in [45, 135, 225, 315]:
+                    # Adjust angle to match stimulus space, remapping to the "center" of the stimulus screen
+                    center_x = 850
+                    center_y = 1000
+                logger.info('Stimulus: Moving dots at angle {} and speed {}'.format(angle, speed))
+
 
         elif msg_dict['texture']['texture_name'] == 'grating_gray':
             try:
@@ -363,50 +332,13 @@ class ZMQAcquirer(Actor):
                 shape = 1
             except Exception as e:
                 logger.info('acquirer receiving msg error: {}'.format(e))
-            logger.info('Calibration Stimulus: Sin Drift Gratings at angle {} and speed {}'.format(angle, speed))
+            logger.info('Stimulus: Sin Drift Gratings at angle {} and speed {}'.format(angle, speed))
       
-        indices = self.stimuli_space.param_to_idx(angle, speed, size, freq, center_x, center_y, contrast, shape)
+        # try:
+        indices = self.stimuli_space.param_to_ridx([angle, speed, size, freq, center_x, center_y, contrast, shape])
+        # except Exception as e:
+        #     logger.info(f'Params are: {[angle, speed, size, freq, center_x, center_y, contrast, shape]}')
+        #     logger.info('Error finding stimulus index: {}'.format(e))
         self.links['stim_queue'].put({self.frame_num:indices})
-        self.stimmed.append([self.frame_num, angle, speed, size, freq, center_x, center_y, constrast, shape])
-
-    def initial_stim_set(self, msg_dict):
-        
-        angle = int(msg_dict['stimulus']['angle'])
-        speed = float(msg_dict['stimulus']['velocity'])
-        size = int(msg_dict['texture']['length'])
-        freq = int(msg_dict['texture']['frequency'])
-        center_x = int(msg_dict['texture']['center_x'])
-        center_y = int(msg_dict['texture']['center_y'])
-        contrast = int(msg_dict['texture']['fg_intensity'])
-        shape = int(0)
-
-        logger.info('Initial Stimulus: Moving dots at angle {} and speed {}'.format(angle, speed))
-
-        indices = self.stimuli_space.param_to_idx(angle, speed, size, freq, center_x, center_y, contrast, shape)
-        self.links['stim_queue'].put({self.frame_num:indices})
-        self.stimmed.append([self.frame_num, angle, speed, size, freq, center_x, center_y, constrast, shape])
-
-    def optimization_stim_set(self, msg_dict):
-
-        angle = int(msg_dict['stimulus']['angle'])
-        speed = float(msg_dict['stimulus']['velocity'])
-        size = int(msg_dict['texture']['length'])
-        freq = int(msg_dict['texture']['frequency'])
-        center_x = int(msg_dict['texture']['center_x'])
-        center_y = int(msg_dict['texture']['center_y'])
-        contrast = int(msg_dict['texture']['fg_intensity'])
-        shape = int(0)
-
-        if int(contrast) == 0:
-            color = 'Black'
-        elif int(contrast) == 50:
-            color = 'Dark gray'
-        elif int(contrast) == 100:
-            color = 'Light gray' 
-        logger.info('Stimulus: {} {} Circle radius {} at angle {} deg at with speed {} frame {}'.format(freq, color, size/2, angle, speed, self.frame_num))
-
-        indices = self.stimuli_space.param_to_idx(angle, speed, size, freq, center_x, center_y, contrast, shape)
-        self.links['stim_queue'].put({self.frame_num:indices})
-        self.stimmed.append([self.frame_num, angle, speed, size, freq, center_x, center_y, constrast, shape])
-
+        self.stimmed.append([self.frame_num, angle, speed, size, freq, center_x, center_y, contrast, shape])
         
