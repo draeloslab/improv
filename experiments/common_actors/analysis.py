@@ -198,10 +198,10 @@ class VizStimAnalysis(Actor):
 
         multi_idx = self.param_index_space[whichStim]
         multi_idx = np.asarray(multi_idx, dtype=int)
-        logger.info('multi_idx: {}'.format(multi_idx))
+        # logger.info('multi_idx: {}'.format(multi_idx))
 
         self.xs = np.vstack([self.xs, multi_idx])
-        logger.info('xs: {}'.format(self.xs))
+        # logger.info('xs: {}'.format(self.xs))
         
         self.stim_count[whichStim] += 1
         # logger.info('stim_count: {}'.format(self.stim_count))
@@ -211,11 +211,11 @@ class VizStimAnalysis(Actor):
         self.allStims[frame] = stim
         if self.lastOnOff is None:
             self.lastOnOff = curStim
-        elif curStim == 1:
-            self.stimStart = frame
-            self.currentStim = whichStim
+        # elif curStim == 1:
+        self.stimStart = frame
+        self.currentStim = whichStim
 
-            logger.info('Stim {} started at frame {}'.format(self.currentStim, self.stimStart))
+        logger.info('Stim {} started at frame {}'.format(self.currentStim, self.stimStart))
         logger.info('Frame: {} On off: {}'.format(self.frame, self.lastOnOff))
         logger.info('Current data frame is : {}'.format(self.frame))
 
