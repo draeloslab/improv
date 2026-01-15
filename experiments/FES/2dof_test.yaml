@@ -23,25 +23,25 @@ actors:
     camera_num: 2
 
 #Uncomment this to run psuedo cameras
-  Generator0:
-    package: actors.generator
-    class: Generator
-    camera_num: 0
-
-  Generator2:
-    package: actors.generator
-    class: Generator
-    camera_num: 2
-
   # Generator0:
-  #   package: actors.camera_reader
-  #   class: CameraReader
+  #   package: actors.generator
+  #   class: Generator
   #   camera_num: 0
 
   # Generator2:
-  #   package: actors.camera_reader
-  #   class: CameraReader
+  #   package: actors.generator
+  #   class: Generator
   #   camera_num: 2
+
+  Generator0:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 0
+
+  Generator2:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 2
 
   VideoSaver0:
     package: actors.video_saver
@@ -55,10 +55,10 @@ actors:
     camera_num: 2
     method: spawn
 
-  # Receiver:
-  #   package: actors.recieverActor
-  #   class: Receiver
-  #   method: spawn
+  Receiver:
+    package: actors.recieverActor
+    class: Receiver
+    method: spawn
 
   # Sender:
   #   package: actors.sender

@@ -1,8 +1,8 @@
 fps: 30
-model_path: '/home/chesteklab/Desktop/2dofmanipulandum-jake-2025-12-11/dlc-models-pytorch/iteration-1/2dofmanipulandumDec11-trainset95shuffle1/train'
+model_path: '/home/chesteklab/Desktop/2dofmanipulandum-jake-2025-12-11/dlc-models-pytorch/iteration-2/2dofmanipulandumDec11-trainset95shuffle1/train'
 video_path_0: '/home/chesteklab/Desktop/2dofmanipulandum-jake-2025-12-11/videos/camera_video_0.mp4'
 video_path_2: '/home/chesteklab/Desktop/2dofmanipulandum-jake-2025-12-11/videos/camera_video_2.mp4'
 threshold: 0.2
 output_path: '/home/chesteklab/predictions'
-resize: 0.6
+resize: 0.75
 alpha: 0.8
