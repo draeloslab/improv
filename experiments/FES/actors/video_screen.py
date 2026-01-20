@@ -16,13 +16,6 @@ from collections import deque
 
 # Set Qt backend before any imports
 os.environ['QT_API'] = 'pyqt5'
-os.environ['MPLBACKEND'] = 'Qt5Agg'
-
-# Force matplotlib to use Qt5Agg backend before any Qt imports
-import matplotlib
-matplotlib.use('Qt5Agg')
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QGridLayout
 from PyQt5.QtCore import QTimer, Qt
@@ -34,7 +27,7 @@ logger.setLevel(logging.DEBUG)
 # Create a file handler
 log_file = "video_screen.log"
 file_handler = logging.FileHandler(log_file)
-file_handler.setLevel(logging.DEBUG)
+file_handler.setLevel(logging.INFO)
 
 # Create a formatter and set it for the handler
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')

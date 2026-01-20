@@ -61,7 +61,7 @@ class Processor(Actor):
             # train_dir = Path("/home/chesteklab/Desktop/dlc-models-pytorch/iteration-2/manipulandum_pytorchMay13-trainset95shuffle1/train")
             # train_dir = Path("/home/chesteklab/Desktop/human-manipulandum-jake-2025-10-29/dlc-models-pytorch/iteration-0/human-manipulandumOct29-trainset95shuffle2/train")
             pytorch_config_path = train_dir / "pytorch_config.yaml"
-            snapshot_path = train_dir / "snapshot-best-090.pt"
+            snapshot_path = train_dir / "snapshot-best-190.pt"
 
             # for top-down models, otherwise None
             detector_snapshot_path = None
@@ -196,7 +196,7 @@ class Processor(Actor):
                     frame = cv2.resize(frame, (int(frame.shape[1] * self.resize), int(frame.shape[0] * self.resize)))
                     # Convert BGR to RGB for the PyTorch model (trained with RGB images)
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    raw_prediction = self.pose_runner.inference([frame])  # this needs to be switched back to just frame for camera input
+                    raw_prediction = self.pose_runner.inference([frame_rgb])  # this needs to be switched back to just frame for camera input
                     self.dlc_latencies.append(time.perf_counter() - dlc_start)
                     # Extract the bodyparts array from the prediction dictionary
                     # The format is [{'bodyparts': array([[[x, y, likelihood], ...]])}]
