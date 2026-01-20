@@ -8,6 +8,9 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
+logging.getLogger("jax").setLevel(logging.ERROR)
+
+
 class ImprovStimDesigner(Actor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -45,8 +48,6 @@ class ImprovStimDesigner(Actor):
         if self.pro.is_initialized:
             v = np.zeros([10,1])
             v[0] = 1
-            logger.info(f'u_dimension={self.pro.Q[0]}')
-            logger.info(f'u_dimension={self.pro.Q.shape}')
             stim = self.stim_designer.design_stim(v=v, u_dimension=self.pro.Q.shape[0], u_to_s_function= lambda u: self.pro.Q.T @ u)
             logger.info(stim)
 
