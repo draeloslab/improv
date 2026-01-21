@@ -1,11 +1,11 @@
 data:
-  fr: 1.875 #15 #2.2
-  decay_time: 4 #0.5
+  fr: 1.875
+  decay_time: 4
   fnames: ['/mnt/data/owen_26_01_20/example_fish_caiman_baseline.tif']
 
-init: 
-  K: 2 #50
-  gSig: [6,6] #[3,3]
+init:
+  K: 10
+  gSig: [3,3]
   nb: 2
   ssub: 1
   tsub: 1
@@ -14,27 +14,30 @@ init:
 preprocess:
   p: 1
 
-temporal: 
+temporal:
   p: 1
 
-# not used in caiman online
-# quality:
-#   rval_thr: 0.90 #0.95
-  
+  # not used in caiman online
+  # quality:
+  #   rval_thr: 0.90 #0.95
+
 online:
   ds_factor: 1
-  dist_shape_update: True
+  dist_shape_update: False
   epochs: 1
-  init_batch: 50
+  init_batch: 400
   init_method: 'bare'
-  max_shifts_online: 20
-  minibatch_shape: 50
-  motion_correct: True
+  max_shifts_online: 10
+  minibatch_shape: 100
+  motion_correct: False
   normalize: True
-  show_movie: False
-  sniper_mode: False
-  min_SNR: 2.5  # 2.5 is default
-  rval_thr: 0.9 
+  show_movie: True
+  sniper_mode: True
+  min_SNR: 1.5  # 2.5 is default
+  rval_thr: 1.5
+  update_num_comps: False
+  batch_update_suff_stat: False
+  update_freq: 10000000000
 
 motion:
   pw_rigid: False
