@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import pickle 
 import re
 import ast
+import tifffile
 from datetime import datetime as dt
 
 import logging; logger = logging.getLogger(__name__)
@@ -52,6 +53,9 @@ class FileAcquirer(Actor):
                     keys = list(file.keys())
                     data = file[keys[0]][()]
                     self.data = data[self.initial_frame_num:]
+            elif ext == '.tif' or ext == '.tiff':
+                data = tifffile.imread(self.filename)
+                self.data = data[self.initial_frame_num:]
 
             # f = h5py.File(self.init_filename, 'w', libver='earliest')
             # f.create_dataset("default", data=data[:self.initial_frame_num])
