@@ -10,10 +10,10 @@ actors:
     ip: '*'
     port: 5007
     output: output/
-    init_filename: data/a.hdf5
-    filename: data/b.hdf5
-    init_frame: 0 #60
-    framerate: 15
+    init_filename: /mnt/data/owen_26_01_20/example_fish_caiman_baseline.tif  # unused in practice
+    filename: /mnt/data/owen_26_01_20/example_fish_400.tif
+    init_frame: 0
+    framerate: 1.875
 
   Acquirer:
     package: actors.acquire_zmq
@@ -21,13 +21,14 @@ actors:
     ip: 127.0.0.1
     ports: [50154, 5000,5007,5008,5009,5010,5011,4701,4703,5865,5005,5017,5018] 
     output: output/
-    init_filename: data/a.hdf5
-    init_frame: 60
+    init_filename: /mnt/data/owen_26_01_20/example_fish_caiman_baseline.tif
+
+    init_frame: 400 # todo: check what this actually means
     
   Processor:
     package: experiments.common_actors.caiman_processor
     class: LiveTwoP
-    init_filename: data/a.hdf5
+    init_filename: /mnt/data/owen_26_01_20/example_fish_caiman_baseline.tif
     config_file: live_caiman_params.yaml
 
   Visual:
