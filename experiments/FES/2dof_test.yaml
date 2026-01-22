@@ -23,25 +23,25 @@ actors:
     camera_num: 2
 
 # Uncomment this to run psuedo cameras
-  # Generator0:
-  #   package: actors.generator
-  #   class: Generator
-  #   camera_num: 0
-
-  # Generator2:
-  #   package: actors.generator
-  #   class: Generator
-  #   camera_num: 2
-
   Generator0:
-    package: actors.camera_reader
-    class: CameraReader
+    package: actors.generator
+    class: Generator
     camera_num: 0
 
   Generator2:
-    package: actors.camera_reader
-    class: CameraReader
+    package: actors.generator
+    class: Generator
     camera_num: 2
+
+  # Generator0:
+  #   package: actors.camera_reader
+  #   class: CameraReader
+  #   camera_num: 0
+
+  # Generator2:
+  #   package: actors.camera_reader
+  #   class: CameraReader
+  #   camera_num: 2
 
   VideoSaver0:
     package: actors.video_saver
@@ -55,15 +55,15 @@ actors:
     camera_num: 2
     method: spawn
 
-  Receiver:
-    package: actors.recieverActor
-    class: Receiver
-    method: spawn
-
-  # Sender:
-  #   package: actors.sender
-  #   class: Sender
+  # Receiver:
+  #   package: actors.recieverActor
+  #   class: Receiver
   #   method: spawn
+
+  Sender:
+    package: actors.sender
+    class: Sender
+    method: spawn
 
 connections:
   Generator0.q_out: [Processor0.q_in, VideoScreen.images0_in , VideoSaver0.q_in]
@@ -71,9 +71,9 @@ connections:
   # CameraReader0.q_out: [VideoSaver0.q_in, Processor0.q_in]
   # CameraReader1.q_out: [VideoSaver1.q_in, Processor1.q_in]
   # CameraReader2.q_out: [VideoSaver2.q_in, Processor2.q_in]
-  Processor0.q_out: [VideoScreen.preds0_in] # , Sender.q_in]
+  Processor0.q_out: [VideoScreen.preds0_in, Sender.preds0_in]
   # Processor1.q_out: [VideoScreen.preds1_in]
-  Processor2.q_out: [VideoScreen.preds2_in] #, Sender.q_in]
+  Processor2.q_out: [VideoScreen.preds2_in, Sender.preds2_in]
 
 redis_config:
   port: 6379

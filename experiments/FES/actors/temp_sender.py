@@ -86,7 +86,9 @@ def main_loop():
         # Check timer flag.
         if timer_ready:
             # Read sensor values.
-            sensor_vals = read_sensors()
+            # sensor_vals = read_sensors()
+
+            sensor_vals = [0,0,500,0,700,0,0]
 
             # Create the message packet.
             valspack = pack_bytes(sensor_vals)

@@ -2,6 +2,8 @@ import time
 import serial
 import logging
 from improv.actor import Actor
+from pathlib import Path
+import yaml
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -40,36 +42,56 @@ class Sender(Actor):
 
         logger.info("Completed setup for Sender")
 
+        self.top_min = 120
+        self.side_min = 120
+
+        # Load the configuration file
+        source_folder = Path(__file__).resolve().parent.parent
+        with open(f'{source_folder}/config.yaml', 'r') as file:
+            config = yaml.safe_load(file)
+
+        self.resize = config['resize']
+
 
     def pack_bytes(self, adc_vals):
         """
-        Pack 10-bit sensor values into an array of bytes.
+        Pack each sensor’s 10-bit value into a continuous stream of bits.
+        The packet begins with a 2-byte header ('-' and '>'),
+        followed by enough bytes to cover all sensor bits.
         """
-        # Create header bytes
-        packed_vals = bytearray(10)  # Create a byte array of packet data bytes + header
+        total_sensors = len(adc_vals)  # This is NUM_SENSORS+1 (e.g. 7)
+        # Calculate how many bytes are needed to pack all 10-bit values.
+        num_data_bytes = (total_sensors * 10 + 7) // 8  # Ceiling division
+
+        # Create bytearray: 2 bytes for header + data bytes.
+        packed_vals = bytearray(2 + num_data_bytes)
         packed_vals[0] = ord('-')  # Header byte 1
         packed_vals[1] = ord('>')  # Header byte 2
 
-        # Combine 10-bit values into one 64-bit integer
+        # Combine each sensor's 10-bit value into one large integer.
         temp_data = 0
-        for i in range(self.NUM_SENSORS + 1):
-            temp_data |= adc_vals << (i * 10)
+        for i in range(total_sensors):
+            temp_data |= int(adc_vals[i]) << (i * 10)
 
-        # Extract bytes from temp_data and store in packed_vals
-        for i in range(8):  # Remaining 8 bytes
+        # Extract bytes from temp_data.
+        for i in range(num_data_bytes):
             packed_vals[i + 2] = (temp_data >> (i * 8)) & 0xFF
-        
-        return packed_vals
 
+        return packed_vals
+    
+    def normalize_to_range(self,value, min_val, max_val):
+        """Convert value from [min_val, max_val] to [0, 1023]"""
+        normalized = ((value - min_val) / (max_val - min_val)) * 1023
+        return max(0, min(1023, int(normalized)))  # Clamp to valid range
 
     def runStep(self):
 
         #Grab angle from processor
         try:
-            element = self.q_in.get(timeout=0.001)  # Non-blocking get with small timeout
+            #Processor 0
+            element = self.links["preds0_in"].get(timeout=0.001)
             _ ,angle = element
-            angle = max(0,min(1023,int((angle- 120) * 14)))
-            # angle = angle*4
+            angle = self.normalize_to_range(angle, 140,180)
             self.last_angle = angle  # Store the angle for reuse
             # logger.info(f'recieved angle {angle}, and type {type(angle)}')
         except Exception as e:
@@ -79,10 +101,27 @@ class Sender(Actor):
                 logger.debug(f"No element available yet and no previous value: {e}")
                 return  # No data to send
             angle = self.last_angle
-        
+
+
+        try:
+            #Processor 2
+            element2 = self.links["preds2_in"].get(timeout=0.001)
+            _ ,angle2 = element2
+            angle2 = angle2/self.resize
+            angle2 = self.normalize_to_range(angle2, 510,580)
+            self.last_angle2 = angle2  # Store the angle for reuse
+            # logger.info(f'recieved angle {angle}, and type {type(angle)}')
+        except Exception as e:
+            logger.info(f'Error in sender {e}')
+            # No new data available, use previous angle if it exists
+            if not hasattr(self, 'last_angle2'):
+                logger.debug(f"No element available yet and no previous value: {e}")
+                return  # No data to send
+            angle2 = self.last_angle2
 
         # Create message packet
-        valspack = self.pack_bytes(angle)
+        valspack = self.pack_bytes([0,0,angle,0,angle2,0,0])
+
 
         # Send the message through UART
         self.ser.write(valspack)

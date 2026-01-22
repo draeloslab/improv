@@ -148,6 +148,7 @@ class CameraStreamWidget(QWidget):
                         if angle < self.y_min:
                             self.y_min = angle
                     elif camera_id == 2 and self.visual.num_cameras > 2:  # Only if camera 2 exists
+                        angle = angle/self.resize
                         self.angles_cam2.append(angle)
                         if len(self.angles_cam2) > 100:  # Limit to the latest 100 angles
                             self.angles_cam2.pop(0)

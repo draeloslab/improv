@@ -7,5 +7,5 @@ video_path_0: '/home/chesteklab/camera_video/2026-01-16/102653/camera_video_0.mp
 video_path_2: '/home/chesteklab/camera_video/2026-01-16/102653/camera_video_2.mp4'
 threshold: 0.2
 output_path: '/home/chesteklab/predictions'
-resize: 0.9
+resize: 0.5
 alpha: 0.8
