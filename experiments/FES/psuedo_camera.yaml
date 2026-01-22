@@ -15,14 +15,14 @@ actors:
     class: Processor
     pred_active: True
 
-  Generator0:
-    package: actors.generator
-    class: Generator
+  # Generator0:
+  #   package: actors.generator
+  #   class: Generator
 
-  # Generator:
-  #   package: actors.camera_reader
-  #   class: CameraReader
-  #   camera_num: 0
+  Generator0:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 0
 
   VideoSaver0:
     package: actors.video_saver

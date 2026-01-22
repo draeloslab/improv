@@ -55,13 +55,13 @@ class Processor(Actor):
 
             self.resize = config['resize']
 
-
-            train_dir = Path(config['model_path'])
-            # train_dir = Path('/home/chesteklab/Desktop/napierNewManipulandum-jake-2025-11-04/dlc-models-pytorch/iteration-2/napierNewManipulandumNov4-trainset95shuffle1/train')
-            # train_dir = Path("/home/chesteklab/Desktop/dlc-models-pytorch/iteration-2/manipulandum_pytorchMay13-trainset95shuffle1/train")
-            # train_dir = Path("/home/chesteklab/Desktop/human-manipulandum-jake-2025-10-29/dlc-models-pytorch/iteration-0/human-manipulandumOct29-trainset95shuffle2/train")
+            # Select model path and snapshot based on camera number
+            model_path_key = f'model_path_{self.camera_num}'
+            model_snapshot_key = f'model_snapshot_{self.camera_num}'
+            
+            train_dir = Path(config[model_path_key])
             pytorch_config_path = train_dir / "pytorch_config.yaml"
-            snapshot_path = train_dir / "snapshot-best-190.pt"
+            snapshot_path = train_dir / config[model_snapshot_key]
 
             # for top-down models, otherwise None
             detector_snapshot_path = None
@@ -73,6 +73,9 @@ class Processor(Actor):
 
             # read model configuration
             model_cfg = read_config_as_dict(pytorch_config_path)
+            
+            logger.info(f"Camera {self.camera_num}: Using model from {train_dir}")
+            logger.info(f"Camera {self.camera_num}: Using snapshot {config[model_snapshot_key]}")
 
             self.pose_runner, detector_runner = get_inference_runners(
                 model_config=model_cfg,
@@ -196,7 +199,7 @@ class Processor(Actor):
                     frame = cv2.resize(frame, (int(frame.shape[1] * self.resize), int(frame.shape[0] * self.resize)))
                     # Convert BGR to RGB for the PyTorch model (trained with RGB images)
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    raw_prediction = self.pose_runner.inference([frame_rgb])  # this needs to be switched back to just frame for camera input
+                    raw_prediction = self.pose_runner.inference([frame])  # this needs to be switched back to just frame for camera input
                     self.dlc_latencies.append(time.perf_counter() - dlc_start)
                     # Extract the bodyparts array from the prediction dictionary
                     # The format is [{'bodyparts': array([[[x, y, likelihood], ...]])}]
@@ -208,7 +211,8 @@ class Processor(Actor):
                         self.prediction = self.prediction[:4]
                     elif self.camera_num == 2:
                         # Use only the last bodypart for camera 2
-                        self.prediction = self.prediction[-1:]
+                        # self.prediction = self.prediction[-1:]
+                        self.prediction = self.prediction[:1]
                     
                     # logger.info(f"Raw prediction: {self.prediction}")
                     # logger.info(f' Shape of prediction: {self.prediction.shape}')

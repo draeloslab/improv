@@ -139,7 +139,8 @@ class VideoScreen(ManagedActor):
             # logger.debug(f'No frame available for camera {camera_id}')
         except KeyError:
             # frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
-            logger.debug(f'No frame available for camera {camera_id}')
+            # logger.debug(f'No frame available for camera {camera_id}')
+            pass
         except Exception as e:
             logger.error(f"Error getting frame for camera {camera_id}: {e}")
             logger.info(len(self.frame_latencies))

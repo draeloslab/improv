@@ -9,7 +9,7 @@ active_cameras:
       serial_id: "49320579-aravis"
   - camera:
       name: "left"
-      serial_id: "45324224-aravis"
+      serial_id: "45324225-aravis"
   - camera:
       name: "right"
       serial_id: "45324230-aravis"

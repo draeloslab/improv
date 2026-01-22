@@ -1,7 +1,10 @@
 fps: 30
-model_path: '/home/chesteklab/Desktop/2dofnodoor-jake-2026-01-19/dlc-models-pytorch/iteration-0/2dofnodoorJan19-trainset95shuffle1/train'
-video_path_0: '/home/chesteklab/camera_video/2026-01-14/123702/camera_video_0.mp4'
-video_path_2: '/home/chesteklab/camera_video/2026-01-16/103539/camera_video_2.mp4'
+model_path_0: '/home/chesteklab/Desktop/2dofmaniptop-jake-2026-01-22/dlc-models-pytorch/iteration-0/2dofmaniptopJan22-trainset95shuffle1/train'
+model_snapshot_0: "snapshot-best-030.pt"
+model_path_2: '/home/chesteklab/Desktop/2dofmanipside-jake-2026-01-22/dlc-models-pytorch/iteration-0/2dofmanipsideJan22-trainset95shuffle1/train'
+model_snapshot_2: "snapshot-200.pt"
+video_path_0: '/home/chesteklab/camera_video/2026-01-16/102653/camera_video_0.mp4'
+video_path_2: '/home/chesteklab/camera_video/2026-01-16/102653/camera_video_2.mp4'
 threshold: 0.2
 output_path: '/home/chesteklab/predictions'
 resize: 0.9
