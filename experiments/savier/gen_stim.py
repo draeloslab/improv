@@ -124,11 +124,14 @@ class StimulusSpace():
         return stimuli
 
     
-    def param_space_shrinking(self, stimuli):
+    def param_space_shrinking(self, stim_set):
+        '''
+        "Shrinking" the param space from 8D to 5D for optimization. 
+        Specifically removing the 4th, 5th, and 7th dimensions that correspond to center_x, center_y, and shape, respectively.
+        '''
 
-        stimuli_copy = self.stimuli.copy()
+        stim_set_copy = stim_set.copy()
 
-        stimuli_optim = np.delete(stimuli_copy, [4,5,7], axis=1)
-        # param_space_optim = param_space_optim[13:]
+        stimuli_optim = np.delete(stim_set_copy, [4,5,7], axis=0) 
 
         return stimuli_optim
