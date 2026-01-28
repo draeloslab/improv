@@ -139,6 +139,10 @@ class VideoSaver(ManagedActor):
         with open(f'{source_folder}/config/camera_config.yaml', 'r') as file:
             camera_config = yaml.safe_load(file)
 
+        # load the configuration file
+        with open(f'{source_folder}/config.yaml', 'r') as file:
+            config = yaml.safe_load(file)
+
         camera_params = camera_config['camera_params']
         self.frame_w = camera_params['resolution']['width'] # frame width
         self.frame_h = camera_params['resolution']['height'] # frame height        
@@ -171,12 +175,15 @@ class VideoSaver(ManagedActor):
         timestamp_hhmm = time.strftime("%H%M")
         self.output_video = os.path.join(self.out_folder_video, f"camera_video_{self.camera_num+1}_{timestamp_hhmm}.mp4")
 
-        # Initialize latency tracking variables BEFORE creating output folder
+        # Initialize latency tracking variables
         self.latencies = []
         self.start_times = []
 
+
+        date = time.strftime("%Y%m%d")
         timestamp = time.strftime("%Y%m%d-%H%M")
-        self.out_folder = Path(f"/home/chesteklab/predictions/{timestamp}")
+        string = config['output_path']
+        self.out_folder = Path(f"{string}/{date}/{timestamp}")
         self.out_folder.mkdir(parents=True, exist_ok=True)
         logger.info(f"Latency Output folder set to {self.out_folder}")
 
@@ -249,11 +256,9 @@ class VideoSaver(ManagedActor):
 
         logger.info(f"[Camera {self.camera_name}] total frames received: {self.total_frames}")
 
- 
         np.save(self.out_folder / f"saverlatencies_cam_{self.camera_num}.npy", self.latencies)
         np.save(self.out_folder / f"saverstarts_cam_{self.camera_num}.npy", self.start_times)
         logger.info(f"[Camera {self.camera_name}] Latencies saved to {self.out_folder}")
-
 
         self.wait_conversion_proc.start()
         self.wait_conversion_proc.join()

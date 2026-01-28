@@ -54,9 +54,10 @@ class Generator(Actor):
         total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
 
+        date = time.strftime("%Y%m%d")
         timestamp = time.strftime("%Y%m%d-%H%M")
-        string  = config['output_path']
-        self.out_folder = Path(f"{string}/{timestamp}")
+        string = config['output_path']
+        self.out_folder = Path(f"{string}/{date}/{timestamp}")
         self.out_folder.mkdir(parents=True, exist_ok=True)
         logger.info(f"Output folder set to {self.out_folder}")
         logger.info(f'Total frames: {total_frames}')
@@ -67,9 +68,12 @@ class Generator(Actor):
         logger.info("Generator stopping")
         if self.cap:
             self.cap.release()
+        
+        
         np.save(self.out_folder / "genstarts.npy", self.start)
         np.save(self.out_folder / "gen_latencies.npy", self.gen_times)
         np.save(self.out_folder / "full_latencies.npy", self.full_times)
+        logger.info(f"Generator latencies saved to {self.out_folder}")
         return 0
 
     def runStep(self):

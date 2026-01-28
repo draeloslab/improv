@@ -257,7 +257,7 @@ class Processor(Actor):
                         smoothed_angle = np.mean(self.angle_queue) if len(self.angle_queue) > 0 else angle
 
                         # Apply sudden jump detection on the smoothed angle
-                        if self.prev_angle is not None and np.abs(smoothed_angle - self.prev_angle) > 25:
+                        if self.prev_angle is not None and np.abs(smoothed_angle - self.prev_angle) > 50:
                             smoothed_angle = self.prev_angle  # ignore sudden large jumps
                         self.prev_angle = smoothed_angle
                     else:
@@ -265,7 +265,7 @@ class Processor(Actor):
                         smoothed_angle = np.mean(self.angle_queue) if len(self.angle_queue) > 0 else angle
 
                         # Apply sudden jump detection on the smoothed angle
-                        if self.prev_angle is not None and np.abs(smoothed_angle - self.prev_angle) > 5:
+                        if self.prev_angle is not None and np.abs(smoothed_angle - self.prev_angle) > 50:
                             smoothed_angle = self.prev_angle  # ignore sudden large jumps
                         self.prev_angle = smoothed_angle
                         # angle = None

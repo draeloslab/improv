@@ -78,8 +78,11 @@ class TIS:
         self.camera_latencies = []
         self.camera_latenciesFull = []
         self.cameraStarts = []
+        
+        date = time.strftime("%Y%m%d")
         timestamp = time.strftime("%Y%m%d-%H%M")
-        self.out_folder = Path(f"/home/chesteklab/predictions/{timestamp}")
+        string = '/home/chesteklab/predictions'
+        self.out_folder = Path(f"{string}/{date}/{timestamp}")
         self.out_folder.mkdir(parents=True, exist_ok=True)
         # logger.info(f"Output folder set to {self.out_folder}")
         logger.info("Completed setup for TIS")
@@ -274,11 +277,12 @@ class TIS:
         else:
             logger.info(f"[Camera {self.camera_name}] reader stopped. Total frames: {self.total_frame_count}")
 
+        
         np.save(self.out_folder / "TISlatencies.npy", self.camera_latencies)
         np.save(self.out_folder / "TISstarts.npy", self.cameraStarts)
         np.save(self.out_folder / "TISlatenciesFull.npy", self.camera_latenciesFull)
 
-        logger.info("saved TIS latencies")
+        logger.info(f"TIS latencies saved to {self.out_folder}")
 
     def get_source(self):
         '''
