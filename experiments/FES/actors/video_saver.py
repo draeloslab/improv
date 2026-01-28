@@ -11,7 +11,7 @@ from improv.actor import ManagedActor
 from pathlib import Path
 from multiprocessing import Pool, Process
 from collections import deque
-from queue import Queue
+from queue import Queue, Empty
 from .video_converter import VideoConverter
 
 import logging
@@ -112,8 +112,12 @@ class VideoSaver(ManagedActor):
                             self.time_start = time.perf_counter()
                         
                     self.latencies.append(time.perf_counter() - start_perf)
+                except Empty:
+                    # Timeout occurred, just continue waiting for frames
+                    logger.info(f"[Camera {self.camera_name}] Queue timeout, continuing...")
+                    continue
                 except Exception as e:
-                    logger.info(f"[Camera {self.camera_name}] No more frames {e}")
+                    logger.error(f"[Camera {self.camera_name}] Error reading frames: {e}")
                     self.stop_program = True
             else:
                 time.sleep(self.wait_time)
@@ -164,7 +168,8 @@ class VideoSaver(ManagedActor):
         if not Path(self.out_folder_buffer).exists():
             Path(self.out_folder_buffer).mkdir(parents=True, exist_ok=True)
 
-        self.output_video = os.path.join(self.out_folder_video, f"camera_video_{self.camera_num+1}.mp4")
+        timestamp_hhmm = time.strftime("%H%M")
+        self.output_video = os.path.join(self.out_folder_video, f"camera_video_{self.camera_num+1}_{timestamp_hhmm}.mp4")
 
         # Initialize latency tracking variables BEFORE creating output folder
         self.latencies = []

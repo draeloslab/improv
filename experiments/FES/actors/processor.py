@@ -130,9 +130,10 @@ class Processor(Actor):
             self.smoothed_prediction = None
 
 
+            date = time.strftime("%Y%m%d")
             timestamp = time.strftime("%Y%m%d-%H%M")
-            string  = config['output_path']
-            self.out_folder = Path(f"{string}/{timestamp}")
+            string = config['output_path']
+            self.out_folder = Path(f"{string}/{date}/{timestamp}")
             self.out_folder.mkdir(parents=True, exist_ok=True)
             logger.info(f"Output folder set to {self.out_folder}")
             logger.info(f"Using alpha: {self.alpha} and interp_thresh: {self.interp_thresh} and resize: {self.resize}")
