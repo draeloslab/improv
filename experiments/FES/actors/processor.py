@@ -198,8 +198,23 @@ class Processor(Actor):
                     kalman_time = time.time()
                     # self.prediction = self.dlc_live.get_pose(frame)
                     frame = cv2.resize(frame, (int(frame.shape[1] * self.resize), int(frame.shape[0] * self.resize)))
+                    # if self.camera_num == 2:
+                    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+                    
+                    # Quick check: log color channel info on first frame
+                    if self.frame_num % 100 == 0:
+                        avg_channels = np.mean(frame, axis=(0, 1))
+                        logger.debug(f"Frame shape: {frame.shape}, Average channel values: {avg_channels}")
+                        # Check if likely BGR (OpenCV) or RGB format
+                        # In most natural images, blue channel has lower values than red
+                        if avg_channels[0] < avg_channels[2]:
+                            logger.info(f"Frame from camera {self.camera_num} appears to be BGR format (channel 0 < channel 2)")
+                        else:
+                            logger.info(f"Frame from camera {self.camera_num} appears to be RGB format (channel 0 >= channel 2)")
+
                     # Convert BGR to RGB for the PyTorch model (trained with RGB images)
-                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    # frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     raw_prediction = self.pose_runner.inference([frame])  # this needs to be switched back to just frame for camera input
                     self.dlc_latencies.append(time.perf_counter() - dlc_start)
                     # Extract the bodyparts array from the prediction dictionary

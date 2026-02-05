@@ -94,12 +94,12 @@ class Sender(Actor):
             #Processor 0
             element = self.links["preds0_in"].get(timeout=0.0001)
             _ ,angle = element
-            angle = self.normalize_to_range(angle, 140,300)
-            self.last_angle = angle  # Store the angle for reuse
-            # logger.info(f'recieved angle {angle}, from camera 0')
+            # angle = self.normalize_to_range(angle, 120,150)
+            self.last_angle = angle*6  # Store the angle for reuse
+            # logger.info(f'recieved angle {self.last_angle}, from camera 0')
         except Exception as e:
-            pass
             # logger.info(f'Error in sender 0: {repr(e)}')
+            pass
             # # No new data available, use previous angle if it exists
             # if not hasattr(self, 'last_angle'):
             #     logger.debug(f"No element available yet and no previous value: {e}")
@@ -112,7 +112,7 @@ class Sender(Actor):
             element2 = self.links["preds2_in"].get(timeout=0.0001)
             _ ,angle2 = element2
             angle2 = angle2/self.resize
-            angle2 = self.normalize_to_range(angle2, 410,580)
+            # angle2 = self.normalize_to_range(angle2, 410,580)
             self.last_angle2 = angle2  # Store the angle for reuse
             # logger.info(f'recieved angle {angle2}, from camera 2')
         except Exception as e:
@@ -125,7 +125,7 @@ class Sender(Actor):
             # angle2 = self.last_angle2
 
         # Create message packet
-        # logger.info(f'Sending angles: {angle}, {angle2}')
+        logger.info(f'Sending angles: {self.last_angle} and {self.last_angle2}')
         valspack = self.pack_bytes([0,0,self.last_angle,0,self.last_angle2,0,0])
         # logger.info(f'Sending packed values: {valspack.hex()}')
 

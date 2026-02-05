@@ -69,7 +69,6 @@ class Generator(Actor):
         if self.cap:
             self.cap.release()
         
-        
         np.save(self.out_folder / "genstarts.npy", self.start)
         np.save(self.out_folder / "gen_latencies.npy", self.gen_times)
         np.save(self.out_folder / "full_latencies.npy", self.full_times)
