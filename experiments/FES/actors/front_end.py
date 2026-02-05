@@ -52,6 +52,8 @@ class CameraStreamWidget(QWidget):
             self.y_min_cam2 = np.inf  # Initialize y_min for camera 2
             self.predictions = None
             self.last_frame = [None for _ in range(self.visual.num_cameras)]
+            self.last_predictions = [None for _ in range(self.visual.num_cameras)]  # Cache last valid predictions
+            self.last_angles = [0.0 for _ in range(self.visual.num_cameras)]  # Cache last valid angles
             
 
             # Load the configuration file
@@ -134,8 +136,22 @@ class CameraStreamWidget(QWidget):
                 frame, predictions, angle = self.visual.getLastFrame(camera_id)
                 if frame is not None:
                     self.last_frame[camera_id] = frame
+                
+                # Cache the predictions if they're valid
+                if predictions is not None:
+                    self.last_predictions[camera_id] = predictions
 
-                self.display_frame(self.last_frame[camera_id], predictions, self.camera_labels[camera_id], angle, camera_id)
+                # Cache the angle if it's valid
+                if angle is not None:
+                    self.last_angles[camera_id] = angle
+
+                # Use cached predictions if current ones are None
+                display_predictions = predictions if predictions is not None else self.last_predictions[camera_id]
+                
+                # Use cached angle if current one is None
+                display_angle = angle if angle is not None else self.last_angles[camera_id]
+                
+                self.display_frame(self.last_frame[camera_id], display_predictions, self.camera_labels[camera_id], display_angle, camera_id)
                 
                 # Update the angle plot if an angle is provided
                 if angle is not None:
@@ -174,10 +190,12 @@ class CameraStreamWidget(QWidget):
         bytes_per_line = channel * width
         q_img = QImage(frame.data, width, height, bytes_per_line, QImage.Format_RGB888).copy()
         
-        # Only log predictions when they are actually present to reduce log spam
+        # Initialize painter for drawing on the frame
+        painter = QPainter(q_img)
+        
+        # Draw predictions if available
         if predictions is not None:
             logger.debug(f"PREDICTIONS: {predictions}")
-            painter = QPainter(q_img)
             painter.setBrush(QBrush(QColor(255, 0, 0)))
 
             # Set labels based on camera_id
@@ -202,10 +220,12 @@ class CameraStreamWidget(QWidget):
                         painter.drawLine(int(prev_point[0]), int(prev_point[1]), int(x), int(y))
                     prev_point = (x, y)
 
-            painter.setPen(QPen(QColor(0, 255, 0), 2))  # Green color for text
-            angle_text = f"Angle: {angle:.2f}°" if angle is not None else "Angle: N/A"
-            painter.drawText(10, 50, angle_text)
-            painter.end()
+        # Always draw angle text on every frame
+        painter.setPen(QPen(QColor(0, 255, 0), 2))  # Green color for text
+        painter.setFont(QFont("Arial", 50))  # Set font size for angle text
+        angle_text = f"Angle: {angle:.2f}°" if angle is not None else "Angle: N/A"
+        painter.drawText(10, 50, angle_text)
+        painter.end()
 
         pixmap = QPixmap.fromImage(q_img)
         scaled_pixmap = pixmap.scaled(label.size(), Qt.KeepAspectRatio)
