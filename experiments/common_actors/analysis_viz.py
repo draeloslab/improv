@@ -173,7 +173,6 @@ class VizStimAnalysis(Actor):
                 self.total_stim_counts = self.stimText[-1][-1]
                 logger.info('total_stim_counts: {}'.format(self.total_stim_counts)) # add a logger: when send to optimizer
                 self.should_send_frame_num = self.frame + self.after_amount
-                # logger.info(f"should be sending stimX and stimY to optimizer {self.after_amount} frames after at {self.should_send_frame_num}")
             except Empty as e:
                 pass #no change in input stimulus
                 # logger.error(f'an error occcured: {e}', exc_info=True)
@@ -205,7 +204,6 @@ class VizStimAnalysis(Actor):
 
             # logger.info('BEFORE putAnalysis() -- Call = {}'.format(self.Call))
             # logger.info('BEFORE putAnalysis() -- Cx = {}'.format(self.Cx))
-            # self.putAnalysis()
             self.putStimulus()
             self.putAnalysis()  # put analysis after putting stim to reduce lag?
             if self.total_stim_counts > self.old_stim_num: 
@@ -235,7 +233,6 @@ class VizStimAnalysis(Actor):
         stimID = self.IDstim(int(whichStim))
 
         for i, label in enumerate(self.stim_space['labels']):
-            # logger.info('looking for {} in {}'.format(stim[frame][0][i], getattr(self, f'x_{label}')))
             self.xs[label] = np.argwhere(stim[frame][0][i] == getattr(self, f'x_{label}'))[0]
 
         # self.stim_count[int(self.xs['angle']), int(self.xs['vel']), int(self.xs['size']), int(self.xs['freq'])] += 1

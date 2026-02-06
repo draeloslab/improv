@@ -77,17 +77,12 @@ class CaimanProcessor(Actor):
         np.savetxt("output/timing/process_frame_time.txt", np.array(self.total_times))
         np.savetxt("output/timing/process_timestamp.txt", np.array(self.timestamp))
 
-        # self.fit_next_start = np.array(self.onAc.fit_next_start)
         self.shape_time = np.array(self.onAc.t_shapes)
-        # self.shape_time_else = np.array(self.onAc.t_shape_else)
         self.detect_time = np.array(self.onAc.t_detect)
 
         np.savetxt("output/timing/fitframe_time.txt", np.array(self.fitframe_time))
         np.savetxt("output/timing/shape_time.txt", self.shape_time)
         np.savetxt("output/timing/detect_time.txt", self.detect_time)
-        # np.savetxt("output/timing/fit_next_start_time.txt", self.fit_next_start)
-        # np.savetxt("output/timing/motion_correction.txt", self.mc)
-        # np.savetxt("output/timing/shape_time_else.txt", self.shape_time_else)
 
         np.savetxt("output/timing/putAnalysis_time.txt", np.array(self.putAnalysis_time))
         np.savetxt("output/timing/procFrame_time.txt", np.array(self.procFrame_time))

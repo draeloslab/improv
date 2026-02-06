@@ -83,9 +83,6 @@ class BayesOptimizer(Actor):
         self.optim_f_list = []
 
         self.total_times_update = []
-        # self.total_times_update_optim = []
-        # self.total_times_reshape = []
-        # self.total_times_stopping = []
         self.total_times = []
 
         self.saved_GP_est = []
@@ -111,14 +108,10 @@ class BayesOptimizer(Actor):
         np.save('output/stopping_list.npy', np.array(self.stopping_list))
         np.save('output/peak_list.npy', np.array(self.peak_list))
         np.save('output/optim_f_list.npy', np.array(self.optim_f_list))
-        # np.save('output/optimizer_start_stimulus.npy', np.array(self.start_stimulus))
 
         try:
             np.savetxt('output/timing/optimizer_time.txt', np.array(self.total_times))
             np.savetxt('output/timing/optimizer_time_udpates.txt', self.total_times_update, fmt="%s")
-            # np.savetxt('output/timing/optimizer_time_udpates_optim.txt', self.total_times_update_optim, fmt="%s")
-            # np.savetxt('output/timing/optimizer_time_reshape.txt', self.total_times_reshape, fmt="%s")
-            # np.savetxt('output/timing/optimizer_time_stopping.txt', self.total_times_stopping, fmt="%s")
         except Exception as e:
             logger.error("Trouble saving optimizer timings: {}".format(e))
             pass
@@ -143,8 +136,7 @@ class BayesOptimizer(Actor):
                     self.X = tmpX[:, -tmpX.shape[1]:]
 
             try:
-                # b = np.zeros([len(Y),len(max(Y,key = lambda x: len(x)))])
-                b = np.full([len(Y),len(max(Y,key = lambda x: len(x)))], np.nan)  # FIXME: change to nan instead of 0
+                b = np.full([len(Y),len(max(Y,key = lambda x: len(x)))], np.nan)  # change to nan instead of 0 to avoid confusion with actual 0 values in data
                 for i,j in enumerate(Y):
                     b[i][:len(j)] = j
                 self.y0 = b.T
@@ -202,7 +194,6 @@ class BayesOptimizer(Actor):
             logger.info('nonopt is {}, number of neurons '.format(nonopt,self.y0.shape[0]))
             logger.info('Initialization check: stim_count: {}, Y length: {}, same len? {}'.format(self.stim_count, self.y0.shape[1], self.y0.shape[1] == self.stim_count))
             logger.info(f"from optimizer initialization, the frame num is {self.frame_num}")
-            # ready = [i for i in nonopt if self._obs_count(i) >= 8]  #self.min_init_obs = 8
             if len(nonopt) >= 1 or len(self.goback_neurons)>=1:
                 if len(nonopt) >= 1:
                     obs_counts = np.count_nonzero(~np.isnan(self.y0[nonopt, :]), axis=1)
@@ -211,7 +202,6 @@ class BayesOptimizer(Actor):
                         ready = nonopt[ready_mask]
                         # logger.info(f"out of those nonopt, these are ready: {ready}")
                         self.nID = nonopt[np.argmax(np.nanmean(self.y0[ready,:], axis=1))]
-                        # self.nID = nonopt[np.argmax(np.nanmean(self.y0[nonopt,:], axis=1))]  # FIXME: should change to nanmean
                         logger.info('selecting most responsive neuron: {}'.format(self.nID))
                         self.optimized_n.append(self.nID)
                         self.saved_GP_est = []
@@ -223,7 +213,7 @@ class BayesOptimizer(Actor):
                     logger.info('Trying again with neuron {}'.format(self.nID))
                     self.optimized_n.append(self.nID)
                 
-                print(self.y0.shape, self.X.shape, self.X0.shape)
+                # print(self.y0.shape, self.X.shape, self.X0.shape)
                 # logger.info(f'y0 shape {self.y0.shape}; X shape {self.X.shape}; X0 shape {self.X0.shape}')
                 if self.X.shape[1] < self.y0.shape[1]:
                     self.optim.initialize_GP(self.X[:, :].T, self.y0[self.nID, -self.X.shape[1]:].T)
@@ -279,23 +269,17 @@ class BayesOptimizer(Actor):
                     X[i] = self.GP_stimuli[i][int(self.X[i,-1])]
 
                 logger.info('optim {} (test: {}), update GP with {}, {}'.format(self.nID, self.test_count, X, self.y0[self.nID, -1]))
-                # t_update_optim  = time.time()
                 self.optim.update_GP(np.squeeze(X), self.y0[self.nID,-1])
-                # self.total_times_update_optim.append([dt.now(), time.time() - t_update_optim])
-                # t_reshape = time.time()
                 curr_unc = np.diagonal(self.optim.sigma).reshape((self.stim_choice))
                 curr_est = self.optim.f.reshape((self.stim_choice))
                 self.saved_GP_unc.append(curr_unc)
                 self.saved_GP_est.append(curr_est)
-                # self.total_times_reshape.append([dt.now(), time.time() - t_reshape])
 
                 
-                # t_stop = time.time()
                 stopCrit, PI = self.optim.stopping()
                 logger.info('----------- stopCrit: {}'.format(stopCrit))
                 self.stopping[self.test_count] = stopCrit
                 self.test_count += 1
-                # self.total_times_stopping.append([dt.now(), time.time() - t_stop])
                 self.total_times_update.append([dt.now(), time.time() - t_update])
                 ids = []
                 ids.append(self.nID)
@@ -381,11 +365,8 @@ class RandomSampler(Actor):
         logger.info('stim_star: {} - shape: {}'.format(self.stim_star, self.stim_star.shape))
 
         np.random.seed(self.seed)  # TODO: double check if this is ok
-        # self.stim_star_flat = self.stim_star.flatten()
-        # self.stim_star_shuffle = self.stim_star.copy()
         self.stim_star_shuffle = np.random.permutation(self.stim_star)
         logger.info('shuffling a copy of stim_star {} with shape {}'.format(self.stim_star_shuffle, self.stim_star_shuffle.shape))
-        # logger.info(f"now this is self.stim_star {self.stim_star}")
         self.total_times = []
 
     def setup(self):
@@ -427,7 +408,6 @@ class RandomSampler(Actor):
             
             if self.counter == self.stimuli_space.initial_stim_count:
                 self.stim_ind = self.stim_space['initial_stim'][0]
-                # logger.info(f"line 395 this is stim_ind {self.stim_ind}")
             elif self.counter -1 >= self.stimuli_space.initial_stim_count:
                 flag = True
             
@@ -509,9 +489,6 @@ class GridSampler(Actor):
         self.stim_star_reduced = x_star_reduced.reshape(-1, self.d)
         logger.info('stim_star_reduced: {} - shape: {}'.format(self.stim_star_reduced, self.stim_star_reduced.shape))
         logger.info(f'stim_star_head is {x_star_reduced[:20]}')
-        # self.stim_star_flat = self.stim_star.flatten()
-        # np.random.shuffle(self.stim_star_flat)
-        # logger.info('shuffling a flattened stim_star of shape {}'.format(self.stim_star_flat, self.stim_star_flat.shape))
 
         self.total_times = []
 
@@ -536,7 +513,7 @@ class GridSampler(Actor):
             # internally counts to make sure that we only send correct number of initial stim
             flag = False
             if self.stim_ind is None:
-                logger.info(f"line 508 this is self.counter {self.counter}")
+                # logger.info(f"line 508 this is self.counter {self.counter}")
                 self.stim_ind = self.stim_space['initial_stim'][self.counter]
 
             if (time.time() - self.timer) >= self.total_stim_time:
@@ -548,9 +525,6 @@ class GridSampler(Actor):
             
             if self.counter == self.stimuli_space.initial_stim_count:
                 self.stim_ind = self.stim_space['initial_stim'][0]
-                # logger.info(f"line 395 this is stim_ind {self.stim_ind}")
-                # np.random.seed(self.seed)
-                # self.stim_ind = [np.random.choice(np.arange(0, stim)) for stim in self.stim_choice]
             elif self.counter -1 >= self.stimuli_space.initial_stim_count:
                 flag = True
             
@@ -662,7 +636,6 @@ class RandomSamplerWithReplace(Actor):
             
             if self.counter == self.stimuli_space.initial_stim_count:
                 self.stim_ind = self.stim_space['initial_stim'][0]
-                # logger.info(f"line 395 this is stim_ind {self.stim_ind}")
             elif self.counter -1 >= self.stimuli_space.initial_stim_count:
                 flag = True
             
@@ -784,9 +757,8 @@ class RandomBayesOptimizer(Actor):
         self.timer = time.time()
         self.stim_ind = None
 
-        # Controls the current behavior of the actor
-        self.phase = 'initial' # Phases: 'initial', 'random', 'bayes'
-        self.bayes_newN = False # Corresponds to the 'newN' flag in the original BayesOptimizer
+        self.phase = 'initial' # 'initial', 'random', 'bayes'
+        self.bayes_newN = False # == 'newN' flag in the original BayesOptimizer
 
     def stop(self):
         # Same stop method as BayesOptimizer
@@ -803,7 +775,6 @@ class RandomBayesOptimizer(Actor):
 
     def runStep(self):
         t = time.time()
-        # This data acquisition block is from BayesOptimizer and is needed throughout all phases
         try:
             ids = self.q_in.get(timeout=0.0001)
             X = self.client.get(ids[0])
@@ -870,11 +841,6 @@ class RandomBayesOptimizer(Actor):
                     next_ind.append(np.where(self.stimuli[i] == random_stim[i])[0][0])
                 self.stim_ind = next_ind
                 logger.info(f"random_idx is {random_idx}, random_stim is {next_ind}")
-                # else:
-                #     logger.info('Finished random sampling phase. Switching to Bayesian Optimization.')
-                #     self.phase = 'bayes'
-                #     self.bayes_newN = True # Trigger neuron selection in the next phase
-                #     return # Exit this step to start fresh in 'bayes' phase
 
             if (time.time() - self.timer) >= self.total_stim_time:
                 logger.info(f"sending {self.stim_ind} to stimulus actor ")
@@ -894,7 +860,6 @@ class RandomBayesOptimizer(Actor):
             if self.bayes_newN:
                 nonopt = np.array(list(set(np.arange(self.y0.shape[0]))-set(self.optimized_n)))
                 logger.info('nonopt is {}, number of neurons '.format(nonopt,self.y0.shape[0]))
-                # ready = [i for i in nonopt if self._obs_count(i) >= 8]  #self.min_init_obs = 8
                 if len(nonopt) >= 1 or len(self.goback_neurons)>=1:
                     if len(nonopt) >= 1:
                         obs_counts = np.count_nonzero(~np.isnan(self.y0[nonopt, :]), axis=1)
@@ -903,7 +868,6 @@ class RandomBayesOptimizer(Actor):
                             ready = nonopt[ready_mask]
                             # logger.info(f"out of those nonopt, these are ready: {ready}")
                             self.nID = nonopt[np.argmax(np.nanmean(self.y0[ready,:], axis=1))]
-                            # self.nID = nonopt[np.argmax(np.nanmean(self.y0[nonopt,:], axis=1))]  # FIXME: should change to nanmean
                             logger.info('selecting most responsive neuron: {}'.format(self.nID))
                             self.bayes_newN = False
                             self.optimized_n.append(self.nID)
@@ -916,7 +880,7 @@ class RandomBayesOptimizer(Actor):
                         logger.info('Trying again with neuron {}'.format(self.nID))
                         self.optimized_n.append(self.nID)
                     
-                    print(self.y0.shape, self.X.shape, self.X0.shape)
+                    # print(self.y0.shape, self.X.shape, self.X0.shape)
                     # logger.info(f'y0 shape {self.y0.shape}; X shape {self.X.shape}; X0 shape {self.X0.shape}')
                     if self.X.shape[1] < self.y0.shape[1]:
                         self.optim.initialize_GP(self.X[:, :].T, self.y0[self.nID, -self.X.shape[1]:].T)

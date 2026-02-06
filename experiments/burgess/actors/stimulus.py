@@ -10,7 +10,6 @@ from itertools import product
 from datetime import datetime as dt
 
 from gen_stim import StimulusSpace
-# from experiments.burgess.gen_stim import StimulusSpace
 # from gen_stim_calibrate import StimulusSpace
 
 import logging; logger = logging.getLogger(__name__)
