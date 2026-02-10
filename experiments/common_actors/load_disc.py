@@ -55,7 +55,7 @@ class FileAcquirer(Actor):
                     self.data = data[self.initial_frame_num:]
             elif ext == '.tif' or ext == '.tiff':
                 data = tifffile.imread(self.filename)
-                self.data = data[self.initial_frame_num:]
+                self.data = np.array(data[self.initial_frame_num:])
 
             # f = h5py.File(self.init_filename, 'w', libver='earliest')
             # f.create_dataset("default", data=data[:self.initial_frame_num])
