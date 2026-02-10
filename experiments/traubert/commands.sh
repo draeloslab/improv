@@ -18,9 +18,9 @@ python -m ipdb $(which improv) server -c 0 -o 0 -l 0 -f global.log traubert_simu
 
 coverage run --save-signal=USR1 $(which improv) run traubert_simulate.yaml
 
+# python convert_owens_data.py
 
 mamba activate improv
-python convert_owens_data.py
 export PYTHONPATH=$HOME/Documents/naumann_collab/improv/:$PYTHONPATH
 export PYTHONPATH=$HOME/Documents/naumann_collab/CaImAn/:$PYTHONPATH
 export MKL_NUM_THREADS=1
