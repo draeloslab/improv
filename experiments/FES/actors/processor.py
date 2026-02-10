@@ -39,138 +39,6 @@ file_handler.setFormatter(formatter)
 # Add the handler to the logger
 logger.addHandler(file_handler)
 
-# class KalmanFilterPredictor():
-#     def __init__(
-#         self,
-#         adapt=True,
-#         forward=0.002,
-#         fps=30,
-#         nderiv=2,
-#         priors=[10, 10],
-#         initial_var=5,
-#         process_var=5,
-#         dlc_var=20,
-#         lik_thresh=0.5,
-#         **kwargs,
-#     ):
-
-#         super().__init__(**kwargs)
-
-#         self.adapt = adapt
-#         self.forward = forward
-#         self.dt = 1.0 / fps
-#         self.nderiv = nderiv
-#         self.priors = np.hstack(([1e5], priors))
-#         self.initial_var = initial_var
-#         self.process_var = process_var
-#         self.dlc_var = dlc_var
-#         self.lik_thresh = lik_thresh
-#         self.is_initialized = False
-#         self.last_pose_time = 0
-
-#     def _get_forward_model(self, dt):
-
-#         F = np.zeros((self.n_states, self.n_states))
-#         for d in range(self.nderiv + 1):
-#             for i in range(self.n_states - (d * self.bp * 2)):
-#                 F[i, i + (2 * self.bp * d)] = (dt ** d) / max(1, d)
-
-#         return F
-
-#     def _init_kf(self, pose):
-
-#         # get number of body parts
-#         self.bp = pose.shape[0]
-#         self.n_states = self.bp * 2 * (self.nderiv + 1)
-
-#         # initialize state matrix, set position to first pose
-#         self.X = np.zeros((self.n_states, 1))
-#         self.X[: (self.bp * 2)] = pose[:, :2].reshape(self.bp * 2, 1)
-
-#         # initialize covariance matrix, measurement noise and process noise
-#         self.P = np.eye(self.n_states) * self.initial_var
-#         self.R = np.eye(self.n_states) * self.dlc_var
-#         self.Q = np.eye(self.n_states) * self.process_var
-
-#         self.H = np.eye(self.n_states)
-#         self.K = np.zeros((self.n_states, self.n_states))
-#         self.I = np.eye(self.n_states)
-
-#         # initialize priors for forward prediction step only
-#         B = np.repeat(self.priors, self.bp * 2)
-#         self.B = B.reshape(B.size, 1)
-
-#         self.is_initialized = True
-
-#     def _predict(self):
-
-#         F = self._get_forward_model(self.dt)
-
-#         Pd = np.diag(self.P).reshape(self.P.shape[0], 1)
-#         X = (1 / ((1 / Pd) + (1 / self.B))) * (self.X / Pd)
-
-#         self.Xp = np.dot(F, X)
-#         self.Pp = np.dot(np.dot(F, self.P), F.T) + self.Q
-
-#     def _get_residuals(self, pose):
-
-#         z = np.zeros((self.n_states, 1))
-#         z[: (self.bp * 2)] = pose[: self.bp, :2].reshape(self.bp * 2, 1)
-#         for i in range(self.bp * 2, self.n_states):
-#             z[i] = (z[i - (self.bp * 2)] - self.X[i - (self.bp * 2)]) / self.dt
-#         self.y = z - np.dot(self.H, self.Xp)
-
-#     def _update(self, liks):
-
-#         S = np.dot(self.H, np.dot(self.Pp, self.H.T)) + self.R
-#         K = np.dot(np.dot(self.Pp, self.H.T), np.linalg.inv(S))
-#         self.X = self.Xp + np.dot(K, self.y)
-#         self.X[liks < self.lik_thresh] = self.Xp[liks < self.lik_thresh]
-#         self.P = np.dot(self.I - np.dot(K, self.H), self.Pp)
-
-#     def _get_future_pose(self, dt):
-
-#         Ff = self._get_forward_model(dt)
-#         Xf = np.dot(Ff, self.X)
-#         future_pose = Xf[: (self.bp * 2)].reshape(self.bp, 2)
-
-#         return future_pose
-
-#     def _get_state_likelihood(self, pose):
-
-#         liks = pose[:, 2]
-#         liks_xy = np.repeat(liks, 2)
-#         liks_xy_deriv = np.tile(liks_xy, self.nderiv + 1)
-#         liks_state = liks_xy_deriv.reshape(liks_xy_deriv.shape[0], 1)
-#         return liks_state
-
-#     def process(self, pose, **kwargs):
-
-#         if not self.is_initialized:
-
-#             self._init_kf(pose)
-#             self.last_pose_time = time.time()
-#             return pose
-
-#         else:
-
-#             self._predict()
-#             self._get_residuals(pose)
-#             liks = self._get_state_likelihood(pose)
-#             self._update(liks)
-
-#             forward_time = (
-#                 (time.time() - kwargs["frame_time"] + self.forward)
-#                 if self.adapt
-#                 else self.forward
-#             )
-
-#             future_pose = self._get_future_pose(forward_time)
-#             future_pose = np.hstack((future_pose, pose[:, 2].reshape(self.bp, 1)))
-
-#             self.last_pose_time = time.time()
-#             return future_pose
-
 
 class Processor(Actor):
     """ Applying DLC inference to each video frame
@@ -246,11 +114,9 @@ class Processor(Actor):
             )
             logger.info(f'Kalman filter initialized for camera {self.camera_num}')
 
-            # self.model_path = f'{source_folder}/DLCLive/' + config['model_path']
             self.resize = config['resize']
             self.name = "Processor"
             self.frame = None
-            # dlc_proc = IndexAngles()
             # self.dlc_live = DLCLive(self.model_path, resize=self.resize, dynamic=(True, 0.9, 30))
             # frame = np.random.rand(1080, 1920, 3)
             # self.dlc_live.init_inference(frame)  # putting in a random frame to initialize the model
@@ -266,13 +132,10 @@ class Processor(Actor):
             self.frame_num = 0
             self.frame_sentTime = 0
             self.frames_log = 200 # num frames after which to log
-            self.angle_queue = deque(maxlen=5)  # to store last 5 angles for smoothing
-            # self.recent_predictions = [deque(maxlen=3) for _ in range(5)]  #want to keep this low to avoid lag
+            self.angle_queue = deque(maxlen=10)  # to store last 5 angles for smoothing
             self.recent_predictions = [None for _ in range(5)]
             self.alpha = config['alpha']
-            # self.alpha = 0.6 #Smoothing factor for EMA
             self.interp_thresh = config['threshold']
-            # self.interp_thresh = 0 #threshold below which to use last known good position
             self.prev_angle = None
             self.smoothed_prediction = None
 
@@ -405,28 +268,6 @@ class Processor(Actor):
                         smoothed_prediction = self.prediction  # fallback to raw prediction on error
                     # logger.info(f"Smoothed prediction: {smoothed_prediction.shape}")
                     # logger.info(f"Smoothed prediction: {smoothed_prediction}")
-                    # Apply exponential moving average smoothing to predictions
-                    # smoothed_prediction= self.prediction
-                    # smoothed_prediction = np.zeros_like(self.prediction)
-                    
-                    # for i, point in enumerate(self.prediction):
-                    #     x, y, likelihood = point
-                        
-                    #     # If this is the first prediction for this bodypart, use it directly
-                    #     if self.recent_predictions[i] is None:
-                    #         smoothed_x, smoothed_y = x, y
-                    #     # If confidence is low, use the last known good position
-                    #     elif likelihood < self.interp_thresh:
-                    #         smoothed_x, smoothed_y = self.recent_predictions[i]
-                    #     # Otherwise, apply exponential moving average smoothing
-                    #     else:
-                    #         prev_x, prev_y = self.recent_predictions[i]
-                    #         smoothed_x = self.alpha * x + (1 - self.alpha) * prev_x
-                    #         smoothed_y = self.alpha * y + (1 - self.alpha) * prev_y
-                        
-                    #     # Store the smoothed position for next frame
-                    #     self.recent_predictions[i] = (smoothed_x, smoothed_y)
-                    #     smoothed_prediction[i] = [smoothed_x, smoothed_y, likelihood]
                     
                     # Save prediction for analysis
                     self.predictions.append(smoothed_prediction)
@@ -441,15 +282,15 @@ class Processor(Actor):
                         smoothed_angle = np.mean(self.angle_queue) if len(self.angle_queue) > 0 else angle
 
                         # Apply sudden jump detection on the smoothed angle
-                        if self.prev_angle is not None and np.abs(smoothed_angle - self.prev_angle) > 50000:
+                        if self.prev_angle is not None and np.abs(smoothed_angle - self.prev_angle) > 50:
                             smoothed_angle = self.prev_angle  # ignore sudden large jumps
                         self.prev_angle = smoothed_angle
                     else:
-                        self.angle_queue.append(smoothed_prediction[0])  # Just treat the x value as angle for queue
+                        self.angle_queue.append(smoothed_prediction[0][0])  # Just treat the x value as angle for queue
                         smoothed_angle = np.mean(self.angle_queue) if len(self.angle_queue) > 0 else angle
 
                         # Apply sudden jump detection on the smoothed angle
-                        if self.prev_angle is not None and np.abs(smoothed_angle - self.prev_angle) > 50000:
+                        if self.prev_angle is not None and np.abs(smoothed_angle - self.prev_angle) > 50:
                             smoothed_angle = self.prev_angle  # ignore sudden large jumps
                         self.prev_angle = smoothed_angle
                         # angle = None
@@ -482,7 +323,7 @@ class Processor(Actor):
                 
                 try:
                     self.q_out.put([smoothed_prediction, smoothed_angle])
-                    logger.info(f"Processor camera {self.camera_num}: Sent prediction and angle {smoothed_prediction}, {smoothed_angle}")
+                    # logger.info(f"Processor camera {self.camera_num}: Sent prediction and angle {smoothed_prediction}, {smoothed_angle}")
 
                 except Exception as e:
                     logger.error(f"Processor Exception: {e}")
