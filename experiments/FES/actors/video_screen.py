@@ -95,8 +95,10 @@ class VideoScreen(ManagedActor):
         self.pred_latencies = []
         self.frame_count = 0
 
+        date = time.strftime("%Y%m%d")
         timestamp = time.strftime("%Y%m%d-%H%M")
-        self.out_folder = Path(f"/home/chesteklab/predictions/{timestamp}")
+        string = '/home/chesteklab/predictions'
+        self.out_folder = Path(f"{string}/{date}/{timestamp}")
         self.out_folder.mkdir(parents=True, exist_ok=True)
         logger.info(f"Output folder set to {self.out_folder}")
 
@@ -147,7 +149,7 @@ class VideoScreen(ManagedActor):
             logger.info(len(self.pred_latencies))
             logger.info(f"error on {camera_id} [frame: {frame_id}]")
             frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
-            logger.debug(f'Exception getting frame for camera {camera_id}: {traceback.format_exc()}')
+            logger.info(f'Exception getting frame for camera {camera_id}: {traceback.format_exc()}')
         # self.frame_latencies.append(time.perf_counter())
 
         try:
@@ -164,9 +166,10 @@ class VideoScreen(ManagedActor):
 
             self.pred_latencies.append(time.perf_counter() - pred_start)
         except queue.Empty:
-            # logger.debug(f'No prediction available for camera {camera_id}')
+            # logger.info(f'No prediction available for camera {camera_id}. Empty Queue.')
             pass
         except KeyError:
+            # logger.info(f'No prediction available for camera {camera_id}. Key Error.')
             pass
         except Exception as e:
             logger.error(f"Error getting frame for camera {camera_id}: {e}")
@@ -174,7 +177,7 @@ class VideoScreen(ManagedActor):
             logger.info(len(self.pred_latencies))
             logger.info(f"error on {camera_id} [frame: {frame_id}]")
             frame = np.zeros((self.frame_h, self.frame_w, 3), dtype=np.uint8)
-            logger.debug(f'Unexpected error getting prediction for camera {camera_id}: {traceback.format_exc()}')
+            logger.info(f'Unexpected error getting prediction for camera {camera_id}: {traceback.format_exc()}')
             # pass
 
         return frame,predictions,angle

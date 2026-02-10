@@ -4,6 +4,8 @@ import socket
 import numpy as np
 import logging
 from pathlib import Path
+
+import yaml
 from improv.actor import Actor
 
 logger = logging.getLogger(__name__)
@@ -67,10 +69,18 @@ class Receiver(Actor):
         # Initialize data storage lists (similar to processor.py)
         self.timestamps = []
         self.fpos_data = []
+        
+         # load the configuration file
+        source_folder = Path(__file__).resolve().parent.parent
 
+        with open(f'{source_folder}/config.yaml', 'r') as file:
+            config = yaml.safe_load(file)
+    
 
+        date = time.strftime("%Y%m%d")
         timestamp = time.strftime("%Y%m%d-%H%M")
-        self.out_folder = Path(f"/home/chesteklab/predictions/{timestamp}")
+        string = config['output_path']
+        self.out_folder = Path(f"{string}/{date}/{timestamp}")
         self.out_folder.mkdir(parents=True, exist_ok=True)
         
         logger.info("Completed setup for UDPReceiver")

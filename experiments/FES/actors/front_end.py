@@ -119,7 +119,7 @@ class CameraStreamWidget(QWidget):
 
             logger.info(f'Front End Setup completed')
         except Exception as e:
-            logger.error(f'Setup failed due to {e}')
+            logger.info(f'Setup failed due to {e}')
             traceback.format_exc()
 
     def _update_viewbox2(self):
@@ -143,7 +143,7 @@ class CameraStreamWidget(QWidget):
 
                 # Cache the angle if it's valid
                 if angle is not None:
-                    self.last_angles[camera_id] = angle
+                    self.last_angles[camera_id] = angle/self.resize if camera_id ==2 else angle
 
                 # Use cached predictions if current ones are None
                 display_predictions = predictions if predictions is not None else self.last_predictions[camera_id]
@@ -177,7 +177,7 @@ class CameraStreamWidget(QWidget):
             except Exception as e:
                 blank_frame = np.zeros((self.visual.frame_h, self.visual.frame_w, 3), dtype=np.uint8)
                 self.display_frame(blank_frame, None, self.camera_labels[camera_id], 0.0, camera_id)
-                logger.debug(f"No frame available for camera {camera_id}")
+                logger.info(f"No frame available for camera {camera_id}")
 
     def display_frame(self, frame, predictions, label, angle, camera_id=None):
         """Convert frame to QImage, plot predictions if available, and display it in QLabel."""
@@ -195,7 +195,7 @@ class CameraStreamWidget(QWidget):
         
         # Draw predictions if available
         if predictions is not None:
-            logger.debug(f"PREDICTIONS: {predictions}")
+            # logger.info(f"PREDICTIONS: {predictions}")
             painter.setBrush(QBrush(QColor(255, 0, 0)))
 
             # Set labels based on camera_id

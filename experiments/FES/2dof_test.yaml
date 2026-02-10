@@ -15,12 +15,14 @@ actors:
     class: Processor
     pred_active: True
     camera_num: 0
+    method: spawn
 
   Processor2:
     package: actors.processor
     class: Processor
     pred_active: True
     camera_num: 2
+    method: spawn
 
 # Uncomment this to run psuedo cameras
   Generator0:
@@ -55,10 +57,10 @@ actors:
     camera_num: 2
     method: spawn
 
-  # Receiver:
-  #   package: actors.recieverActor
-  #   class: Receiver
-  #   method: spawn
+  Receiver:
+    package: actors.recieverActor
+    class: Receiver
+    method: spawn
 
   # Sender:
   #   package: actors.sender
