@@ -138,5 +138,6 @@ class Sender(Actor):
 
     def stop(self):
         logger.info("Stopping Sender")
-        # self.ser.close()  #Not sure if this is necessary
+        if hasattr(self, 'ser') and self.ser.is_open:
+            self.ser.close()
         logger.info("Sender stopped")

@@ -43,7 +43,7 @@ class Receiver(Actor):
         # Create and bind socket
         self.sock_receive = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock_receive.bind((self.UDP_IP_receive, self.UDP_PORT_receive))
-        # self.sock_receive.settimeout(0.1)  # Non-blocking with short timeout
+        self.sock_receive.settimeout(0.1)  # Non-blocking with short timeout
         
         # Data parsing parameters
         self.data_lengths = [            # should add up to 832 (July 2022)

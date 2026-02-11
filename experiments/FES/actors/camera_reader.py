@@ -91,5 +91,6 @@ class CameraReader(ManagedActor):
         logger.info(f"[Camera {self.camera_name}] - CameraReader stopping")   
 
         self.stop_program.value = True
-        self.camera_interface.stop_pipeline()
+        if self.camera_interface is not None:
+            self.camera_interface.stop_pipeline()
         logger.info(f"[Camera {self.camera_name}] - CameraReader stopped")   

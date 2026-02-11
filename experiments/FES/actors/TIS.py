@@ -271,6 +271,7 @@ class TIS:
         
         self.pipeline.set_state(Gst.State.PAUSED)
         self.pipeline.set_state(Gst.State.READY)
+        self.pipeline.set_state(Gst.State.NULL)
 
         if hasattr(self, 'total_start_time'):
             recording_duration = stop_time - self.total_start_time

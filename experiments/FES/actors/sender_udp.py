@@ -46,7 +46,7 @@ class SenderUDP(Actor):
         """Main execution step - get data from queue and send as UDP packet."""
         try:
             # Get data from input queue
-            element = self.q_in.get()
+            element = self.q_in.get(timeout=0.1)
             logger.debug(f"Received element from queue: {element}")
             
             # Extract angle or data from the element

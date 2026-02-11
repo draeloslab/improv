@@ -61,6 +61,7 @@ class Generator(Actor):
         self.out_folder.mkdir(parents=True, exist_ok=True)
         logger.info(f"Output folder set to {self.out_folder}")
         logger.info(f'Total frames: {total_frames}')
+        self.done = False
         logger.info("Completed setup for Generator")
 
     def stop(self):
@@ -77,6 +78,9 @@ class Generator(Actor):
 
     def runStep(self):
 
+        if self.done:
+            return
+
         if self.cap and self.cap.isOpened():
             frame_start = time.time()
             self.start.append(frame_start)
@@ -84,7 +88,7 @@ class Generator(Actor):
             ret, self.frame = self.cap.read()
             if not ret:
                 logger.info("End of video")
-                self.stop()
+                self.done = True
                 return
             def resize_frame(frame, resize):
                 return cv2.resize(frame, (int(frame.shape[1] * resize), int(frame.shape[0] * resize)))
