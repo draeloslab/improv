@@ -11,7 +11,7 @@ import pickle
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-from gen_stim import StimulusSpace
+from experiments.burgess.gen_stim import StimulusSpace
 
 class VizStimAnalysis(Actor):
 
@@ -88,6 +88,8 @@ class VizStimAnalysis(Actor):
         dims = [getattr(self, f'x_{label}').shape[0] for label in self.stim_space['labels']]
         self.all_y = np.zeros((500, *dims)) #NOTE: what is 500? 
         self.stim_count = np.zeros((dims))
+        self.total_stim_counts = None
+        self.old_stim_num = 0 
 
         self.stimX = []
         self.stimY = []
@@ -118,7 +120,9 @@ class VizStimAnalysis(Actor):
 
         with open("output/analysis_stimY.pkl", 'wb') as f:
             pickle.dump(self.stimY, f)
-        
+        with open("output/analysis_stimX.pkl", 'wb') as f:
+            pickle.dump(self.stimX, f)
+            
         stim = []
         for i in self.allStims.keys():
             stim.append(self.allStims[i])
@@ -166,6 +170,9 @@ class VizStimAnalysis(Actor):
                 self.updateStim_start(sig)
                 logger.info('we called updatedStim_start')
                 self.stimText = list(sig.values())
+                self.total_stim_counts = self.stimText[-1][-1]
+                logger.info('total_stim_counts: {}'.format(self.total_stim_counts)) # add a logger: when send to optimizer
+                self.should_send_frame_num = self.frame + self.after_amount
             except Empty as e:
                 pass #no change in input stimulus
                 # logger.error(f'an error occcured: {e}', exc_info=True)
@@ -197,8 +204,11 @@ class VizStimAnalysis(Actor):
 
             # logger.info('BEFORE putAnalysis() -- Call = {}'.format(self.Call))
             # logger.info('BEFORE putAnalysis() -- Cx = {}'.format(self.Cx))
-            self.putAnalysis()
             self.putStimulus()
+            self.putAnalysis()  # put analysis after putting stim to reduce lag?
+            if self.total_stim_counts > self.old_stim_num: 
+                logger.info('sent stimX and stimY to optimizer at frame: {}'.format(self.frame))
+                self.old_stim_num = self.total_stim_counts
             self.timestamp.append([time.time(), self.frame])
             self.total_times.append(time.time()-t)
         except ObjectNotFoundError:
@@ -218,13 +228,12 @@ class VizStimAnalysis(Actor):
         '''
         # get frame number and stimID
         frame = list(stim.keys())[0]
-        whichStim = stim[frame][0]
+        whichStim = stim[frame][0][0]
         # convert stimID into 8 cardinal directions
         stimID = self.IDstim(int(whichStim))
 
         for i, label in enumerate(self.stim_space['labels']):
-            # logger.info('looking for {} in {}'.format(stim[frame][i], getattr(self, f'x_{label}')))
-            self.xs[label] = np.argwhere(stim[frame][i] == getattr(self, f'x_{label}'))[0]
+            self.xs[label] = np.argwhere(stim[frame][0][i] == getattr(self, f'x_{label}'))[0]
 
         # self.stim_count[int(self.xs['angle']), int(self.xs['vel']), int(self.xs['size']), int(self.xs['freq'])] += 1
         self.stim_count[tuple(int(idx[0]) for idx in self.xs.values())] += 1
@@ -300,7 +309,9 @@ class VizStimAnalysis(Actor):
         ids.append(self.client.put(self.frame))
         ids.append(self.client.put(self.testNum)) #, 'stim_testNum'+str(self.frame)))
         ids.append(self.client.put(self.nID))     #, 'stim_nID'+str(self.frame)))
+        ids.append(self.client.put(self.total_stim_counts))
         self.links['stim_out'].put(ids)
+        # logger.info('sent stimX and stimY to optimizer at frame: {}'.format(self.frame))
 
     def stimAvg_start(self):
         t = time.time()
@@ -374,6 +385,8 @@ class VizStimAnalysis(Actor):
                 logger.info('appending to X: {}'.format(list(self.xs.values())))
                 self.stimX.append(list(self.xs.values()))
                 self.stimY.append(np.mean(ests[:,self.frame-self.after_amount:self.frame],1))
+                logger.info(f"done appending at frame {self.frame}. before the estimated frame num {self.should_send_frame_num}? {self.frame <= self.should_send_frame_num}")
+                logger.info(f"we have {ests.shape[0]} neurons right now")
                 self.testNum += 1
                 sc = self.stim_count[tuple(int(idx[0]) for idx in self.xs.values())]
                 numN = self.ests.shape[0]

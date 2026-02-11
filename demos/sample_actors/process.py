@@ -17,6 +17,7 @@ from improv.actor import Actor
 from improv.store import ObjectNotFoundError
 
 import logging
+import pickle
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -103,6 +104,8 @@ class CaimanProcessor(Actor):
         print(self.coords1[0])
         print("type ", type(self.coords1[0]))
         np.savetxt("output/contours.txt", np.array(self.coords1))
+        with open("output/coords.pkl", 'wb') as f:
+            pickle.dump(self.coords, f)
 
     def runStep(self):
         """Run process. Runs once per frame.
