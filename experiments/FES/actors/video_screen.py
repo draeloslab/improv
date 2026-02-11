@@ -117,7 +117,7 @@ class VideoScreen(ManagedActor):
         self.videoStarts.append(time.time())
         frame_start = time.perf_counter()    
         try:
-            frame_id = self.links[f"images{camera_id}_in"].get(timeout=0.01)
+            frame_id, camera_start = self.links[f"images{camera_id}_in"].get(timeout=0.01)
             # frame_start = time.perf_counter()
             if frame_id is not None:
                 frame = self.client.get(frame_id)

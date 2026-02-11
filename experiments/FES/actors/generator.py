@@ -78,7 +78,8 @@ class Generator(Actor):
     def runStep(self):
 
         if self.cap and self.cap.isOpened():
-            self.start.append(time.time())
+            frame_start = time.time()
+            self.start.append(frame_start)
             self.start_perf = time.perf_counter()
             ret, self.frame = self.cap.read()
             if not ret:
@@ -94,7 +95,7 @@ class Generator(Actor):
             data_id = self.client.put(self.frame)
             # logger.info('Put data in store')
             try:
-                self.q_out.put(data_id)
+                self.q_out.put([data_id, frame_start])
                 # logger.info("Sent message on")
 
             except Exception as e:

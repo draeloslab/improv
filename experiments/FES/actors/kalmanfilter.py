@@ -102,7 +102,7 @@ class KalmanFilterPredictor():
 
     def _get_future_pose(self, dt):
 
-        Ff = self._get_forward_model(dt)
+        Ff = self._get_forward_model(time.time() - self.last_pose_time)
         Xf = np.dot(Ff, self.X)
         future_pose = Xf[: (self.bp * 2)].reshape(self.bp, 2)
 

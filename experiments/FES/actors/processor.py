@@ -102,7 +102,7 @@ class Processor(Actor):
 
             # Initializing Kalman Filter with smoother parameters
             self.kalman_filter = KalmanFilterPredictor(
-                adapt=False,
+                adapt=True,
                 forward=0.002,
                 fps=30,  
                 nderiv=2,
@@ -110,7 +110,7 @@ class Processor(Actor):
                 initial_var=10,    
                 process_var=1,     
                 dlc_var=10,        
-                lik_thresh=0.2     
+                lik_thresh=0.6     
             )
             logger.info(f'Kalman filter initialized for camera {self.camera_num}')
 
@@ -179,7 +179,7 @@ class Processor(Actor):
             self.start_time.append(time.time())
             
             try:
-                frame_id = self.q_in.get(timeout=0.01)
+                frame_id, camera_start = self.q_in.get(timeout=0.01)
                 self.start_perf = time.perf_counter()
                 # start_time = time.perf_counter()
 
@@ -261,7 +261,7 @@ class Processor(Actor):
                     # logger.info(f"Time {kalman_time}")
                     try:
                         # assert True==False
-                        smoothed_prediction = self.kalman_filter.process(self.prediction)
+                        smoothed_prediction = self.kalman_filter.process(self.prediction,frame_time=camera_start)
                     except Exception as e:
                         logger.error(f"Kalman filter processing error: {e}")
                         logger.error(traceback.format_exc())

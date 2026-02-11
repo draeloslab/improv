@@ -206,7 +206,8 @@ class TIS:
 
         if sample is not None and self.sharing_on:
             buf = sample.get_buffer()
-            self.cameraStarts.append(time.time())
+            camera_start = time.time()
+            self.cameraStarts.append(camera_start)
 
 
             frame = self.__convert_to_numpy(buf.extract_dup(0, buf.get_size()), sample.get_caps())
@@ -221,7 +222,7 @@ class TIS:
                 if frame_enc is None:
                     logger.error(f"[Camera {self.camera_name}] Encoded frame is None!")
                 data_id = self.client.put(frame_enc)
-                self.q_out.put(data_id)
+                self.q_out.put([data_id, camera_start])
                 self.camera_latencies.append(time.perf_counter() - frame_time)
 
                 delay = time.perf_counter() - frame_time
