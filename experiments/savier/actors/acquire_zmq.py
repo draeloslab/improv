@@ -317,7 +317,7 @@ class ZMQAcquirer(Actor):
                     # Adjust angle to match stimulus space, remapping to the "center" of the stimulus screen
                     center_x = 850
                     center_y = 1000
-                logger.info('Stimulus: Moving dots at angle {} and speed {}'.format(angle, speed))
+                logger.info('Stimulus: {} Moving dots with size {} at angle {} and speed {}'.format(freq, size, angle, speed))
 
 
         elif msg_dict['texture']['texture_name'] == 'grating_gray':
