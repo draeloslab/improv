@@ -115,6 +115,7 @@ class BayesOptimizer(Actor):
         np.save('output/stopping_list.npy', np.array(self.stopping_list))
         np.save('output/peak_list.npy', np.array(self.peak_list))
         np.save('output/optim_f_list.npy', np.array(self.optim_f_list))
+        np.save('output/X_optimizer.npy', np.array(self.X))
         # np.save('output/optimizer_start_stimulus.npy', np.array(self.start_stimulus))
 
         try:
@@ -134,8 +135,6 @@ class BayesOptimizer(Actor):
 
             # logger.info('X: {}'.format(X))
 
-            if len(X) > 1:
-                X = X[-1]
             tmpX = np.squeeze(np.array(X)).T
             # logger.info(f'{tmpX.shape}, {len(Y)}----------------------------------------------------')
             sh = len(tmpX.shape)
@@ -143,12 +142,9 @@ class BayesOptimizer(Actor):
                 self.X_all = tmpX.copy()
                 if tmpX.shape[1] > 4:
                     self.X_all = tmpX[:, -tmpX.shape[1]:]
-                logger.info('self.X_all has shape {}'.format(self.X_all.shape))
-                
 
             try:
-                # b = np.zeros([len(Y),len(max(Y,key = lambda x: len(x)))])
-                b = np.full([len(Y),len(max(Y,key = lambda x: len(x)))], np.nan)  # FIXME: change to nan instead of 0
+                b = np.full([len(Y),len(max(Y,key = lambda x: len(x)))], np.nan)  
                 for i,j in enumerate(Y):
                     b[i][:len(j)] = j
                 self.y0 = b.T
@@ -176,7 +172,7 @@ class BayesOptimizer(Actor):
                 logger.info('calibration_stim set: {}'.format(self.stim_ind))
             
             if (time.time() - self.timer) >= self.total_stim_time:
-                self.links['stim_ind_out'].put(self.stim_ind)
+                self.links['stim_ind_out'].put([self.stim_ind, 'calibration'])
                 # stim_flag = 'calibration'
                 # self.links['stim_flag_out'].put(stim_flag)
                 self.stim_ind = None
@@ -210,7 +206,7 @@ class BayesOptimizer(Actor):
                 # self.stim_ind, flag = self.stimuli_space.initial_stim(self.stimuli, self.counter)
 
             if (time.time() - self.timer) >= self.total_stim_time:
-                self.links['stim_ind_out'].put(self.stim_ind)
+                self.links['stim_ind_out'].put([self.stim_ind, 'initial'])
                 # stim_flag = 'initial'
                 # self.links['stim_flag_out'].put(stim_flag)
                 self.stim_ind = None
@@ -230,8 +226,9 @@ class BayesOptimizer(Actor):
     
         elif self.newN:
             logger.info("Reducing X from 8D to 5D for optimization - init")
+            # logger.info(f"here is x_all yo: {self.X_all}")
             self.X = self.stimuli_space.param_space_shrinking(self.X_all) 
-            logger.info('self.X has shape {} - init'.format(self.X.shape))
+            # logger.info('self.X in INITIALIZATION is {} and has shape {} - init'.format(self.X, self.X.shape))
 
             nonopt = np.array(list(set(np.arange(self.y0.shape[0]))-set(self.optimized_n)))
             logger.info('nonopt is {}, number of neurons {}'.format(nonopt,self.y0.shape[0]))
@@ -305,15 +302,9 @@ class BayesOptimizer(Actor):
                 # self.stim_ind = next_ind  # prevents duplicate update on X[:,-1], y[-1]
         
         else:
-            if self.X.shape[0] > self.d:
-                logger.info("Reducing X from 8D to 5D for optimization - update")
-                # tmpX_copy = tmpX.copy()
+            # logger.info("Reducing X from 8D to 5D for optimization - update")
+            self.X = self.stimuli_space.param_space_shrinking(self.X_all) 
 
-                self.X = np.delete(self.X_all, [4,5,7], axis=0)
-                logger.info('self.X has shape {} in update'.format(self.X.shape))
-            # else:
-                # logger.info(f"HAHAHHAHA X shape is {self.X.shape} in update and here is self.d {self.d}")
-            # need to update the GP
             t_update = time.time()
             if self.stim_ind is None: 
                 # X = np.zeros(self.d) 
@@ -378,7 +369,7 @@ class BayesOptimizer(Actor):
 
             # Need to send ind to stimulus actor to create this stim request ??
             if (time.time() - self.timer) >= self.total_stim_time:
-                self.links['stim_ind_out'].put(self.stim_ind)
+                self.links['stim_ind_out'].put([self.stim_ind, 'optim'])
                 # self.links['stim_flag_out'].put(stim_flag)
                 self.stim_ind = None
                 self.timer = time.time()
