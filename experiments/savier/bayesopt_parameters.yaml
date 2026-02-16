@@ -1,13 +1,13 @@
 General:
   seed: 42
   init_T: 4
-  max_tests: 15
+  max_tests: 5 #15
   improv: True
 
 Stimuli:
   d: 5
   x1_range: 8 #8 #5
-  x2_range: 7
+  x2_range: 6
   x3_range: 5
   x4_range: 4
   x5_range: 3
