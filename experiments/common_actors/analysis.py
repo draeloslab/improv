@@ -18,11 +18,10 @@ class VizStimAnalysis(Actor):
     def __init__(self, *args, stimuli = None, before_amount=2, after_amount=10, calc_color = True, **kwargs):
         super().__init__(*args)
 
-        # self.stimuli = np.load(stimuli, allow_pickle=True)
+        
         self.stimuli_space = StimulusSpace()
         self.stim_space = self.stimuli_space.stim_space
         self.stim_space_dim = self.stimuli_space.param_space_size
-        # self.stimuli = np.array([np.sort(stim) for stim in self.stim_space['stimuli']], dtype=object)
         self.stimuli = self.stim_space['stimuli']
         self.d = self.stimuli.shape[0]
         self.param_space = self.stimuli_space.param_space
@@ -200,8 +199,8 @@ class VizStimAnalysis(Actor):
         multi_idx = np.asarray(multi_idx, dtype=int)
         # logger.info('multi_idx: {}'.format(multi_idx))
 
-        self.xs = np.vstack([self.xs, multi_idx])
-        # logger.info('xs: {}'.format(self.xs))
+        self.xs = multi_idx #np.vstack([self.xs, multi_idx])
+        logger.info('xs: {}'.format(self.xs))
         
         self.stim_count[whichStim] += 1
         # logger.info('stim_count: {}'.format(self.stim_count))
@@ -282,7 +281,7 @@ class VizStimAnalysis(Actor):
                 self.counter[self.currentStim, 0] += 1
 
             if self.frame == self.stimStart + self.after_amount:
-                logger.info('appending to X')
+                logger.info('appending to X: {}'.format(self.xs))
 
                 self.stimX.append(self.xs)
                 self.stimY.append(np.mean(ests[:, self.frame-self.after_amount:self.frame], 1))
@@ -293,7 +292,6 @@ class VizStimAnalysis(Actor):
                 
                 sc = self.stim_count[self.currentStim]
                 idx = int(self.currentStim)
-                # self.all_y[(slice(0, numN), + idx)] = ((sc-1) * self.all_y[(slice(0, numN), ) + idx] + self.stimY[-1]) / sc
                 self.all_y[:numN, idx] = ((sc-1) * self.all_y[:numN, idx] + self.stimY[-1]) / sc
         
         self.estsAvg = np.squeeze(self.ests[:, :, 0] - self.ests[:, :, 1])
