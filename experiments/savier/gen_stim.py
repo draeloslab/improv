@@ -128,9 +128,12 @@ class StimulusSpace():
         
         return parameters
     
-    def param_to_ridx(self, stimuli):
+    def param_to_ridx(self, stimuli, tag):
 
-        row_index = np.argwhere((stimuli == self.param_space).all(axis=1))[0][0]
+        if tag == 'optim':
+            row_index = np.argwhere((stimuli == self.param_space_optim).all(axis=1))[0][0]
+        else:
+            row_index = np.argwhere((stimuli == self.param_space).all(axis=1))[0][0]
 
         return row_index
 
