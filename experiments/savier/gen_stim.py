@@ -18,7 +18,7 @@ class StimulusSpace():
 
         labels = ['angle', 'speed', 'size', 'frequency', 'center_x', 'center_y', 'contrast', 'shape']
         self.stim = np.array([x1, x2, x3, x4, x5, x6, x7, x8], dtype=object)
-        self.stim_optim = np.array([x1, x2, x3, x4, x7], dtype=object)
+        self.stim_optim = np.array([x1, x2[1:], x3, x4, x7], dtype=object)
 
         param_space_grid = np.meshgrid(*self.stim, indexing='ij')
         param_space_full = np.stack(param_space_grid, axis=-1).reshape(-1, len(self.stim)) 
@@ -26,7 +26,7 @@ class StimulusSpace():
         index_grids = np.meshgrid(*(np.arange(len(s)) for s in self.stim), indexing='ij')
         param_index_space_full = np.stack(index_grids, axis=-1).reshape(-1, len(self.stim))
 
-        # replace size, center_x, center_y params with -99 for the drift gratings stimuli (NOTE: tried to replace with NaN but it was having trouble with np.where)
+        # replaces size, center_x, center_y params with -99 for the drift gratings stimuli (NOTE: tried to replace with NaN but it was having trouble with np.where)
         mask = param_space_full[:, 7] == 1
         for i in [2, 4, 5]:
             param_space_full[mask, i] = np.nan 
@@ -39,7 +39,17 @@ class StimulusSpace():
         self.param_space_size = self.param_space.shape[0]
         self.param_index_space = param_index_space_full[idx]
 
-        #NOTE: to find the corresponding index for a given stim (np.argwhere((stim == param_space).all(axis=1))[0][0]) 
+        # param_space_optim (this will not include drift gratings or flashing spots, only moving dots)
+        mask_dg = np.any(param_space == -99, axis=1)
+        mask_fs = param_space[:, 1] == float(0)
+        mask1 = mask_dg | mask_fs
+
+        param_space_optim = self.param_space[~mask1]
+        mask_center_x = param_space_optim[:,4] == 850
+        mask_center_y = param_space_optim[:,5] == 1000
+        mask_shape = param_space_optim[:,7] == 0
+        mask2 = mask_center_x & mask_center_y & mask_shape
+        self.param_space_optim = param_space_optim[mask2]
 
         calibration_stim, self.calibration_stim_count = self.calibration_stim(self.stim)
 
@@ -99,7 +109,14 @@ class StimulusSpace():
         # translation from parameter space to index space
         indices = []
         for d, stim in enumerate(stimuli):
-            indices.append(np.argwhere(stim == self.stim[d])[0][0])
+            stim_space = self.stim[d]
+            matches = np.where(stim_space == stim)[0]
+
+            if matches.size == 0:
+                indices.append(np.nan)
+            else:
+                indices.append(int(matches[0]))
+            # indices.append(np.argwhere(stim == self.stim[d])[0][0])
         
         return indices
 
@@ -117,9 +134,12 @@ class StimulusSpace():
 
         return row_index
 
-    def ridx_to_param(self, row_index):
+    def ridx_to_param(self, row_index, tag):
         
-        stimuli = self.param_space[row_index]
+        if tag == 'optim':
+            stimuli = self.param_space_optim[row_index]
+        else:
+            stimuli = self.param_space[row_index]
 
         return stimuli
 
