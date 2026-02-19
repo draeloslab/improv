@@ -164,7 +164,7 @@ class CameraStreamWidget(QWidget):
                         if angle < self.y_min:
                             self.y_min = angle
                     elif camera_id == 2 and self.visual.num_cameras > 2:  # Only if camera 2 exists
-                        angle = angle/self.resize
+                        # angle = angle/self.resize
                         self.angles_cam2.append(angle)
                         if len(self.angles_cam2) > 100:  # Limit to the latest 100 angles
                             self.angles_cam2.pop(0)
@@ -225,6 +225,7 @@ class CameraStreamWidget(QWidget):
         painter.setFont(QFont("Arial", 50))  # Set font size for angle text
         angle_text = f"Angle: {angle:.2f}°" if angle is not None else "Angle: N/A"
         painter.drawText(10, 50, angle_text)
+        logger.info(f"Camera {camera_id} - {angle_text}")
         painter.end()
 
         pixmap = QPixmap.fromImage(q_img)

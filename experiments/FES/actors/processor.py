@@ -249,6 +249,8 @@ class Processor(Actor):
                     if self.camera_num == 0:
                         # Use first 4 bodyparts for camera 0
                         self.prediction = self.prediction[:4]
+                        #if using the multi finger model need body parts 4,5,6,7 instead of 0,1,2,3
+                        # self.prediction = self.prediction[3:7]
                     elif self.camera_num == 2:
                         # Use only the last bodypart for camera 2
                         # self.prediction = self.prediction[-1:]
@@ -322,7 +324,8 @@ class Processor(Actor):
                 
                 
                 try:
-                    self.q_out.put([smoothed_prediction, smoothed_angle])
+                    smoothed_angle = smoothed_angle/self.resize if self.camera_num == 2 else smoothed_angle
+                    self.q_out.put([smoothed_prediction, 100 * (self.camera_num + 1)])  # Add camera number to angle for debugging
                     # logger.info(f"Processor camera {self.camera_num}: Sent prediction and angle {smoothed_prediction}, {smoothed_angle}")
 
                 except Exception as e:

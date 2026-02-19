@@ -280,9 +280,10 @@ class TIS:
             logger.info(f"[Camera {self.camera_name}] reader stopped. Total frames: {self.total_frame_count}")
 
         
-        np.save(self.out_folder / "TISlatencies.npy", self.camera_latencies)
-        np.save(self.out_folder / "TISstarts.npy", self.cameraStarts)
-        np.save(self.out_folder / "TISlatenciesFull.npy", self.camera_latenciesFull)
+        np.save(self.out_folder / f"TISlatencies_{self.camera_name}.npy", self.camera_latencies)
+        np.save(self.out_folder / f"TISstarts_{self.camera_name}.npy", self.cameraStarts)
+        np.save(self.out_folder / f"TISlatenciesFull_{self.camera_name}.npy", self.camera_latenciesFull)
+
 
         logger.info(f"TIS latencies saved to {self.out_folder}")
 

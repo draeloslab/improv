@@ -1,9 +1,12 @@
 import time
+import numpy
 import serial
 import logging
 from improv.actor import Actor
 from pathlib import Path
 import yaml
+import numpy as np
+from collections import deque
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -47,6 +50,23 @@ class Sender(Actor):
 
         self.last_angle = 0
         self.last_angle2 = 0
+
+        self.packet_n = 0
+
+        self.top_max = 0
+        self.top_min =np.inf
+
+        self.side_max = 0
+        self.side_min = np.inf
+
+        # Rolling window for robust min/max tracking
+        self.window_size = 1000  # Store last 1000 values
+        self.top_angle_history = deque(maxlen=self.window_size)
+        self.side_angle_history = deque(maxlen=self.window_size)
+        
+        # Percentiles for robust min/max (filters outliers)
+        self.min_percentile = 5  # 5th percentile as "true min"
+        self.max_percentile = 95  # 95th percentile as "true max"
 
         # Load the configuration file
         source_folder = Path(__file__).resolve().parent.parent
@@ -95,7 +115,7 @@ class Sender(Actor):
             element = self.links["preds0_in"].get(timeout=0.0001)
             _ ,angle = element
             # angle = self.normalize_to_range(angle, 120,150)
-            self.last_angle = angle*6  # Store the angle for reuse
+            self.last_angle = angle  # Store the angle for reuse
             # logger.info(f'recieved angle {self.last_angle}, from camera 0')
         except Exception as e:
             # logger.info(f'Error in sender 0: {repr(e)}')
@@ -111,7 +131,7 @@ class Sender(Actor):
             #Processor 2
             element2 = self.links["preds2_in"].get(timeout=0.0001)
             _ ,angle2 = element2
-            angle2 = angle2/self.resize
+            # angle2 = angle2/self.resize
             # angle2 = self.normalize_to_range(angle2, 410,580)
             self.last_angle2 = angle2  # Store the angle for reuse
             # logger.info(f'recieved angle {angle2}, from camera 2')
@@ -125,13 +145,32 @@ class Sender(Actor):
             # angle2 = self.last_angle2
 
         # Create message packet
-        logger.info(f'Sending angles: {self.last_angle} and {self.last_angle2}')
+        if self.packet_n % 1000 == 0:  # Log every 100 packets
+            logger.info(f'Sending angles: {self.last_angle} and {self.last_angle2}')
+            logger.info(f'Current top angle range: {self.top_min} to {self.top_max}')
+            logger.info(f'Current side angle range: {self.side_min} to {self.side_max}')
+
+        # Add current angles to history
+        self.top_angle_history.append(self.last_angle)
+        self.side_angle_history.append(self.last_angle2)
+        
+        # Update smoothed min/max using percentiles (resistant to outliers)
+        if len(self.top_angle_history) >= 10:  # Wait for enough data
+            self.top_min = np.percentile(self.top_angle_history, self.min_percentile)
+            self.top_max = np.percentile(self.top_angle_history, self.max_percentile)
+        
+        if len(self.side_angle_history) >= 10:  # Wait for enough data
+            self.side_min = np.percentile(self.side_angle_history, self.min_percentile)
+            self.side_max = np.percentile(self.side_angle_history, self.max_percentile)
+
+
         valspack = self.pack_bytes([0,0,self.last_angle,0,self.last_angle2,0,0])
-        # logger.info(f'Sending packed values: {valspack.hex()}')
+        logger.info(f'Sending packed values: {valspack.hex()}')
 
 
         # Send the message through UART
         self.ser.write(valspack)
+        self.packet_n += 1
         # logger.info(f"Sent packet: {valspack.hex()}")
 
 
