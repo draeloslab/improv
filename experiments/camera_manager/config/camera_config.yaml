@@ -6,7 +6,7 @@ camera_params:
 active_cameras:
   - camera:
       name: "top"
-      serial_id: "49320579-aravis"
+      serial_id: "45324225-aravis"
   - camera:
       name: "left"
       serial_id: "45324225-aravis"

@@ -143,7 +143,7 @@ class CameraStreamWidget(QWidget):
 
                 # Cache the angle if it's valid
                 if angle is not None:
-                    self.last_angles[camera_id] = angle/self.resize if camera_id ==2 else angle
+                    self.last_angles[camera_id] = angle
 
                 # Use cached predictions if current ones are None
                 display_predictions = predictions if predictions is not None else self.last_predictions[camera_id]
@@ -225,7 +225,7 @@ class CameraStreamWidget(QWidget):
         painter.setFont(QFont("Arial", 50))  # Set font size for angle text
         angle_text = f"Angle: {angle:.2f}°" if angle is not None else "Angle: N/A"
         painter.drawText(10, 50, angle_text)
-        logger.info(f"Camera {camera_id} - {angle_text}")
+        # logger.info(f"Camera {camera_id} - {angle_text}")
         painter.end()
 
         pixmap = QPixmap.fromImage(q_img)
