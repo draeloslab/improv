@@ -78,6 +78,14 @@ class TIS:
         self.camera_latencies = []
         self.camera_latenciesFull = []
         self.cameraStarts = []
+
+        # --- Timing logs ---
+        self.frame_num = 0
+        # Per-step breakdown (perf_counter durations in seconds)
+        self.convert_latencies = []    # GStreamer buffer → numpy
+        self.encode_latencies = []     # cv2.imencode
+        self.store_put_latencies = []  # client.put
+        self.queue_put_latencies = []  # q_out.put
         
         date = time.strftime("%Y%m%d")
         timestamp = time.strftime("%Y%m%d-%H%M")
@@ -209,20 +217,30 @@ class TIS:
             camera_start = time.time()
             self.cameraStarts.append(camera_start)
 
-
+            # --- Step 1: Convert GStreamer buffer to numpy ---
+            t0 = time.perf_counter()
             frame = self.__convert_to_numpy(buf.extract_dup(0, buf.get_size()), sample.get_caps())
+            self.convert_latencies.append(time.perf_counter() - t0)
 
-            # frame = cv2.resize(frame, (int(frame.shape[1] * 0.5), int(frame.shape[0] * 0.5)))  # Note this will change the quality of the frame to 1440x810
-
-
-            # compress the frame before storing
-            _,frame_enc = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 60])            
+            # --- Step 2: JPEG encode ---
+            t0 = time.perf_counter()
+            _, frame_enc = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
+            self.encode_latencies.append(time.perf_counter() - t0)
 
             try:
                 if frame_enc is None:
                     logger.error(f"[Camera {self.camera_name}] Encoded frame is None!")
+
+                # --- Step 3: Store put ---
+                t0 = time.perf_counter()
                 data_id = self.client.put(frame_enc)
-                self.q_out.put([data_id, camera_start])
+                self.store_put_latencies.append(time.perf_counter() - t0)
+
+                # --- Step 4: Queue put (with frame_num for cross-actor correlation) ---
+                t0 = time.perf_counter()
+                self.q_out.put([data_id, camera_start, self.frame_num])
+                self.queue_put_latencies.append(time.perf_counter() - t0)
+
                 self.camera_latencies.append(time.perf_counter() - frame_time)
 
                 delay = time.perf_counter() - frame_time
@@ -233,17 +251,16 @@ class TIS:
                 self.total_delay += delay
                 self.frame_count += 1
                 self.total_frame_count += 1
-                # self.camera_latencies.append(time.perf_counter())
+                self.frame_num += 1
 
             except Exception as e:
                 logger.warning(f"[Camera {self.camera_name}] Could not put frame in the store | {e}")
                 pass
 
-            if self.frame_count % 600 == 0:               
+            if self.frame_count % 600 == 0 and self.frame_count > 0:
                 total_time = time.perf_counter() - self.start_time
 
-                logger.info(f"[Camera {self.camera_name}] reader FPS: {round(self.frame_count / total_time,2)} - avg delay: {self.total_delay/self.frame_count:.4f} - max delay: {self.max_delay:.4f}")                
-                # logger.info(f"{frame.shape} - size on memory: {round(frame.nbytes/(1024**2),2)}MB")
+                logger.info(f"[Camera {self.camera_name}] reader FPS: {round(self.frame_count / total_time,2)} - avg delay: {self.total_delay/self.frame_count:.4f} - max delay: {self.max_delay:.4f}")
 
                 self.total_delay = 0
                 self.max_delay = 0
@@ -279,11 +296,16 @@ class TIS:
         else:
             logger.info(f"[Camera {self.camera_name}] reader stopped. Total frames: {self.total_frame_count}")
 
-        
+        # Total latencies (legacy)
         np.save(self.out_folder / f"TISlatencies_{self.camera_name}.npy", self.camera_latencies)
         np.save(self.out_folder / f"TISstarts_{self.camera_name}.npy", self.cameraStarts)
         np.save(self.out_folder / f"TISlatenciesFull_{self.camera_name}.npy", self.camera_latenciesFull)
 
+        # Per-step breakdowns
+        np.save(self.out_folder / f"TIS_convert_{self.camera_name}.npy", self.convert_latencies)
+        np.save(self.out_folder / f"TIS_encode_{self.camera_name}.npy", self.encode_latencies)
+        np.save(self.out_folder / f"TIS_store_put_{self.camera_name}.npy", self.store_put_latencies)
+        np.save(self.out_folder / f"TIS_queue_put_{self.camera_name}.npy", self.queue_put_latencies)
 
         logger.info(f"TIS latencies saved to {self.out_folder}")
 

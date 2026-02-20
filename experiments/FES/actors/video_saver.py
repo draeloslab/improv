@@ -84,7 +84,14 @@ class VideoSaver(ManagedActor):
                 try:
                     self.start_times.append(time.time())
                     start_perf = time.perf_counter()
-                    frame_id, camera_start = self.q_in.get(timeout=1)
+                    msg = self.q_in.get(timeout=1)
+                    # Support both old [data_id, timestamp] and new [data_id, timestamp, frame_num] formats
+                    if len(msg) >= 2:
+                        frame_id = msg[0]
+                        camera_start = msg[1]
+                    else:
+                        frame_id = msg[0]
+                        camera_start = None
 
                     if frame_id is not None:
                         # Insert the frame_id into the buffer at the current index

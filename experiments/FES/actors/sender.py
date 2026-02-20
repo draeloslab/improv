@@ -6,7 +6,6 @@ from improv.actor import Actor
 from pathlib import Path
 import yaml
 import numpy as np
-from collections import deque
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -45,28 +44,42 @@ class Sender(Actor):
 
         logger.info("Completed setup for Sender")
 
-        self.top_min = 120
-        self.side_min = 120
+        self.packet_n = 0
 
         self.last_angle = 0
         self.last_angle2 = 0
 
-        self.packet_n = 0
+        self.top_angle_history = []
+        self.side_angle_history = []
 
-        self.top_max = 0
-        self.top_min =np.inf
-
-        self.side_max = 0
-        self.side_min = np.inf
-
-        # Rolling window for robust min/max tracking
-        self.window_size = 1000  # Store last 1000 values
-        self.top_angle_history = deque(maxlen=self.window_size)
-        self.side_angle_history = deque(maxlen=self.window_size)
-        
         # Percentiles for robust min/max (filters outliers)
-        self.min_percentile = 5  # 5th percentile as "true min"
-        self.max_percentile = 95  # 95th percentile as "true max"
+        self.min_percentile = 1  # 1st percentile as "true min"
+        self.max_percentile = 99  # 99th percentile as "true max"
+
+        # --- Timing logs ---
+        # Wall-clock timestamp for every UART send (time.time())
+        self.send_timestamps = []
+        # Per-packet: which frame_num from cam0 and cam2 was used for the angle
+        self.sent_frame_nums_cam0 = []
+        self.sent_frame_nums_cam2 = []
+        # Actual angle values sent each packet
+        self.sent_angles_cam0 = []
+        self.sent_angles_cam2 = []
+        # Whether each camera had a fresh prediction this step (vs stale)
+        self.fresh_cam0 = []
+        self.fresh_cam2 = []
+        # True end-to-end latency: generator_timestamp → sender UART write
+        self.true_e2e_cam0 = []
+        self.true_e2e_cam0_frame_nums = []
+        self.true_e2e_cam0_timestamps = []
+        self.true_e2e_cam2 = []
+        self.true_e2e_cam2_frame_nums = []
+        self.true_e2e_cam2_timestamps = []
+        # Sender's own step latency
+        self.step_latencies = []
+        # Track latest frame nums for staleness detection
+        self.last_frame_num_cam0 = -1
+        self.last_frame_num_cam2 = -1
 
         # Load the configuration file
         source_folder = Path(__file__).resolve().parent.parent
@@ -74,6 +87,13 @@ class Sender(Actor):
             config = yaml.safe_load(file)
 
         self.resize = config['resize']
+
+        date = time.strftime("%Y%m%d")
+        timestamp = time.strftime("%Y%m%d-%H%M")
+        string = config['output_path']
+        self.out_folder = Path(f"{string}/{date}/{timestamp}")
+        self.out_folder.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Output folder set to {self.out_folder}")
 
 
     def pack_bytes(self, adc_vals):
@@ -108,17 +128,29 @@ class Sender(Actor):
         return max(0, min(1023, int(normalized)))  # Clamp to valid range
 
     def runStep(self):
+        step_start = time.perf_counter()
+        got_fresh_cam0 = False
+        got_fresh_cam2 = False
+        camera_start_cam0 = None
+        camera_start_cam2 = None
+        frame_num_cam0 = getattr(self, 'last_frame_num_cam0', -1)
+        frame_num_cam2 = getattr(self, 'last_frame_num_cam2', -1)
 
         #Grab angle from processor
         try:
             #Processor 0
             element = self.links["preds0_in"].get(timeout=0.0001)
-            _ ,angle = element
-            # angle = self.normalize_to_range(angle, 120,150)
-            self.last_angle = angle  # Store the angle for reuse
-            # logger.info(f'recieved angle {self.last_angle}, from camera 0')
+            # Support both old [pred, angle] and new [pred, angle, camera_start, frame_num] formats
+            if len(element) == 4:
+                _, angle, camera_start_cam0, frame_num_cam0 = element
+            else:
+                _, angle = element
+                camera_start_cam0 = None
+                frame_num_cam0 = -1
+            self.last_angle = angle * 5  # Store the angle for reuse
+            self.last_frame_num_cam0 = frame_num_cam0
+            got_fresh_cam0 = True
         except Exception as e:
-            # logger.info(f'Error in sender 0: {repr(e)}')
             pass
             # # No new data available, use previous angle if it exists
             # if not hasattr(self, 'last_angle'):
@@ -130,11 +162,17 @@ class Sender(Actor):
         try:
             #Processor 2
             element2 = self.links["preds2_in"].get(timeout=0.0001)
-            _ ,angle2 = element2
-            # angle2 = angle2/self.resize
-            # angle2 = self.normalize_to_range(angle2, 410,580)
-            self.last_angle2 = angle2  # Store the angle for reuse
-            # logger.info(f'recieved angle {angle2}, from camera 2')
+            # Support both old [pred, angle] and new [pred, angle, camera_start, frame_num] formats
+            if len(element2) == 4:
+                _, angle2, camera_start_cam2, frame_num_cam2 = element2
+            else:
+                _, angle2 = element2
+                camera_start_cam2 = None
+                frame_num_cam2 = -1
+            angle2 = angle2 - 500  # BUG FIX: was `element2 - 500` which subtracted from the list
+            self.last_angle2 = angle2
+            self.last_frame_num_cam2 = frame_num_cam2
+            got_fresh_cam2 = True
         except Exception as e:
             pass
             # logger.info(f'Error in sender 2: {repr(e)}')
@@ -144,39 +182,115 @@ class Sender(Actor):
             #     return  # No data to send
             # angle2 = self.last_angle2
 
-        # Create message packet
-        if self.packet_n % 1000 == 0:  # Log every 100 packets
-            logger.info(f'Sending angles: {self.last_angle} and {self.last_angle2}')
-            logger.info(f'Current top angle range: {self.top_min} to {self.top_max}')
-            logger.info(f'Current side angle range: {self.side_min} to {self.side_max}')
+        # --- Drain generator q_in (not needed for timing anymore since
+        #     processor now passes camera_start through) ---
+        try:
+            self.q_in.get(timeout=0.0001)
+        except Exception as e:
+            pass
 
-        # Add current angles to history
+
+        # Create message packet
+        if self.packet_n % 10000 == 0:  # Log every 10000 packets
+            logger.info(f'Sending angles: {self.last_angle} and {self.last_angle2}')
+
+        # Collect angles for final min/max computation at stop()
         self.top_angle_history.append(self.last_angle)
         self.side_angle_history.append(self.last_angle2)
-        
-        # Update smoothed min/max using percentiles (resistant to outliers)
-        if len(self.top_angle_history) >= 10:  # Wait for enough data
-            self.top_min = np.percentile(self.top_angle_history, self.min_percentile)
-            self.top_max = np.percentile(self.top_angle_history, self.max_percentile)
-        
-        if len(self.side_angle_history) >= 10:  # Wait for enough data
-            self.side_min = np.percentile(self.side_angle_history, self.min_percentile)
-            self.side_max = np.percentile(self.side_angle_history, self.max_percentile)
 
 
-        valspack = self.pack_bytes([0,0,self.last_angle,0,self.last_angle2,0,0])
-        logger.info(f'Sending packed values: {valspack.hex()}')
-
+        valspack = self.pack_bytes([0, 0, self.last_angle, 0, self.last_angle2, 0])
 
         # Send the message through UART
         self.ser.write(valspack)
+        send_time = time.time()
         self.packet_n += 1
-        # logger.info(f"Sent packet: {valspack.hex()}")
+
+        # --- Log timing data ---
+        self.send_timestamps.append(send_time)
+        self.sent_frame_nums_cam0.append(frame_num_cam0)
+        self.sent_frame_nums_cam2.append(frame_num_cam2)
+        self.sent_angles_cam0.append(self.last_angle)
+        self.sent_angles_cam2.append(self.last_angle2)
+        self.fresh_cam0.append(got_fresh_cam0)
+        self.fresh_cam2.append(got_fresh_cam2)
+
+        # True end-to-end: only when we got a fresh prediction with a camera_start
+        if got_fresh_cam0 and camera_start_cam0 is not None:
+            self.true_e2e_cam0.append(send_time - camera_start_cam0)
+            self.true_e2e_cam0_frame_nums.append(frame_num_cam0)
+            self.true_e2e_cam0_timestamps.append(send_time)
+
+        if got_fresh_cam2 and camera_start_cam2 is not None:
+            self.true_e2e_cam2.append(send_time - camera_start_cam2)
+            self.true_e2e_cam2_frame_nums.append(frame_num_cam2)
+            self.true_e2e_cam2_timestamps.append(send_time)
+
+        self.step_latencies.append(time.perf_counter() - step_start)
+
+
+
+
 
 
 
     def stop(self):
         logger.info("Stopping Sender")
+
+        # Compute robust min/max once over the entire run
+        if len(self.top_angle_history) > 0:
+            top_min = np.percentile(self.top_angle_history, self.min_percentile)
+            top_max = np.percentile(self.top_angle_history, self.max_percentile)
+            logger.info(f"Top angle — robust min: {top_min}, robust max: {top_max} "
+                        f"(from {len(self.top_angle_history)} samples)")
+        else:
+            logger.info("No top angle data collected")
+
+        if len(self.side_angle_history) > 0:
+            side_min = np.percentile(self.side_angle_history, self.min_percentile)
+            side_max = np.percentile(self.side_angle_history, self.max_percentile)
+            logger.info(f"Side angle — robust min: {side_min}, robust max: {side_max} "
+                        f"(from {len(self.side_angle_history)} samples)")
+        else:
+            logger.info("No side angle data collected")
+
         if hasattr(self, 'ser') and self.ser.is_open:
             self.ser.close()
+
+        # --- Save all timing/data logs ---
+        np.save(self.out_folder / "sender_timestamps.npy", self.send_timestamps)
+        np.save(self.out_folder / "sender_step_latencies.npy", self.step_latencies)
+        np.save(self.out_folder / "sender_sent_angles_cam0.npy", self.sent_angles_cam0)
+        np.save(self.out_folder / "sender_sent_angles_cam2.npy", self.sent_angles_cam2)
+        np.save(self.out_folder / "sender_sent_frame_nums_cam0.npy", self.sent_frame_nums_cam0)
+        np.save(self.out_folder / "sender_sent_frame_nums_cam2.npy", self.sent_frame_nums_cam2)
+        np.save(self.out_folder / "sender_fresh_cam0.npy", self.fresh_cam0)
+        np.save(self.out_folder / "sender_fresh_cam2.npy", self.fresh_cam2)
+
+        # True end-to-end latencies (one entry per fresh prediction)
+        np.save(self.out_folder / "true_e2e_cam0.npy", self.true_e2e_cam0)
+        np.save(self.out_folder / "true_e2e_cam0_frame_nums.npy", self.true_e2e_cam0_frame_nums)
+        np.save(self.out_folder / "true_e2e_cam0_timestamps.npy", self.true_e2e_cam0_timestamps)
+        np.save(self.out_folder / "true_e2e_cam2.npy", self.true_e2e_cam2)
+        np.save(self.out_folder / "true_e2e_cam2_frame_nums.npy", self.true_e2e_cam2_frame_nums)
+        np.save(self.out_folder / "true_e2e_cam2_timestamps.npy", self.true_e2e_cam2_timestamps)
+
+        # Legacy files for backward compatibility
+        np.save(self.out_folder / "endtoendLatencies.npy", self.true_e2e_cam0)
+        np.save(self.out_folder / "senderStartTimes.npy", self.send_timestamps)
+
+        if len(self.true_e2e_cam0) > 0:
+            logger.info(f"True E2E cam0: mean={np.mean(self.true_e2e_cam0)*1000:.1f}ms, "
+                        f"median={np.median(self.true_e2e_cam0)*1000:.1f}ms, "
+                        f"max={np.max(self.true_e2e_cam0)*1000:.1f}ms "
+                        f"(from {len(self.true_e2e_cam0)} frames)")
+        if len(self.true_e2e_cam2) > 0:
+            logger.info(f"True E2E cam2: mean={np.mean(self.true_e2e_cam2)*1000:.1f}ms, "
+                        f"median={np.median(self.true_e2e_cam2)*1000:.1f}ms, "
+                        f"max={np.max(self.true_e2e_cam2)*1000:.1f}ms "
+                        f"(from {len(self.true_e2e_cam2)} frames)")
+        logger.info(f"Total UART packets sent: {self.packet_n}")
+        logger.info(f"Fresh cam0 predictions: {sum(self.fresh_cam0)} / {len(self.fresh_cam0)}")
+        logger.info(f"Fresh cam2 predictions: {sum(self.fresh_cam2)} / {len(self.fresh_cam2)}")
+        
         logger.info("Sender stopped")

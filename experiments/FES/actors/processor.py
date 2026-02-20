@@ -117,18 +117,8 @@ class Processor(Actor):
             self.resize = config['resize']
             self.name = "Processor"
             self.frame = None
-            # self.dlc_live = DLCLive(self.model_path, resize=self.resize, dynamic=(True, 0.9, 30))
-            # frame = np.random.rand(1080, 1920, 3)
-            # self.dlc_live.init_inference(frame)  # putting in a random frame to initialize the model
             self.predictions = []
-            self.latencies = []
-            self.latenciesFull = []
-            self.start_time = []
-            # self.dlc_latencies = []
-            # self.grab_latencies = []
-            # self.put_latencies = []    
-            self.dlc_latencies = []        
-            self.time_start = time.perf_counter()
+            self.raw_predictions = []
             self.frame_num = 0
             self.frame_sentTime = 0
             self.frames_log = 200 # num frames after which to log
@@ -138,6 +128,28 @@ class Processor(Actor):
             self.interp_thresh = config['threshold']
             self.prev_angle = None
             self.smoothed_prediction = None
+
+            # --- Timing logs ---
+            # Wall-clock timestamp when each frame starts processing (time.time())
+            self.timestamps = []
+            # Frame numbers received from generator, for cross-actor correlation
+            self.frame_nums_received = []
+            # Generator timestamps received, to compute queue wait time
+            self.generator_timestamps = []
+            # Per-step breakdowns (perf_counter durations in seconds)
+            self.queue_wait_latencies = []   # time spent waiting on q_in.get
+            self.store_get_latencies = []    # client.get
+            self.resize_latencies = []       # cv2.resize
+            self.dlc_latencies = []          # DLC inference only
+            self.kalman_latencies = []       # Kalman filter
+            self.postprocess_latencies = []  # angle calc + smoothing
+            self.queue_put_latencies = []    # q_out.put
+            # Total latencies (perf_counter)
+            self.total_latencies = []        # queue get → q_out put (full runStep work)
+            # Angles sent out, for synchronization with sender
+            self.angles_sent = []
+
+            self.time_start = time.perf_counter()
 
 
             date = time.strftime("%Y%m%d")
@@ -153,19 +165,34 @@ class Processor(Actor):
         """Stop function for saving results and cleaning up."""
         if self.pred_active:
             self.done = True
-            # np.save(self.out_folder / "latencies.npy", self.latencies)
-            np.save(self.out_folder / f"predictions_cam{self.camera_num}.npy", self.predictions)
-            np.save(self.out_folder / f"latencies_cam{self.camera_num}.npy", self.latencies)
-            np.save(self.out_folder / f"startLatencies_cam{self.camera_num}.npy", self.start_time)
-            np.save(self.out_folder / f"dlcLatencies_cam{self.camera_num}.npy", self.dlc_latencies)
-            np.save(self.out_folder / f"latenciesFull_cam{self.camera_num}.npy", self.latenciesFull)
-            # np.save(self.out_folder / "startLatencies.npy", self.start_time)
-            # np.save(self.out_folder / "dlcLatencies.npy", self.dlc_latencies)
-            # np.save(self.out_folder / "latenciesFull.npy", self.latenciesFull)
+            cam = self.camera_num
 
-            # np.save(self.out_folder / "grabLatencies.npy", self.grab_latencies)
-            # np.save(self.out_folder / "putLatencies.npy", self.put_latencies)
-            logger.info("Predictions and latencies saved")
+            # Predictions and raw data
+            np.save(self.out_folder / f"predictions_cam{cam}.npy", self.predictions)
+            np.save(self.out_folder / f"raw_predictions_cam{cam}.npy", self.raw_predictions)
+            np.save(self.out_folder / f"angles_sent_cam{cam}.npy", self.angles_sent)
+
+            # Timestamps for cross-actor correlation
+            np.save(self.out_folder / f"proc_timestamps_cam{cam}.npy", self.timestamps)
+            np.save(self.out_folder / f"proc_frame_nums_cam{cam}.npy", self.frame_nums_received)
+            np.save(self.out_folder / f"proc_gen_timestamps_cam{cam}.npy", self.generator_timestamps)
+
+            # Per-step latency breakdowns
+            np.save(self.out_folder / f"proc_queue_wait_cam{cam}.npy", self.queue_wait_latencies)
+            np.save(self.out_folder / f"proc_store_get_cam{cam}.npy", self.store_get_latencies)
+            np.save(self.out_folder / f"proc_resize_cam{cam}.npy", self.resize_latencies)
+            np.save(self.out_folder / f"proc_dlc_cam{cam}.npy", self.dlc_latencies)
+            np.save(self.out_folder / f"proc_kalman_cam{cam}.npy", self.kalman_latencies)
+            np.save(self.out_folder / f"proc_postprocess_cam{cam}.npy", self.postprocess_latencies)
+            np.save(self.out_folder / f"proc_queue_put_cam{cam}.npy", self.queue_put_latencies)
+            np.save(self.out_folder / f"proc_total_cam{cam}.npy", self.total_latencies)
+
+            # Legacy file names for backward compatibility
+            np.save(self.out_folder / f"latencies_cam{cam}.npy", self.total_latencies)
+            np.save(self.out_folder / f"startLatencies_cam{cam}.npy", self.timestamps)
+            np.save(self.out_folder / f"dlcLatencies_cam{cam}.npy", self.dlc_latencies)
+
+            logger.info(f"Processor cam{cam}: Predictions and latencies saved to {self.out_folder}")
         logger.info(f"Processor {self.name} stopped")
 
     def runStep(self):
@@ -174,59 +201,63 @@ class Processor(Actor):
         angle = None
         smoothed_prediction = None
         smoothed_angle = None  # Initialize smoothed_angle
-        # start_time = time.perf_counter()
-        if self.pred_active:
-            self.start_time.append(time.time())
-            
-            try:
-                frame_id, camera_start = self.q_in.get(timeout=0.01)
-                self.start_perf = time.perf_counter()
-                # start_time = time.perf_counter()
 
-                # logger.info(f"Frame Id received: {frame_id}")
+        if self.pred_active:
+            # --- Step 1: Queue wait (get frame from generator) ---
+            t_queue_wait = time.perf_counter()
+            try:
+                msg = self.q_in.get(timeout=0.01)
+                # Support both old [data_id, timestamp] and new [data_id, timestamp, frame_num] formats
+                if len(msg) == 3:
+                    frame_id, camera_start, gen_frame_num = msg
+                else:
+                    frame_id, camera_start = msg
+                    gen_frame_num = -1
+                t_got = time.perf_counter()
+                self.queue_wait_latencies.append(t_got - t_queue_wait)
             except Exception as e:
-                pass
-                # logger.error(f"Could not get message!  {e}")
-                # Log latency even on error
+                # No frame available, nothing to process
+                return
                 
             if frame_id is not None:
                 self.done = False
+                step_start = time.perf_counter()
+                now = time.time()
+                self.timestamps.append(now)
+                self.frame_nums_received.append(gen_frame_num)
+                self.generator_timestamps.append(camera_start)
 
                 try:
-                    # dlc_start = time.perf_counter()
+                    # --- Step 2: Store get ---
+                    t0 = time.perf_counter()
                     frame = self.client.get(frame_id)
                     if isinstance(frame, np.ndarray) and len(frame.shape) == 3:
                         pass
                     else:
                         # uncompressing the frame
                         frame = cv2.imdecode(frame, cv2.IMREAD_COLOR)
+                    self.store_get_latencies.append(time.perf_counter() - t0)
 
                     self.frame_num += 1
 
-                    # Perform inference
-                    dlc_start = time.perf_counter()
-                    # kalman_time = time.time()
-                    # self.prediction = self.dlc_live.get_pose(frame)
+                    # --- Step 3: Resize ---
+                    t0 = time.perf_counter()
                     frame = cv2.resize(frame, (int(frame.shape[1] * self.resize), int(frame.shape[0] * self.resize)))
-                    # if self.camera_num == 2:
-                    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    self.resize_latencies.append(time.perf_counter() - t0)
 
-                    
-                    # Quick check: log color channel info on first frame
+                    # Quick check: log color channel info periodically
                     if self.frame_num % 100 == 0:
                         avg_channels = np.mean(frame, axis=(0, 1))
                         logger.debug(f"Frame shape: {frame.shape}, Average channel values: {avg_channels}")
-                        # Check if likely BGR (OpenCV) or RGB format
-                        # In most natural images, blue channel has lower values than red
                         if avg_channels[0] < avg_channels[2]:
                             logger.info(f"Frame from camera {self.camera_num} appears to be BGR format (channel 0 < channel 2)")
                         else:
                             logger.info(f"Frame from camera {self.camera_num} appears to be RGB format (channel 0 >= channel 2)")
 
-                    # Convert BGR to RGB for the PyTorch model (trained with RGB images)
-                    # frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    # --- Step 4: DLC Inference ---
+                    t0 = time.perf_counter()
                     try:
-                        raw_prediction = self.pose_runner.inference([frame])  # this needs to be switched back to just frame for camera input
+                        raw_prediction = self.pose_runner.inference([frame])
                     except Exception as e:
                         logger.error(f"DLC inference error: {e}")
                         logger.error(traceback.format_exc())
@@ -234,112 +265,84 @@ class Processor(Actor):
                         if self.smoothed_prediction is not None:
                             smoothed_prediction = self.smoothed_prediction
                             smoothed_angle = self.prev_angle
-                        self.latencies.append(time.perf_counter() - self.start_perf)
-                        self.q_out.put([smoothed_prediction, smoothed_angle])
-                        logger.info(f"Processor camera {self.camera_num}: Sent fallback prediction and angle {smoothed_prediction}, {smoothed_angle}")
+                        self.dlc_latencies.append(time.perf_counter() - t0)
+                        self.total_latencies.append(time.perf_counter() - step_start)
+                        self.angles_sent.append(smoothed_angle if smoothed_angle is not None else np.nan)
+                        self.q_out.put([smoothed_prediction, smoothed_angle, camera_start, gen_frame_num])
+                        logger.info(f"Processor camera {self.camera_num}: Sent fallback prediction and angle")
                         return
-                    self.dlc_latencies.append(time.perf_counter() - dlc_start)
+                    self.dlc_latencies.append(time.perf_counter() - t0)
+
                     # Extract the bodyparts array from the prediction dictionary
-                    # The format is [{'bodyparts': array([[[x, y, likelihood], ...]])}]
-                    self.prediction = raw_prediction[0]['bodyparts'][0]  # Get the first (and only) frame's bodyparts
-                    # logger.info(f" Got prediction from model for camera {self.camera_num}")
-                    # logger.info(f"Shape of prediction: {self.prediction.shape}")
-                    # logger.info(f"Prediction data type: {type(self.prediction)}")
+                    self.prediction = raw_prediction[0]['bodyparts'][0]
                     # Select bodyparts based on camera number
                     if self.camera_num == 0:
-                        # Use first 4 bodyparts for camera 0
                         self.prediction = self.prediction[:4]
-                        #if using the multi finger model need body parts 4,5,6,7 instead of 0,1,2,3
-                        # self.prediction = self.prediction[3:7]
                     elif self.camera_num == 2:
-                        # Use only the last bodypart for camera 2
-                        # self.prediction = self.prediction[-1:]
                         self.prediction = self.prediction[:1]
                     
-                    # logger.info(f"Raw prediction: {self.prediction}")
-                    # logger.info(f' Shape of prediction: {self.prediction.shape}')
-                    # logger.info(f"Type of prediction: {type(self.prediction)}")
-                    # logger.info(f' Prediction {self.prediction}')
-                    # logger.info(f"Time {kalman_time}")
+                    self.raw_predictions.append(self.prediction.copy())
+
+                    # --- Step 5: Kalman filter ---
+                    t0 = time.perf_counter()
                     try:
-                        # assert True==False
-                        smoothed_prediction = self.kalman_filter.process(self.prediction,frame_time=camera_start)
+                        smoothed_prediction = self.kalman_filter.process(self.prediction, frame_time=camera_start)
                     except Exception as e:
                         logger.error(f"Kalman filter processing error: {e}")
                         logger.error(traceback.format_exc())
                         smoothed_prediction = self.prediction  # fallback to raw prediction on error
-                    # logger.info(f"Smoothed prediction: {smoothed_prediction.shape}")
-                    # logger.info(f"Smoothed prediction: {smoothed_prediction}")
+                    self.kalman_latencies.append(time.perf_counter() - t0)
                     
                     # Save prediction for analysis
                     self.predictions.append(smoothed_prediction)
-                    self.smoothed_prediction = smoothed_prediction  # cache for fallback on inference errors
+                    self.smoothed_prediction = smoothed_prediction
 
-                    # Only calculate angle if we have at least 3 bodyparts
+                    # --- Step 6: Post-processing (angle calculation + smoothing) ---
+                    t0 = time.perf_counter()
                     if len(smoothed_prediction) >= 3:
                         angle = self.calculateAngle(smoothed_prediction)
-                        
-                        #Angle Smoothing
                         self.angle_queue.append(angle)
                         smoothed_angle = np.mean(self.angle_queue) if len(self.angle_queue) > 0 else angle
-
-                        # Apply sudden jump detection on the smoothed angle
                         if self.prev_angle is not None and np.abs(smoothed_angle - self.prev_angle) > 50:
-                            smoothed_angle = self.prev_angle  # ignore sudden large jumps
+                            smoothed_angle = self.prev_angle
                         self.prev_angle = smoothed_angle
                     else:
-                        self.angle_queue.append(smoothed_prediction[0][0])  # Just treat the x value as angle for queue
+                        self.angle_queue.append(smoothed_prediction[0][0])
                         smoothed_angle = np.mean(self.angle_queue) if len(self.angle_queue) > 0 else angle
-
-                        # Apply sudden jump detection on the smoothed angle
                         if self.prev_angle is not None and np.abs(smoothed_angle - self.prev_angle) > 50:
-                            smoothed_angle = self.prev_angle  # ignore sudden large jumps
+                            smoothed_angle = self.prev_angle
                         self.prev_angle = smoothed_angle
-                        # angle = None
-                        # smoothed_angle = None
-                        # logger.warning(f"Not enough bodyparts for angle calculation. Got {len(smoothed_prediction)}, need 3.")
-
-                    dlc_end = time.perf_counter()
+                    self.postprocess_latencies.append(time.perf_counter() - t0)
 
                     if self.frame_num % self.frames_log == 0:
+                        dlc_end = time.perf_counter()
                         total_time = dlc_end - self.time_start                    
                         logger.info(f"Frame number: {self.frame_num}")
                         logger.info(f"Overall Average FPS: {round(self.frames_log / total_time,2)}")
-                        self.time_start = time.perf_counter() # reset the timer
+                        self.time_start = time.perf_counter()
 
                 except ObjectNotFoundError:
                     logger.error("Processor: Frame unavailable from store, dropping")
-                    # Log latency even on error
-                    # if self.pred_active:
-                    #     self.latencies.append(time.perf_counter())
-                    # return
+                    return
                 except Exception as e:
                     logger.error(f"Processing error: {e}")
                     logger.error(traceback.format_exc())
-                    # # Log latency even on error
-                    # if self.pred_active:
-                    #     self.latencies.append(time.perf_counter())
-                    # return
-                self.latencies.append(time.perf_counter() - self.start_perf)
-                
-                
+                    return
+
+                # --- Step 7: Queue put (send to downstream) ---
+                t0 = time.perf_counter()
                 try:
                     smoothed_angle = smoothed_angle/self.resize if self.camera_num == 2 else smoothed_angle
-                    self.q_out.put([smoothed_prediction, 100 * (self.camera_num + 1)])  # Add camera number to angle for debugging
-                    # logger.info(f"Processor camera {self.camera_num}: Sent prediction and angle {smoothed_prediction}, {smoothed_angle}")
-
+                    # Pass along camera_start and frame_num so Sender can compute true end-to-end
+                    self.q_out.put([smoothed_prediction, smoothed_angle, camera_start, gen_frame_num])
                 except Exception as e:
                     logger.error(f"Processor Exception: {e}")
                     logger.error(traceback.format_exc())
-                    # Log latency even on error
-                    # if self.pred_active:
-                    #     self.latencies.append(time.perf_counter())
-                    # return
+                self.queue_put_latencies.append(time.perf_counter() - t0)
             
-                # Log latency for successful processing
-                self.latenciesFull.append(time.perf_counter() - self.start_perf)
+                self.total_latencies.append(time.perf_counter() - step_start)
+                self.angles_sent.append(smoothed_angle if smoothed_angle is not None else np.nan)
 
-            # self.latencies.append(time.perf_counter())
         else:
             pass
 

@@ -57,10 +57,10 @@ actors:
     camera_num: 2
     method: spawn
 
-  # Receiver:
-  #   package: actors.recieverActor
-  #   class: Receiver
-  #   method: spawn
+  Receiver:
+    package: actors.recieverActor
+    class: Receiver
+    method: spawn
 
   Sender:
     package: actors.sender

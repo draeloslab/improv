@@ -117,7 +117,9 @@ class VideoScreen(ManagedActor):
         self.videoStarts.append(time.time())
         frame_start = time.perf_counter()    
         try:
-            frame_id, camera_start = self.links[f"images{camera_id}_in"].get(timeout=0.01)
+            msg = self.links[f"images{camera_id}_in"].get(timeout=0.01)
+            frame_id = msg[0]
+            camera_start = msg[1]
             # frame_start = time.perf_counter()
             if frame_id is not None:
                 frame = self.client.get(frame_id)
@@ -155,11 +157,8 @@ class VideoScreen(ManagedActor):
         try:
             pred_start = time.perf_counter()
             element = self.links[f"preds{camera_id}_in"].get(timeout=0.01)
-        
 
-            # element = self.links[f"preds{camera_id}_in"].get(timeout=0.1)
-
-            # frame_id = element[0]
+            # Support both old [pred, angle] and new [pred, angle, camera_start, frame_num] formats
             predictions = element[0]
             angle = element[1]
             # logger.debug(f'Angle received: {angle}')

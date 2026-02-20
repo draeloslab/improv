@@ -41,11 +41,20 @@ class Generator(Actor):
         self.cap = None
         self.frame_interval = 1.0 / config['fps']
         self.resize = config['resize']
-        # self.name = "Generator"
-        self.frame_num = 1
-        self.gen_times = []
-        self.full_times = []
-        self.start = []
+        self.frame_num = 0
+        
+        # --- Timing logs ---
+        # Wall-clock timestamp when each frame is produced (time.time())
+        self.timestamps = []
+        # Duration of actual work per frame: read + cvtColor + store put + q_out put (perf_counter)
+        self.work_latencies = []
+        # Duration including the sleep: work + time.sleep (perf_counter)
+        self.full_latencies = []
+        # Per-step breakdown (perf_counter durations in seconds)
+        self.read_latencies = []    # cv2 read
+        self.cvt_latencies = []     # cvtColor
+        self.store_put_latencies = []  # client.put
+        self.queue_put_latencies = []  # q_out.put
 
         self.cap = cv2.VideoCapture(self.video_path)
         if not self.cap.isOpened():
@@ -70,9 +79,19 @@ class Generator(Actor):
         if self.cap:
             self.cap.release()
         
-        np.save(self.out_folder / "genstarts.npy", self.start)
-        np.save(self.out_folder / "gen_latencies.npy", self.gen_times)
-        np.save(self.out_folder / "full_latencies.npy", self.full_times)
+        np.save(self.out_folder / "gen_timestamps.npy", self.timestamps)
+        np.save(self.out_folder / "gen_work_latencies.npy", self.work_latencies)
+        np.save(self.out_folder / "gen_full_latencies.npy", self.full_latencies)
+        np.save(self.out_folder / "gen_read_latencies.npy", self.read_latencies)
+        np.save(self.out_folder / "gen_cvt_latencies.npy", self.cvt_latencies)
+        np.save(self.out_folder / "gen_store_put_latencies.npy", self.store_put_latencies)
+        np.save(self.out_folder / "gen_queue_put_latencies.npy", self.queue_put_latencies)
+
+        # Also save legacy names for backward compatibility
+        np.save(self.out_folder / "genstarts.npy", self.timestamps)
+        np.save(self.out_folder / "gen_latencies.npy", self.work_latencies)
+        np.save(self.out_folder / "full_latencies.npy", self.full_latencies)
+
         logger.info(f"Generator latencies saved to {self.out_folder}")
         return 0
 
@@ -83,29 +102,39 @@ class Generator(Actor):
 
         if self.cap and self.cap.isOpened():
             frame_start = time.time()
-            self.start.append(frame_start)
-            self.start_perf = time.perf_counter()
+            perf_start = time.perf_counter()
+
+            # --- Step 1: Read frame ---
+            t0 = time.perf_counter()
             ret, self.frame = self.cap.read()
             if not ret:
                 logger.info("End of video")
                 self.done = True
                 return
-            def resize_frame(frame, resize):
-                return cv2.resize(frame, (int(frame.shape[1] * resize), int(frame.shape[0] * resize)))
-            # self.frame = resize_frame(self.frame, self.resize)
-            # logger.info(f'Frame : {(self.frame.shape)}')
-            # logger.info(f'Client: {self.client}')
+            self.read_latencies.append(time.perf_counter() - t0)
 
+            # --- Step 2: Color convert ---
+            t0 = time.perf_counter()
+            self.frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
+            self.cvt_latencies.append(time.perf_counter() - t0)
+
+            # --- Step 3: Store put ---
+            t0 = time.perf_counter()
             data_id = self.client.put(self.frame)
-            # logger.info('Put data in store')
-            try:
-                self.q_out.put([data_id, frame_start])
-                # logger.info("Sent message on")
+            self.store_put_latencies.append(time.perf_counter() - t0)
 
+            # --- Step 4: Queue put ---
+            # Pass frame_num so downstream actors can correlate events
+            t0 = time.perf_counter()
+            try:
+                self.q_out.put([data_id, frame_start, self.frame_num])
             except Exception as e:
-                logger.error(f"--------------------------------Generator Exception: {e}")
+                logger.error(f"Generator Exception: {e}")
+            self.queue_put_latencies.append(time.perf_counter() - t0)
+
+            self.timestamps.append(frame_start)
             self.frame_num += 1
-            self.gen_times.append(time.perf_counter() - self.start_perf)
+            self.work_latencies.append(time.perf_counter() - perf_start)
 
             time.sleep(self.frame_interval)
-            self.full_times.append(time.perf_counter() - self.start_perf)
+            self.full_latencies.append(time.perf_counter() - perf_start)
