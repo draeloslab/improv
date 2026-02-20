@@ -131,7 +131,12 @@ class StimulusSpace():
     def param_to_ridx(self, stimuli, tag):
 
         if tag == 'optim':
-            row_index = np.argwhere((stimuli == self.param_space_optim).all(axis=1))[0][0]
+            if isinstance(stimuli, np.ndarray) and stimuli.shape[0] == 5:
+                extended_stim = np.concatenate([stimuli[:4], [850, 1000], stimuli[4:], [0]])
+                row_index = np.argwhere((extended_stim == self.param_space_optim).all(axis=1))[0][0]
+
+            else:
+                row_index = np.argwhere((stimuli == self.param_space_optim).all(axis=1))[0][0]
         else:
             row_index = np.argwhere((stimuli == self.param_space).all(axis=1))[0][0]
 
