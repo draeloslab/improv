@@ -83,7 +83,7 @@ class VisualStimulus(Actor):
             else: 
                 parameters = self.stimuli_space.ridx_to_param(row_index, tag='non_optim') 
             logger.info('parameters: {}'.format(parameters))
-            stim = self.create_frame(parameters)
+            stim = self.create_frame(parameters, tag=tag)
 
             self.send_frame(stim)
 
@@ -159,7 +159,7 @@ class VisualStimulus(Actor):
         else:
             logger.error('Tried to send a None frame')
 
-    def create_frame(self, parameters):
+    def create_frame(self, parameters, tag):
         stim_t = self. stat_t + self.total_stim_time 
 
         # NOTE: this is creating self.<param> based on the labels defined in gen_stim
@@ -192,6 +192,7 @@ class VisualStimulus(Actor):
                 'stationary_time': self.stat_t,
                 'duration': self.total_stim_time, 
                 'hold_after': float(stim_t-self.hold_after),
+                'note': tag
                     }
 
         self.timer = time.time()

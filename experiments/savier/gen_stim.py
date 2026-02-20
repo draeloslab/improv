@@ -78,7 +78,7 @@ class StimulusSpace():
         calibration_stim = []
         drift_grating = self.param_space[(self.param_space[:,7] == 1) & (self.param_space[:,1] == 0.02) & (self.param_space[:,3] == 3) & (self.param_space[:,6] == 50)]
         for param in drift_grating:
-            row_index = self.param_to_ridx(param)
+            row_index = self.param_to_ridx(param, tag = 'calibration')
             calibration_stim.append(row_index)
         
         stationary_spots = [[0,0,0,0,1,1,1,0], [0,0,0,0,0,2,1,0], [0,0,0,0,2,2,1,0], [0,0,0,0,2,0,1,0], [0,0,0,0,0,0,1,0]]
@@ -87,7 +87,7 @@ class StimulusSpace():
 
         for params in spots:
             param = self.idx_to_param(params)
-            row_index = self.param_to_ridx(param)
+            row_index = self.param_to_ridx(param, tag='calibration')
             calibration_stim.append(row_index)
 
         return calibration_stim, len(calibration_stim)
@@ -100,7 +100,7 @@ class StimulusSpace():
         np.random.shuffle(scramle_dim1_param)
         for i in range(self.initial_stim_count):
             i_stim = [scramle_dim1_param[i], stim[1][1], stim[2][1], stim[3][0], stim[4][0], stim[5][0], stim[6][1], stim[7][0]]
-            r_idx = self.param_to_ridx(i_stim)
+            r_idx = self.param_to_ridx(i_stim, tag='initial')
             initial_stim.append(r_idx)
 
         return initial_stim

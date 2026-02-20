@@ -335,7 +335,9 @@ class ZMQAcquirer(Actor):
             logger.info('Stimulus: Sin Drift Gratings at angle {} and speed {}'.format(angle, speed))
       
         # try:
-        indices = self.stimuli_space.param_to_ridx([angle, speed, size, freq, center_x, center_y, contrast, shape])
+
+        stim_set_tag = msg_dict['stimulus']['note']
+        indices = self.stimuli_space.param_to_ridx([angle, speed, size, freq, center_x, center_y, contrast, shape], tag=stim_set_tag)
         # except Exception as e:
         #     logger.info(f'Params are: {[angle, speed, size, freq, center_x, center_y, contrast, shape]}')
         #     logger.info('Error finding stimulus index: {}'.format(e))
