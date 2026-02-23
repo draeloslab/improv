@@ -1855,6 +1855,7 @@ class RandomSamplerWithReplace(Actor):
                 self.timer = time.time()
 
 class RandomBayesOptimizer(Actor):
+    #TODO: Look through this properly again
     '''
     An actor that combines RandomSamplerWithReplacement and BayesOptimizer.
     
@@ -1877,9 +1878,9 @@ class RandomBayesOptimizer(Actor):
         # --- Common setup from both original actors ---
         self.stimuli_space = StimulusSpace()
         self.stim_space = self.stimuli_space.stim_space
-        self.stimuli = self.stim_space['stimuli']
+        self.stimuli_optim = self.stim_space['stimuli_optim']
         self.total_stim_time = self.stim_space['total_stim_time']
-        self.d = self.stimuli.shape[0]
+        self.d = self.stimuli_optim.shape[0]
         self.initial_length = self.stimuli_space.initial_stim_count
         logger.info('Stimuli info: Num of Stimuli Parameters: {}, Num of Initial Stim: {}'.format(self.d, self.initial_length))
 
@@ -1888,7 +1889,7 @@ class RandomBayesOptimizer(Actor):
         self.seed = self.init_params['General']['seed']
 
         # --- Setup for random sampling phase ---
-        xs = np.meshgrid(*self.stimuli, indexing='ij')
+        xs = np.meshgrid(*self.stimuli_optim, indexing='ij')
         x_star = np.empty(xs[0].shape + (self.d,))
         for i in range(self.d):
             x_star[..., i] = xs[i]
@@ -1936,7 +1937,7 @@ class RandomBayesOptimizer(Actor):
         self.timer = time.time()
         self.stim_ind = None
 
-        self.phase = 'initial' # 'initial', 'random', 'bayes'
+        self.phase = 'initial' # 'calibration', 'initial', 'random', 'bayes'
         self.bayes_newN = False # == 'newN' flag in the original BayesOptimizer
 
     def stop(self):
@@ -1961,9 +1962,9 @@ class RandomBayesOptimizer(Actor):
             tmpX = np.squeeze(np.array(X)).T
             sh = len(tmpX.shape)
             if sh > 1:
-                self.X = tmpX.copy()
+                self.X_all = tmpX.copy()
                 if tmpX.shape[1] > 4:
-                    self.X = tmpX[:, -tmpX.shape[1]:]
+                    self.X_all = tmpX[:, -tmpX.shape[1]:]
             try:
                 b = np.full([len(Y),len(max(Y,key = lambda x: len(x)))], np.nan)
                 for i,j in enumerate(Y):
@@ -1981,8 +1982,34 @@ class RandomBayesOptimizer(Actor):
         if self.stop_sending:
             return
 
+        # Phase 0: Calibration Stimuli (similar to original actors)
+        if self.phase == 'calibration':
+            flag = False
+            if self.stim_ind is None:
+                
+                logger.info('Calibration counter is {}/{}'.format(self.counter+1, len(self.stim_space['calibration_stim'])))
+                self.stim_ind = self.stim_space['calibration_stim'][self.counter]
+                logger.info('calibration_stim set: {}'.format(self.stim_ind))
+            
+            if (time.time() - self.timer) >= self.total_stim_time:
+                self.links['stim_ind_out'].put([self.stim_ind, 'calibration'])
+                # stim_flag = 'calibration'
+                # self.links['stim_flag_out'].put(stim_flag)
+                self.stim_ind = None
+                self.counter += 1
+                self.timer = time.time()
+            
+            if self.counter >= 5: #self.stimuli_space.calibration_stim_count:
+                flag = True
+            
+            if flag:
+                logger.info('Done with calibrations set, moving on to initial stimuli set...')
+                # self.calibration = False
+                self.phase = 'initial'
+                self.counter = 0
+
         # Phase 1: Initial Stimuli (similar to original actors)
-        if self.phase == 'initial':
+        elif self.phase == 'initial':
             flag = False
             if self.stim_ind is None:
                 if self.counter < self.stimuli_space.initial_stim_count:
@@ -1991,7 +2018,7 @@ class RandomBayesOptimizer(Actor):
                     self.stim_ind = [np.random.choice(np.arange(0, stim)) for stim in self.stim_choice]
 
             if (time.time() - self.timer) >= self.total_stim_time:
-                self.links['stim_ind_out'].put(self.stim_ind)
+                self.links['stim_ind_out'].put([self.stim_ind, 'initial'])
                 self.stim_ind = None
                 self.counter += 1
                 self.timer = time.time()
@@ -2011,19 +2038,19 @@ class RandomBayesOptimizer(Actor):
                 # if self.counter < self.random_steps:
                 logger.info(f'Random sampling step {self.counter + 1}/{self.random_steps}')
                 random_idx = np.random.randint(self.stim_star.shape[0])
-                random_stim = self.stim_star[random_idx]
-                    
+                # random_stim = self.stim_star[random_idx]
+                self.stim_ind = random_idx  
 
-                # Convert the selected stimulus values back to indices for the stimulus actor
-                next_ind = []
-                for i in range(self.d):
-                    next_ind.append(np.where(self.stimuli[i] == random_stim[i])[0][0])
-                self.stim_ind = next_ind
+                # # Convert the selected stimulus values back to indices for the stimulus actor 
+                # next_ind = []
+                # for i in range(self.d):
+                #     next_ind.append(np.where(self.stimuli[i] == random_stim[i])[0][0])
+                # self.stim_ind = next_ind
                 logger.info(f"random_idx is {random_idx}, random_stim is {next_ind}")
 
             if (time.time() - self.timer) >= self.total_stim_time:
                 logger.info(f"sending {self.stim_ind} to stimulus actor ")
-                self.links['stim_ind_out'].put(self.stim_ind)
+                self.links['stim_ind_out'].put([self.stim_ind, 'optim'])
                 self.stim_ind = None
                 self.counter += 1
                 self.timer = time.time()
@@ -2037,6 +2064,7 @@ class RandomBayesOptimizer(Actor):
         elif self.phase == 'bayes':
             # This block corresponds to 'elif self.newN:' from the original BayesOptimizer
             if self.bayes_newN:
+                self.X = self.stimuli_space.param_space_shrinking(self.X_all) 
                 nonopt = np.array(list(set(np.arange(self.y0.shape[0]))-set(self.optimized_n)))
                 logger.info('nonopt is {}, number of neurons '.format(nonopt,self.y0.shape[0]))
                 if len(nonopt) >= 1 or len(self.goback_neurons)>=1:
@@ -2102,19 +2130,20 @@ class RandomBayesOptimizer(Actor):
                     # immediately calculates suggested next stim
                     ind, xt_1 = self.optim.max_acq()
                     logger.info('INITIALIZATION - suggest next stim: {}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
-                    next_ind = []
-                    for i in range(self.d):
-                        next_ind.append(np.where(self.stimuli[i] == self.stim_star[ind][i])[0][0])
-                    self.stim_ind = next_ind  # prevents duplicate update on X[:,-1], y[-1]
+                    # next_ind = []
+                    # for i in range(self.d):
+                    #     next_ind.append(np.where(self.stimuli[i] == self.stim_star[ind][i])[0][0])
+                    self.stim_ind = ind  # prevents duplicate update on X[:,-1], y[-1]
         
             # This block corresponds to the 'else:' (main optimization loop) from BayesOptimizer
             else:
                 # need to update the GP
                 t_update = time.time()
                 if self.stim_ind is None: 
-                    X = np.zeros(self.d) 
-                    for i in range(self.d):
-                        X[i] = self.GP_stimuli[i][int(self.X[i,-1])]
+                    # X = np.zeros(self.d) 
+                    # for i in range(self.d):
+                    #     X[i] = self.GP_stimuli[i][int(self.X[i,-1])]
+                    self.X = self.stimuli_space.param_space_shrinking(self.X_all) 
 
                     logger.info('optim {} (test: {}), update GP with {}, {}'.format(self.nID, self.test_count, X, self.y0[self.nID, -1]))
                     self.optim.update_GP(np.squeeze(X), self.y0[self.nID,-1])
@@ -2164,15 +2193,15 @@ class RandomBayesOptimizer(Actor):
 
                     else:
                         ind, xt_1 = self.optim.max_acq()
-                        logger.info('suggest next stim: {}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
-                        next_ind = []
-                        for i in range(self.d):
-                            next_ind.append(np.where(self.stimuli[i] == self.stim_star[ind][i])[0][0])
-                        self.stim_ind = next_ind
+                        logger.info('suggest next stim: {}'.format(ind)) #{}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
+                        # next_ind = []
+                        # for i in range(self.d):
+                        #     next_ind.append(np.where(self.stimuli[i] == self.stim_star[ind][i])[0][0])
+                        self.stim_ind = ind
 
                 # Need to send ind to stimulus actor to create this stim request ??
                 if (time.time() - self.timer) >= self.total_stim_time:
-                    self.links['stim_ind_out'].put(self.stim_ind)
+                    self.links['stim_ind_out'].put([self.stim_ind, 'optim'])
                     self.stim_ind = None
                     self.timer = time.time()
                     
