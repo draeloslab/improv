@@ -106,7 +106,7 @@ class Processor(Actor):
                 forward=0.002,
                 fps=30,  
                 nderiv=2,
-                priors=[1, 1],
+                priors=[1, 1],  #[1e5, 1e5]
                 initial_var=10,    
                 process_var=1,     
                 dlc_var=10,        
@@ -301,16 +301,18 @@ class Processor(Actor):
                     t0 = time.perf_counter()
                     if len(smoothed_prediction) >= 3:
                         angle = self.calculateAngle(smoothed_prediction)
-                        self.angle_queue.append(angle)
-                        smoothed_angle = np.mean(self.angle_queue) if len(self.angle_queue) > 0 else angle
-                        if self.prev_angle is not None and np.abs(smoothed_angle - self.prev_angle) > 50:
-                            smoothed_angle = self.prev_angle
+                        # Exponential moving average instead of queue mean + hard clamp
+                        if self.prev_angle is not None:
+                            smoothed_angle = self.alpha * angle + (1 - self.alpha) * self.prev_angle
+                        else:
+                            smoothed_angle = angle
                         self.prev_angle = smoothed_angle
                     else:
-                        self.angle_queue.append(smoothed_prediction[0][0])
-                        smoothed_angle = np.mean(self.angle_queue) if len(self.angle_queue) > 0 else angle
-                        if self.prev_angle is not None and np.abs(smoothed_angle - self.prev_angle) > 50:
-                            smoothed_angle = self.prev_angle
+                        raw_val = smoothed_prediction[0][0]
+                        if self.prev_angle is not None:
+                            smoothed_angle = self.alpha * raw_val + (1 - self.alpha) * self.prev_angle
+                        else:
+                            smoothed_angle = raw_val
                         self.prev_angle = smoothed_angle
                     self.postprocess_latencies.append(time.perf_counter() - t0)
 
@@ -352,7 +354,7 @@ class Processor(Actor):
             logger.error(f"Cannot calculate angle: need 3 points, got {len(prediction)}")
             return None
 
-        p2, p3, p4 = prediction[1, :2], prediction[2, :2], prediction[3, :2]
+        p2, p3, p4 = prediction[0,:2], prediction[2, :2], prediction[3, :2]
         #  DIP=0, PIP=1, MCP=2, Wrist=3, currently getting angle at MCP
         # Define vectors from point 3 to points 2 and 4
         v3_to_2 = p2 - p3

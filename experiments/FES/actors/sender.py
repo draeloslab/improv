@@ -147,7 +147,7 @@ class Sender(Actor):
                 _, angle = element
                 camera_start_cam0 = None
                 frame_num_cam0 = -1
-            self.last_angle = angle * 5  # Store the angle for reuse
+            self.last_angle = (angle-100) * 10  # Store the angle for reuse # Roughly convert from 120 -180 to 200 to 800
             self.last_frame_num_cam0 = frame_num_cam0
             got_fresh_cam0 = True
         except Exception as e:
@@ -169,8 +169,7 @@ class Sender(Actor):
                 _, angle2 = element2
                 camera_start_cam2 = None
                 frame_num_cam2 = -1
-            angle2 = angle2 - 500  # BUG FIX: was `element2 - 500` which subtracted from the list
-            self.last_angle2 = angle2
+            self.last_angle2 = (angle2-800) * 2  # roughly convert from 800-1200 to 0-800
             self.last_frame_num_cam2 = frame_num_cam2
             got_fresh_cam2 = True
         except Exception as e:

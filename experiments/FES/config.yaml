@@ -8,4 +8,4 @@ video_path_2: '/home/chesteklab/camera_video/2026-02-05/101513/camera_video_2_02
 threshold: 0.2
 output_path: '/home/chesteklab/predictions'
 resize: 0.5
-alpha: 0.8
+alpha: 0.5
