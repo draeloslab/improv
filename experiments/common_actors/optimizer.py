@@ -11,8 +11,8 @@ from itertools import product
 import yaml
 from datetime import datetime as dt
 
-from BayesOpt.model.improv_config import Config 
-from BayesOpt.model.optimizer import Optimizer
+from BayesOptim.model.improv_config import Config 
+from BayesOptim.model.optimizer import Optimizer
 
 from experiments.burgess.gen_stim import StimulusSpace
 # from gen_stim_calibrate import StimulusSpace
