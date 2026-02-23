@@ -18,7 +18,7 @@ import zmq.asyncio as zmq
 from zmq import PUB, REP, SocketOption
 
 from improv.store import StoreInterface, RedisStoreInterface #, PlasmaStoreInterface
-from improv.actor import Signal
+from improv.actor import Signal 
 from improv.config import Config
 from improv.link import Link, MultiLink
 
@@ -704,19 +704,22 @@ class Nexus:
         if self.config and self.config.use_plasma():
             self.use_plasma = True
             self.store_loc = str(os.path.join("/tmp/", str(uuid.uuid4())))
+            subprocess_command = [
+                "plasma_store",
+                "-s",
+                self.store_loc,
+                "-m",
+                str(size),
+                "-e",
+                "hashtable://test",
+            ]
             self.p_StoreInterface = subprocess.Popen(
-                [
-                    "plasma_store",
-                    "-s",
-                    self.store_loc,
-                    "-m",
-                    str(size),
-                    "-e",
-                    "hashtable://test",
-                ],
+                subprocess_command,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
+            logger.info(
+            "Starting Plasma server with command: \n {}".format(subprocess_command)) 
             logger.info("StoreInterface start successful: {}".format(self.store_loc))
         else:
             logger.info("Setting up Redis store.")
@@ -938,4 +941,3 @@ class Nexus:
             #     logger.warning("Signal queue" + q.name + "is full")
             except Exception as e:
                 logger.info('Error in getPID: {}'.format(e))
-

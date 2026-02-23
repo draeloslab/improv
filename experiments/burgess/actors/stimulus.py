@@ -10,6 +10,7 @@ from itertools import product
 from datetime import datetime as dt
 
 from gen_stim import StimulusSpace
+# from gen_stim_calibrate import StimulusSpace
 
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -76,13 +77,9 @@ class VisualStimulus(Actor):
         try: 
             t = time.time()
             indices = self.links['stim_ind_in'].get(timeout=0.0001)
-            logger.info('indices: {}'.format(indices))
-            # parameters = self.stimuli_space.idx_to_param(indices) 
-            parameters = []
-            for d,idx in enumerate(indices):
-                parameters.append(self.stimuli[d][idx])
-
-            logger.info('parameters: {}'.format(parameters))
+            # logger.info('indices: {}'.format(indices))
+            parameters = self.stimuli_space.idx_to_param(indices) 
+            # logger.info('parameters: {}'.format(parameters))
 
             stim = self.create_frame(parameters)
 
@@ -105,9 +102,23 @@ class VisualStimulus(Actor):
 
         if stim is not None:
 
-            #NOTE: this is hardcoded for calibration
-            center_x = 850
-            center_y = 1000
+            #NOTE: this is hardcoded for specific directions and their most visible "center" point on the visible grid (this will move to experiments folder)
+            if self.angle == 45:
+                center_x = 80
+                center_y = 1400
+            elif self.angle == 135:
+                center_x = 750
+                center_y = 1500
+            elif self.angle == 225:
+                center_x = 350
+                center_y = 1000
+            elif self.angle == 315:
+                center_x = 1400
+                center_y = 1500
+            else:
+                center_x = 850
+                center_y = 1000
+
 
             text = {'texture_size': 1600,
                         'frequency': int(self.frequency),
@@ -117,7 +128,7 @@ class VisualStimulus(Actor):
                         'length': int(self.size),
                         'texture_name': 'gray_ellipse',
                         'bg_intensity': 200,
-                        'fg_intensity': 50,
+                        'fg_intensity': int(self.contrast),
                         }
                 
             stimulus = {'stimulus': stim, 'texture': text}
@@ -146,20 +157,14 @@ class VisualStimulus(Actor):
             'velocity': 0.02,
             'size': 50, 
             'frequency': 1, 
-            'contrast': 50,
-            'shape': 0,
+            'contrast': 50
         }
         for key, default_param in default_params.items():
             if not hasattr(self, key):
                 setattr(self, key, default_param)
 
-        if self.shape == 0:
-            stim_name = 'gray_circle'
-        else:
-            stim_name = 'gray_ellipse'
-
         stim = {
-                'stim_name': stim_name,
+                'stim_name': 'gray_circle', # 'gray_ellipse'
                 'angle': int(self.angle),
                 'velocity': self.velocity,
                 'stationary_time': self.stat_t,
