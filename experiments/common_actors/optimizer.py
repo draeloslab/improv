@@ -1571,7 +1571,7 @@ class RandomSampler(Actor):
         
         self.total_times.append(time.time() -t)
 
-cclass GridSampler(Actor):
+class GridSampler(Actor):
     def __init__(self, *args, stimuli=None, param_file=None, calibration=False, **kwargs):
         super().__init__(*args, **kwargs)
 

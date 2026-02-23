@@ -5,7 +5,6 @@ actors:
     visual: Visual
 
   # Microscope actor should be commented out when running a live experiment
-<<<<<<<< HEAD:experiments/savier/savier_simulate.yaml
   Microscope:
     package: experiments.common_actors.load_disc
     class: FileAcquirer
@@ -13,21 +12,9 @@ actors:
     port: 5007
     output: output/
     init_filename: output/initialization.h5
-    filename: data/sample_stream0.h5
-    init_frame: 0 #60
-    framerate: 15
-========
-  # Microscope:
-  #   package: experiments.common_actors.load_disc
-  #   class: FileAcquirer
-  #   ip: '*'
-  #   port: 5007
-  #   output: output/
-  #   init_filename: output/initialization.h5
-  #   filename: data/output_090525_ds2.h5 #sample_stream0.h5 #data_032525_ds3.h5
-  #   init_frame: 0
-  #   framerate: 7.5
->>>>>>>> experiments:experiments/burgess/live_spots.yaml
+    filename: data/output_090525_ds2.h5 #sample_stream0.h5 #data_032525_ds3.h5
+    init_frame: 0
+    framerate: 7.5
 
   Acquirer:
     package: actors.acquire_zmq
@@ -57,11 +44,7 @@ actors:
     class: CaimanVisualStim
     
   Analysis:
-<<<<<<<< HEAD:experiments/savier/savier_simulate.yaml
     package: experiments.common_actors.analysis
-========
-    package: experiments.common_actors.analysis_viz 
->>>>>>>> experiments:experiments/burgess/live_spots.yaml
     class: VizStimAnalysis
     stimuli: stimuli.npy
     before_amount: 5
@@ -70,11 +53,7 @@ actors:
 
   Optimizer:
     package: experiments.common_actors.optimizer
-<<<<<<<< HEAD:experiments/savier/savier_simulate.yaml
     class: BayesOptimizer #RandomSampler 
-========
-    class: BayesOptimizer #RandomSampler #RandomSamplerWithReplace #GridSampler
->>>>>>>> experiments:experiments/burgess/live_spots.yaml
     param_file: bayesopt_parameters.yaml
     calibration: True
 
