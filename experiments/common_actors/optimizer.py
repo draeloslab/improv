@@ -674,7 +674,7 @@ class RandomSamplerWithReplace(Actor):
                 self.timer = time.time()
         
         self.total_times.append(time.time() -t)
-
+    
 class RandomBayesOptimizer(Actor):
     '''
     An actor that combines RandomSamplerWithReplacement and BayesOptimizer.
@@ -707,6 +707,7 @@ class RandomBayesOptimizer(Actor):
         self.param_file = param_file
         self.init_params = yaml.safe_load(open(self.param_file, 'r'))
         self.seed = self.init_params['General']['seed']
+        logger.info(f"RandomBayesOptimizer is using seed value {self.seed}")
 
         # --- Setup for random sampling phase ---
         xs = np.meshgrid(*self.stimuli, indexing='ij')
@@ -717,7 +718,7 @@ class RandomBayesOptimizer(Actor):
         np.random.seed(self.seed)
 
         # New parameter from YAML to control the switch from random to bayes
-        self.random_steps = 5 #self.init_params['General'].get('random_steps', 100) # Default to 100 steps
+        self.random_steps = 25 #self.init_params['General'].get('random_steps', 100) # Default to 100 steps
         logger.info(f"RandomBayesOptimizer will run random sampling for {self.random_steps} steps before optimization.")
 
         # --- Setup for BayesOptimizer phase ---
@@ -733,7 +734,7 @@ class RandomBayesOptimizer(Actor):
 
         stimuli_length = [len(i) for i in self.stimuli]
         if len(self.stimuli) != len(self.stim_choice) or stimuli_length != self.stim_choice:
-            raise ValueError(f"MISMATCH DIMENSION!!! Expect {stimuli_length} from StimulusSpace, got {self.choice} from yaml")
+            raise ValueError(f"MISMATCH DIMENSION!!! Expect {stimuli_length} from StimulusSpace, got {self.stim_choice} from yaml")
 
         # --- Data storage and state variables (from BayesOptimizer) ---
         self.X0 = np.zeros((self.d, init_T))
@@ -779,6 +780,7 @@ class RandomBayesOptimizer(Actor):
             ids = self.q_in.get(timeout=0.0001)
             X = self.client.get(ids[0])
             Y = self.client.get(ids[1])
+            # stim_count = self.client.get(ids[-1]) # -1 to account for initial stim
             tmpX = np.squeeze(np.array(X)).T
             sh = len(tmpX.shape)
             if sh > 1:
@@ -792,6 +794,7 @@ class RandomBayesOptimizer(Actor):
                 self.y0 = b.T
                 is_nan_2d = np.isnan(self.y0)
                 self.start_stimulus = np.argmax(~is_nan_2d, axis=1)
+                # self.stim_count = stim_count-1
             except:
                 pass
         except Empty:
