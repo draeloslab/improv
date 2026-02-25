@@ -306,11 +306,12 @@ class VizStimAnalysis(Actor):
         '''
         t = time.time()
         image = self.image
-        color = np.stack([image, image, image, image], axis=-1).astype(np.uint8).copy()
-        color[...,3] = 255
+        
         tc_list = []
             #TODO: don't stack image each time?
         if self.calc_color:
+            color = np.stack([image, image, image, image], axis=-1).astype(np.uint8).copy()
+            color[...,3] = 255
             if self.coords is not None:
                 # activity = np.zeros((len(self.coords),self.C.shape[0]))
                 for i,c in enumerate(self.coords):
@@ -324,7 +325,7 @@ class VizStimAnalysis(Actor):
                     except Exception as e:
                         logger.error('Error in fill poly: {}'.format(e))
                         pass
-                    
+        
                     
                     # if pixels.size > 0:
                     #     npx = np.unique(pixels, axis=0)
@@ -334,6 +335,8 @@ class VizStimAnalysis(Actor):
         ## Note: try pixelwise C display
 
         # TODO: keep list of neural colors. Compute tuning colors and IF NEW, fill ConvexPoly. 
+        else:
+            color = image
 
         self.colortime.append(time.time()-t)
         # TODO: not sure if this is ok
