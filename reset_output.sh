@@ -18,7 +18,7 @@ mv ${path}/output "${path}/output_${DATE}_ds$i"
 mkdir ${path}/output
 echo "Renamed output folder to output_${DATE}_ds$i"
 
-mv experiments/savier/global.log "${path}/output_${DATE}_ds$i"
+mv ${path}/global.log "${path}/output_${DATE}_ds$i"
 echo "Moved global.log to output_${DATE}_ds$i"
 
 if [ -f "${path}/output_${DATE}_ds$i/sample_stream0.h5" ]; then
