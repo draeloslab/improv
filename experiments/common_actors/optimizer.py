@@ -462,7 +462,7 @@ class GridSampler(Actor):
             self.stimuli[1][[0, 2, 5]],      # speed -> [0.02, 0.06, 0.12]
             self.stimuli[2][[0, 2, 4]],      # size -> [50, 225, 400]
             self.stimuli[3][[1, 3]],         # frequency -> [3, 20]
-            self.stimuli[4][[0, 1, 2]]       # contrast -> [0, 50, 100]
+            self.stimuli[4][[0, 2]]       # contrast -> [0, 100]  # previously [0, 50, 100]
         ]
         logger.info(f"self.stimuli_reduced is {self.stimuli_reduced}")
         self.total_stim_time = self.stim_space['total_stim_time']
