@@ -17,8 +17,8 @@ from importlib import import_module
 import zmq.asyncio as zmq
 from zmq import PUB, REP, SocketOption
 
-from improv.store import StoreInterface, RedisStoreInterface, PlasmaStoreInterface
-from improv.actor import Signal
+from improv.store import StoreInterface, RedisStoreInterface #, PlasmaStoreInterface
+from improv.actor import Signal 
 from improv.config import Config
 from improv.link import Link, MultiLink
 

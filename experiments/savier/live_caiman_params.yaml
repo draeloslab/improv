@@ -1,6 +1,6 @@
 data:
-  fr: 15 #15 #2.2
-  decay_time: 1.5 #0.5
+  fr: 7.5 #15 #2.2
+  decay_time: 0.5 #0.5
   fnames: ['output/initialization.h5']
 
 init: 
@@ -17,8 +17,9 @@ preprocess:
 temporal: 
   p: 1
 
-quality:
-  rval_thr: 0.90 #0.95
+# not used in caiman online
+# quality:
+#   rval_thr: 0.90 #0.95
   
 online:
   ds_factor: 1
@@ -32,6 +33,8 @@ online:
   normalize: True
   show_movie: False
   sniper_mode: False
+  min_SNR: 2.5  # 2.5 is default
+  rval_thr: 0.9 
 
 motion:
   pw_rigid: False
