@@ -19,6 +19,7 @@ import cv2
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+from experiments.savier.gen_stim import StimulusSpace
 
 class ZMQAcquirer(Actor):
 
@@ -36,6 +37,10 @@ class ZMQAcquirer(Actor):
         self.output_folder = str(output)
         pathlib.Path(output).mkdir(exist_ok=True) 
         pathlib.Path(output+'timing/').mkdir(exist_ok=True)
+
+        # Stimulus Space information (loading from stimulus class)
+        self.stimuli_space = StimulusSpace()
+        self.stim_space = self.stimuli_space.stim_space
 
     def setup(self):
         self.context = zmq.Context()
@@ -81,23 +86,10 @@ class ZMQAcquirer(Actor):
             f.create_dataset("default", data=self.imgs)
             f.close()
 
-        # if not os.path.exists(self.red_chan_image):
-        #     if len(self.saveArrayRedChan) > 1:
-        #         mean_red = np.mean(np.array(self.saveArrayRedChan), axis=0)
-        #         np.save(self.red_chan_image, mean_red)
-
         self.frame_num = 0
         self.track = 0
 
         self.kill_flag = True
-
-        # ## reconnect socket
-        # self.socket.close()
-        # self.socket = context.socket(zmq.SUB)
-        # for port in self.ports:
-        #     self.socket.connect("tcp://"+str(self.ip)+":"+str(port))
-        #     print('RE-Connected to '+str(self.ip)+':'+str(port))
-        # self.socket.setsockopt(zmq.SUBSCRIBE, b'')
 
 
     def stop(self):
@@ -134,7 +126,7 @@ class ZMQAcquirer(Actor):
             # No messages available
             pass 
         except Exception as e:
-            print('error: {}'.format(e))
+            logger.info('error: {}'.format(e))
 
     def get_message(self, timeout=0.001):
         #  try receiving microscope message: 
@@ -142,111 +134,32 @@ class ZMQAcquirer(Actor):
             # BUG: 031925, recv_pyobj may not work
             # msg = self.socket.recv_pyobj(flags=0)
             msg_obj = self.socket.recv()
-            # is_maybe_pickle = msg_obj and msg_obj[:1] == b'\x80' 
-            is_matlab = msg_obj.startswith(b'image')
-            # logger.info("is this from matlab>>>>>>{}".format(is_matlab))
         except Exception as e:
             logger.info('error from receiving: {}'.format(e))
-        
-        # if it's an pyobj
-        if not is_matlab:
-            try:
-                msg = pickle.loads(msg_obj)
-                if isinstance(msg, dict):
-                    # logger.info("dictionary raw msg: {}".format(msg))
-                    msg_dict = msg
-                    message_data = msg_dict['data']
-                    finalthing = np.array(message_data)
-                    tag = msg_dict['type']
-                    
-                elif isinstance(msg, str):
-                    # logger.info('pandastim raw msg: {}'.format(msg))
-                    msg_dict, category = self._msg_unpacker(msg)
-                    tag = 'stim'
-                    # logger.info("the tag is (pandastim) {}".format(tag))
-                else:
-                    logger.info("hey this is from the inside of pyobj we don't know what the type is")
-            except pickle.UnpicklingError:
-                pass
-            except Exception as e:
-                logger.info('error from pickle load: {} - {}'.format({type(e).__name__}, e))
-
-        # if it's from matlab
-        else:
-            try:
-                # logger.info("before us trying pickling ahah")
-                msg_body = msg_obj[5:]  # strip the header 'image'
-                timestamp = struct.unpack('d', msg_body[:8])[0]  # double (8 bytes)
-                timestamp = dt.utcfromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-                frame_bytes = msg_body[8:]
-                image_array = np.frombuffer(frame_bytes, dtype=np.uint8)
-                image_array =  65535 - image_array.view('<u2').reshape((600, 512)) #np.frombuffer(frame_bytes, dtype=np.uint8)#.reshape((512, 796))
-                # logger.info('image_array_size: {}'.format(image_array.size))
-                if image_array.size == 512 * 600 :#* 2:
-                    self.counter_img_number += 1
-                    msg = image_array.T #image_array.view(np.uint16).reshape((512, 796))  # TODO: dim hard coded, maybe move into params. 
-                    # logger.info('hey do i have correct image?')
-                if isinstance(msg, np.ndarray):  # is it ok to add this here?
-                    finalthing = msg
-                    tag = "scanbox_img"
-                    # logger.info('Image {} received from matlab at time {}'.format(self.counter_img_number, timestamp))
-                # else:
-                #     logger.info("yo this is np from buffer we don't know what the type is")
-            except Exception as e:
-                logger.info('error from np buffer: {}'.format(e))
-        # try:
-        #     # image_bytes = self.socket.recv()
-        #     # image_array = np.frombuffer(image_bytes, dtype=np.uint8)
-        #     # msg = image_array.view(np.uint16).reshape((512, 796))  # TODO: dim hard coded, maybe move into params. 
-            
-        #     # TODO: add pickle here to parse object?
-        #     if isinstance(msg, dict):
-        #         msg_dict = msg
-        #         message_data = msg_dict['data']
-        #         finalthing = np.array(message_data)
-        #         tag = msg_dict['type']
-        #     elif isinstance(msg, str):
-        #         logger.info('pandastim raw msg: {}'.format(msg))
-        #         msg_dict, category = self._msg_unpacker(msg)
-        #         tag = 'stim'
-        #     elif isinstance(msg, np.ndarray):  # is it ok to add this here?
-        #         finalthing = msg
-        #         tag = "scanbox_img"  # not sure
+   
+        try:
+            msg = pickle.loads(msg_obj)
+            if isinstance(msg, dict):
+                # logger.info("dictionary raw msg: {}".format(msg))
+                msg_dict = msg
+                message_data = msg_dict['data']
+                finalthing = np.array(message_data)
+                tag = msg_dict['type']
                 
-        #     # logger.info('Receiving microscope image--')
-        # except Exception as e:
-        #     logger.info('error from parsing: {}'.format(e))
+            elif isinstance(msg, str):
+                # logger.info('pandastim raw msg: {}'.format(msg))
+                msg_dict, category = self._msg_unpacker(msg)
+                tag = 'stim'
+                # logger.info("the tag is (pandastim) {}".format(tag))
+            else:
+                logger.info("hey this is from the inside of pyobj we don't know what the type is")
+        except pickle.UnpicklingError:
+            pass
+        except Exception as e:
+            # logger.info('error: {}'.format(e))
+            logger.info('error from pickle load: {} - {}'.format({type(e).__name__}, e))
 
-        # try receiving pandastim message:
-        # try:
-        #     msg = self.socket.recv_multipart()
-        #     msg_dict, category = self._msg_unpacker(msg)
-        #     tag = 'stim'
-        #     # logger.info('Receiving stimuli information--')
-        # except:
-        #     pass
-        # logger.info('RECIEVING IMAGES ---------')
-        # logger.info('image message received (raw): {}'.format(msg))
-        # logger.info('msg type: {}'.format(type(msg)))
-        # try:
-        #     #NOTE: brucker_2pcontrol sends msg as dict, so no need to use msg_unpacker for this
-            
-        #     msg_dict = self._msg_unpacker(msg
-        #     # logger.info('inside try block - msg_dict')
-        #     tag = msg_dict['type'] 
-        # except Exception as e:
-        #     msg_dict = msg
-        #     logger.error('Weird format message {}'.format(e))
         
-        # logger.info('tag: {}'.format(tag))
-        
-        # trying to visualize data
-         #np.array((np.array(message_data) - 0) / 1 * 255, np.uint8)
-        # logger.info('finalthing shape {}'.format(finalthing.shape))
-        # logger.info('finalthing: {}'.format(finalthing))
-        # plt.imshow("Microscope Image", finalthing)
-        # plt.show()
-
         if 'stim' in tag: 
             if not self.stimF:
                 logger.info('Receiving stimulus information')
@@ -260,28 +173,12 @@ class ZMQAcquirer(Actor):
         # elif 'frame' in tag: 
         else:
             t0 = time.time()
-            # brought back the self.track, collect every other frame
-            # if self.track %2 == 0:  # next two lines unindented
+            # if self.track %2 == 0:
             self._collect_frame(finalthing)
             self.frame_num += 1
             self.total_times_frame.append(time.time() - t0)
             self.timestamp_frame.append([dt.now(), self.frame_num])
             # self.track += 1
-
-        # elif str(tag) in 'tail':
-        #     if not self.tailF:
-        #         logger.info('Receiving tail information')
-        #         self.tailF = True
-        #     self._collect_tail(msg_dict)
-
-        # elif 'scan' in tag:track
-        #     if 'scanner2' in msg_dict['source']:
-        #         logger.info('Photostim happened at frame {}'.format(self.frame_num))
-        #         self.photostims.append(self.frame_num)
-
-        # else:
-        #     logger.info('Had an error in tag: {}'.format(tag))
-        #     logger.info('{}'.format(msg))
 
 
     def _collect_frame(self, array):
@@ -337,86 +234,10 @@ class ZMQAcquirer(Actor):
             pass 
             # print(msg)  
         elif 'motionOn' in category:
-            # logger.info("motionON!!!!!!!!!!!!!!!!!!!!1 print something")
-            # logger.info("timerzz-timer.time {}".format(self.timerzz - time.time() ))
-            # if time.time() - self.timerzz > 1:
-            # logger.info("timerzz >>>>>>>>>>>>>>>>>>> 1 print something")
             self.stim_count += 1
-            # logger.info('inside acquire categories block ----- ')
-            ## visual stim with Matt
-            # angle2 = None
-            # angle, angle2 = make_tuple(msg_dict['angle'])
-            # if angle>=360:
-            #     angle-=360
-            # stim = self._realign_angle(angle)
-            # self.links['stim_queue'].put({self.frame_num:[stim, float(angle), float(angle2)]})
-            # self.stimmed.append([self.frame_num, stim, angle, angle2, time.time()])
-            # logger.info('Stimulus: {}, angle: {},{}, frame {}'.format(stim, angle, angle2, self.frame_num))
-            if msg_dict['texture']['texture_name'] in ('sin_gray', 'sin_rgb', 'grating_gray', 'grating_rgb'):
-                angle = float(msg_dict['stimulus']['angle'])
-                vel = float(msg_dict['stimulus']['velocity'])
-                self.links['stim_queue'].put({self.frame_num:[angle, vel]})
-                # self.stimmed.append([self.frame_num, angle, vel])
-                logger.info('Stimulus: Moving gratings angle {} with velocity {} at frame {}'.format(angle, vel, self.frame_num))
+            self.stim_set(msg_dict)
 
-            ## spots stim with Karina
-            elif msg_dict['texture']['texture_name'] == 'gray_circle':
-                size = float(msg_dict['circle_radius'])
-                vel = float(msg_dict['velocity'])
-                self.links['stim_queue'].put({self.frame_num:[size, vel]})
-                # self.stimmed.append([self.frame_num, size, vel])
-                logger.info('Stimulus: Circle radius {} with velocity {} at frame {}'.format(size, vel, self.frame_num))
-            
-            
-            elif msg_dict['stimulus']['stim_name'] == 'gray_circle':
-                logger.info('Collecting stimulus ..... ')
-                size = float(msg_dict['texture']['length'])
-                angle = float(msg_dict['stimulus']['angle'])
-                vel = float(msg_dict['stimulus']['velocity'])
-                freq = float(msg_dict['texture']['frequency'])
-                contrast = float(msg_dict['texture']['fg_intensity'])
-                self.links['stim_queue'].put({self.frame_num:[[int(angle), vel, int(size), int(freq), int(contrast)], self.stim_count]})
-                self.stimmed.append([self.frame_num, int(angle), vel, int(size), int(freq), int(contrast)])
-
-                if int(contrast) == 0:
-                    color = 'Black'
-                elif int(contrast) == 50:
-                    color = 'Dark gray'
-                elif int(contrast) == 100:
-                    color = 'Light gray' 
-                logger.info('Stimulus: {} {} Circle radius {} at angle {} deg at with velocity {} frame {}'.format(int(freq), color, size/2, int(angle), vel, self.frame_num))
-            else:
-                logger.info('collecting stimulus -- ')
-                try:
-                    angle = float(msg_dict['stimulus']['angle'])
-                    vel = float(msg_dict['stimulus']['velocity'])
-                    freq = int(msg_dict['texture']['frequency'])
-                    center_x = int(msg_dict['texture']['center_x'])
-                    center_y = int(msg_dict['texture']['center_y'])
-                    length = int(msg_dict['texture']['length'])
-                    width = int(msg_dict['texture']['width'])
-                except Exception as e: 
-                    logger.error('Error in acquire, in collecting stimulus {}'.format(e))
-
-                if msg_dict['texture']['texture_name'] == 'gray_ellipse':
-                    shape = int(0)
-                else:
-                    shape = int(1)
-
-                logger.info('sending stim queue')
-                self.links['stim_queue'].put({self.frame_num:[angle, vel, length, freq, center_x, center_y, shape]})
-                self.stimmed.append([self.frame_num, angle, vel, length, freq, center_x, center_y, shape])
-            
-                if shape == 0:
-                    logger.info('Stimulus: {} Ellipse of length {} and width {} at angle {} with velocity {} at intial position ({},{}) at frame {}'.format(freq, length, width, angle, vel, center_x, center_y, self.frame_num))
-                else:
-                    logger.info('Stimulus: {} Rectangle of length {} and width {} at angle {} with velocity {} at intial position ({},{}) at frame {}'.format(freq, length, width, angle, vel, center_x, center_y, self.frame_num))
-
-                # self.timerzz = time.time()
             logger.info('Number of stimuli: {}'.format(self.stim_count))
-            # else:
-            #     logger.info("!!!TIMERZZ IS GETTING STUFF LESS THAN A SECOND!!!!")
-            # self.stimsendtimes.append([sendtime])
 
     def _collect_tail(self, msg_dict):
         sendtime = msg_dict['timestamp']
@@ -425,22 +246,11 @@ class ZMQAcquirer(Actor):
         self.tailsendtimes.append([sendtime])
 
     def _msg_unpacker(self, msg):
-        # logger.info('keys: {}'.format(msg[::2]))
-        # logger.info('vals: {}'.format(msg[1::2]))
-        # keys = msg[::2]
-        # vals = msg[1::2]
-        
-        # msg_dict = {}
-        # for k, v in zip(keys, vals):
-        #     msg_dict[k.decode()] = v.decode()
-        
-        # logger.info('msg_dict inside msg_unpacker: {}'.format(msg_dict))
 
-        msg_unpacked = msg #pickle.loads(msg[0])
-        # logger.info('unpacked message: {}'.format(msg_unpacked))
+        msg_unpacked = msg 
 
         category = None
-        if 'motionOn' in msg_unpacked:
+        if 'motionOn' in msg_unpacked or 'stimChange: {' in msg_unpacked: # since flashing spots has speed of 0, the tag is not motionOn but instead stimChange (which causes issues later on)
             category = 'motionOn'
         elif 'queueAddition' in msg_unpacked:
             category = 'queueAddition'
@@ -448,7 +258,6 @@ class ZMQAcquirer(Actor):
             category = 'noStimChange'
         else:
             category = 'stimChange'
-        # logger.info('CATEGORY: {}'.format(category))
 
         if category == 'noStimChange':
             msg_dict = {}
@@ -459,13 +268,8 @@ class ZMQAcquirer(Actor):
             msg_str= msg_unpacked[start_idx:end_idx]
             msg_str = re.sub(r"np\.float64\(([^)]+)\)", r"\1", msg_str)
 
-            # logger.info('formatted message type: {}'.format(msg_str))
-        #     try:
             msg_dict = ast.literal_eval(msg_str)
-        #     except Esxception as e:
-        #         logger.error('ERROR: {}'.format(e))
 
-        # logger.info('msg_dict: {}'.format(msg_dict))
         return msg_dict, category
 
     def _realign_angle(self, angle):
@@ -491,3 +295,52 @@ class ZMQAcquirer(Actor):
             logger.error('Stimulus angle unrecognized')
             stim = 0
         return stim
+
+
+    def stim_set(self, msg_dict):
+
+        if msg_dict['texture']['texture_name'] == 'gray_ellipse':
+            angle = int(msg_dict['stimulus']['angle'])
+            speed = float(msg_dict['stimulus']['velocity'])
+            size = int(msg_dict['texture']['length'])
+            freq = int(msg_dict['texture']['frequency'])
+            center_x = int(msg_dict['texture']['center_x'])
+            center_y = int(msg_dict['texture']['center_y'])
+            contrast = int(msg_dict['texture']['fg_intensity'])
+            shape = 0
+                        
+            # logger.info('Is speed = float(0): {}'.format(speed == float(0)))
+            if speed == float(0):
+                logger.info('Stimulus: Flashing spot at ({},{})'.format(center_x, center_y))
+            else:
+                if angle in [45, 135, 225, 315]:
+                    # Adjust angle to match stimulus space, remapping to the "center" of the stimulus screen
+                    center_x = 850
+                    center_y = 1000
+                logger.info('Stimulus: {} Moving dots with size {} at angle {} and speed {}'.format(freq, size, angle, speed))
+
+
+        elif msg_dict['texture']['texture_name'] == 'grating_gray':
+            try:
+                angle = int(msg_dict['stimulus']['angle'])
+                speed = float(msg_dict['stimulus']['velocity'])
+                size = -99 
+                freq = int(msg_dict['texture']['frequency'])
+                center_x = -99 
+                center_y = -99 
+                contrast = int(msg_dict['texture']['dark_value'])
+                shape = 1
+            except Exception as e:
+                logger.info('acquirer receiving msg error: {}'.format(e))
+            logger.info('Stimulus: Sin Drift Gratings at angle {} and speed {}'.format(angle, speed))
+      
+        # try:
+
+        stim_set_tag = msg_dict['stimulus']['note']
+        indices = self.stimuli_space.param_to_ridx([angle, speed, size, freq, center_x, center_y, contrast, shape], tag=stim_set_tag)
+        # except Exception as e:
+        #     logger.info(f'Params are: {[angle, speed, size, freq, center_x, center_y, contrast, shape]}')
+        #     logger.info('Error finding stimulus index: {}'.format(e))
+        self.links['stim_queue'].put({self.frame_num:indices})
+        self.stimmed.append([self.frame_num, angle, speed, size, freq, center_x, center_y, contrast, shape])
+        
