@@ -148,6 +148,8 @@ class Processor(Actor):
             self.total_latencies = []        # queue get → q_out put (full runStep work)
             # Angles sent out, for synchronization with sender
             self.angles_sent = []
+            # Queue drain tracking — how many frames were skipped each step
+            self.frames_dropped = []         # number of stale frames skipped per runStep
 
             self.time_start = time.perf_counter()
 
@@ -187,6 +189,9 @@ class Processor(Actor):
             np.save(self.out_folder / f"proc_queue_put_cam{cam}.npy", self.queue_put_latencies)
             np.save(self.out_folder / f"proc_total_cam{cam}.npy", self.total_latencies)
 
+            # Queue drain tracking
+            np.save(self.out_folder / f"proc_frames_dropped_cam{cam}.npy", self.frames_dropped)
+
             # Legacy file names for backward compatibility
             np.save(self.out_folder / f"latencies_cam{cam}.npy", self.total_latencies)
             np.save(self.out_folder / f"startLatencies_cam{cam}.npy", self.timestamps)
@@ -203,10 +208,25 @@ class Processor(Actor):
         smoothed_angle = None  # Initialize smoothed_angle
 
         if self.pred_active:
-            # --- Step 1: Queue wait (get frame from generator) ---
+            # --- Step 1: Queue drain — skip to the NEWEST frame ---
             t_queue_wait = time.perf_counter()
             try:
                 msg = self.q_in.get(timeout=0.01)
+                # ----------------------------
+                # Drain any additional frames — keep only the newest
+                dropped = 0
+                while True:
+                    try:
+                        newer_msg = self.q_in.get_nowait()
+                        dropped += 1
+                        msg = newer_msg
+                    except Exception:
+                        break  # queue is empty, msg holds the newest frame
+
+                if dropped > 0:
+                    logger.debug(f"Cam {self.camera_num}: Skipped {dropped} stale frame(s) to reduce latency")
+                #------------------------------
+
                 # Support both old [data_id, timestamp] and new [data_id, timestamp, frame_num] formats
                 if len(msg) == 3:
                     frame_id, camera_start, gen_frame_num = msg
@@ -215,6 +235,7 @@ class Processor(Actor):
                     gen_frame_num = -1
                 t_got = time.perf_counter()
                 self.queue_wait_latencies.append(t_got - t_queue_wait)
+                self.frames_dropped.append(dropped)
             except Exception as e:
                 # No frame available, nothing to process
                 return
@@ -286,6 +307,7 @@ class Processor(Actor):
                     # --- Step 5: Kalman filter ---
                     t0 = time.perf_counter()
                     try:
+                        assert False
                         smoothed_prediction = self.kalman_filter.process(self.prediction, frame_time=camera_start)
                     except Exception as e:
                         logger.error(f"Kalman filter processing error: {e}")
@@ -301,18 +323,22 @@ class Processor(Actor):
                     t0 = time.perf_counter()
                     if len(smoothed_prediction) >= 3:
                         angle = self.calculateAngle(smoothed_prediction)
-                        # Exponential moving average instead of queue mean + hard clamp
-                        if self.prev_angle is not None:
-                            smoothed_angle = self.alpha * angle + (1 - self.alpha) * self.prev_angle
-                        else:
-                            smoothed_angle = angle
+                        
+                        #Angle Smoothing
+                        self.angle_queue.append(angle)
+                        smoothed_angle = np.median(self.angle_queue) if len(self.angle_queue) > 0 else angle
+
+                        # Apply sudden jump detection on the smoothed angle
+                        if self.prev_angle is not None and np.abs(smoothed_angle - self.prev_angle) > 500000:
+                            smoothed_angle = self.prev_angle  # ignore sudden large jumps
                         self.prev_angle = smoothed_angle
                     else:
-                        raw_val = smoothed_prediction[0][0]
-                        if self.prev_angle is not None:
-                            smoothed_angle = self.alpha * raw_val + (1 - self.alpha) * self.prev_angle
-                        else:
-                            smoothed_angle = raw_val
+                        self.angle_queue.append(smoothed_prediction[0][0])  # Just treat the x value as angle for queue
+                        smoothed_angle = np.median(self.angle_queue) if len(self.angle_queue) > 0 else angle
+
+                        # Apply sudden jump detection on the smoothed angle
+                        if self.prev_angle is not None and np.abs(smoothed_angle - self.prev_angle) > 5000000:
+                            smoothed_angle = self.prev_angle  # ignore sudden large jumps
                         self.prev_angle = smoothed_angle
                     self.postprocess_latencies.append(time.perf_counter() - t0)
 
