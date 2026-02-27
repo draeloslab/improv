@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 def calculateAngle(predictions):
 
-        p2, p3, p4 = predictions[:,1, :2], predictions[:,2, :2], predictions[:,3, :2]
+        p2, p3, p4 = predictions[:,0, :2], predictions[:,2, :2], predictions[:,3, :2]
         #  DIP=0, PIP=1, MCP=2, Wrist=3, currently getting angle at MCP
         # Define vectors from point 3 to points 2 and 4
         v3_to_2 = p2 - p3
@@ -30,7 +30,7 @@ kalman_filter = KalmanFilterPredictor(
                 dlc_var=10,        
                 lik_thresh=0.2     
             )
-folder = '/home/chesteklab/predictions/20260205/20260205-1051'
+folder = '/home/chesteklab/predictions/20260226/20260226-1220'
 predictions = np.load(f"{folder}/predictions_cam0.npy")
 
 # Initialize array to store smoothed predictions with same shape as input

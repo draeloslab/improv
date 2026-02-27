@@ -122,7 +122,7 @@ class Processor(Actor):
             self.frame_num = 0
             self.frame_sentTime = 0
             self.frames_log = 200 # num frames after which to log
-            self.angle_queue = deque(maxlen=10)  # to store last 5 angles for smoothing
+            self.angle_queue = deque(maxlen=10)  # to store last 10 angles for smoothing
             self.recent_predictions = [None for _ in range(5)]
             self.alpha = config['alpha']
             self.interp_thresh = config['threshold']
@@ -307,7 +307,7 @@ class Processor(Actor):
                     # --- Step 5: Kalman filter ---
                     t0 = time.perf_counter()
                     try:
-                        assert False
+                        # assert False
                         smoothed_prediction = self.kalman_filter.process(self.prediction, frame_time=camera_start)
                     except Exception as e:
                         logger.error(f"Kalman filter processing error: {e}")
@@ -322,11 +322,11 @@ class Processor(Actor):
                     # --- Step 6: Post-processing (angle calculation + smoothing) ---
                     t0 = time.perf_counter()
                     if len(smoothed_prediction) >= 3:
-                        angle = self.calculateAngle(smoothed_prediction)
-                        
-                        #Angle Smoothing
+                        # angle = self.calculateAngle(smoothed_prediction)
+                        angle = smoothed_prediction[1][1] # Just take the y value of the PIP joint as a proxy for angle, since actual angle calc is noisy
+                        # Angle Smoothing
                         self.angle_queue.append(angle)
-                        smoothed_angle = np.median(self.angle_queue) if len(self.angle_queue) > 0 else angle
+                        smoothed_angle = np.mean(self.angle_queue) if len(self.angle_queue) > 0 else angle
 
                         # Apply sudden jump detection on the smoothed angle
                         if self.prev_angle is not None and np.abs(smoothed_angle - self.prev_angle) > 500000:
@@ -334,7 +334,7 @@ class Processor(Actor):
                         self.prev_angle = smoothed_angle
                     else:
                         self.angle_queue.append(smoothed_prediction[0][0])  # Just treat the x value as angle for queue
-                        smoothed_angle = np.median(self.angle_queue) if len(self.angle_queue) > 0 else angle
+                        smoothed_angle = np.mean(self.angle_queue) if len(self.angle_queue) > 0 else angle
 
                         # Apply sudden jump detection on the smoothed angle
                         if self.prev_angle is not None and np.abs(smoothed_angle - self.prev_angle) > 5000000:
@@ -360,7 +360,7 @@ class Processor(Actor):
                 # --- Step 7: Queue put (send to downstream) ---
                 t0 = time.perf_counter()
                 try:
-                    smoothed_angle = smoothed_angle/self.resize if self.camera_num == 2 else smoothed_angle
+                    smoothed_angle = smoothed_angle/self.resize #if self.camera_num == 2 else smoothed_angle
                     # Pass along camera_start and frame_num so Sender can compute true end-to-end
                     self.q_out.put([smoothed_prediction, smoothed_angle, camera_start, gen_frame_num])
                 except Exception as e:
@@ -380,7 +380,7 @@ class Processor(Actor):
             logger.error(f"Cannot calculate angle: need 3 points, got {len(prediction)}")
             return None
 
-        p2, p3, p4 = prediction[0,:2], prediction[2, :2], prediction[3, :2]
+        p2, p3, p4 = prediction[1,:2], prediction[2, :2], prediction[3, :2]
         #  DIP=0, PIP=1, MCP=2, Wrist=3, currently getting angle at MCP
         # Define vectors from point 3 to points 2 and 4
         v3_to_2 = p2 - p3
