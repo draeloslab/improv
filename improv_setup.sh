@@ -1,9 +1,9 @@
 #!/bin/bash
 
-cd $HOME/Desktop/Code/improv/ || exit
+cd $HOME/code/improv/ || exit
 
 source ~/miniforge3/etc/profile.d/conda.sh  
 conda activate improv
 
-export PYTHONPATH=$HOME/Desktop/Code/improv:$HOME/Desktop/Code/:$HOME/Desktop/Code/BayesOptim:$PYTHONPATH
+export PYTHONPATH=$HOME/code/improv:$HOME/code/:$HOME/code/BayesOptim:$PYTHONPATH
 

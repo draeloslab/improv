@@ -1,4 +1,3 @@
-# TODO: make a BayesOpt actor (take optimizer class from Stimulus actor)
 import time
 import numpy as np
 import random
