@@ -92,7 +92,6 @@ class BayesOptimizer(Actor):
         logger.info('calibration is {}'.format(self.stim_space['calibration_stim']))
 
 
-
     def setup(self):
     
         self.stop_sending = False
@@ -105,8 +104,6 @@ class BayesOptimizer(Actor):
         self.timer = time.time()
 
         self.stim_ind = None
-
-        
 
     def stop(self):
 

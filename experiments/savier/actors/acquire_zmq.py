@@ -129,6 +129,7 @@ class ZMQAcquirer(Actor):
             logger.info('error: {}'.format(e))
 
     def get_message(self, timeout=0.001):
+        # logger.info("GET MSG FROM ACQUIRER!!!!!!!!!")
         #  try receiving microscope message: 
         try:
             # BUG: 031925, recv_pyobj may not work
