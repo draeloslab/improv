@@ -1,34 +1,33 @@
 import numpy as np
 from itertools import product
 import random
+import logging; logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 class StimulusSpace():
     def __init__(self): 
 
         x1 = np.array([0, 45, 90, 135, 180, 225, 270, 315]) #np.arange(0, 331, 30)
-        x2 = np.array([0.0, 0.02, 0.04, 0.06, 0.08, 0.10, 0.12]) 
+        # x1 = np.array([0, 90, 180, 270])
+        x2 = np.array([0.02, 0.04, 0.06, 0.08, 0.10, 0.12]) 
         x3 = np.array([50, 137, 225, 312, 400])
         x4 = np.array([1, 3, 10, 20])
-        x5 = np.array([800, 850, 900])
-        x6 = np.array([950, 1000, 1050])
-        x7 = np.array([0,1])
+        x5 = np.array([0, 50, 100])
 
-        labels = ['angle', 'velocity', 'size', 'frequency', 'center_x', 'center_y', 'shape']
-        stim = np.array([x1, x2, x3, x4, x5, x6, x7], dtype=object)
+        # x3 = np.arange(405,1525,100)
+        # x4 = np.arange(625,1285,100)
+        # x6 = np.arange(20, 801, 80)
+        # x7 = np.array([0,1])
+        # x8 = np.linspace(1,120, num=12).astype(int)
+        # stim_list = [x1, x2, x3, x4]
+
+        labels = ['angle', 'velocity', 'size', 'frequency', 'contrast']
+        stim = np.array([x1, x2, x3, x4, x5], dtype=object)
+        # logger.info("what is stim: {}".format(stim))
 
         ## 
-        
-        # initial_stim = self.initial_stim(stim, initial_type='baseline')
-
-        drift_gratings = [[i, 2, 0, 0, 0, 0, 1] for i in range(len(stim[0]))]
-        stationary_spots = [[0,0,0,0,1,1,0], [0,0,0,0,0,0,0], [0,0,0,0,0,2,0], [0,0,0,0,2,2,0], [0,0,0,0,2,0,0]]
-        moving_spots = [[0,2,0,1,0,0,0], [0,2,0,1,0,2,0], [0,2,0,1,2,2,0], [0,2,0,1,2,0,0], [0,2,0,1,1,1,0]]
-
-        initial_stim = stationary_spots 
-        # initial_stim = drift_gratings + stationary_spots + moving_spots
-        # random.shuffle(initial_stim)
-
-        self.initial_stim_count = len(initial_stim)
+        self.initial_stim_count = 8
+        initial_stim = self.initial_stim(stim, initial_type='baseline')
 
         total_stim_time = 10 # duration of stimuli (in sec)
         hold_after = 5 # hold after period  (in sec)
@@ -45,19 +44,25 @@ class StimulusSpace():
         }
 
     def initial_stim(self, stim, initial_type):
-
+        initial_stim = []
         np.random.seed(42)
         if initial_type == 'baseline':
-            np.random.shuffle(stim[0])
-            initial_stim = [[i, 0, 1, 0] for i in range(len(stim[0]))]
+            scramle_dim1_param = stim[0].copy()
+            np.random.shuffle(scramle_dim1_param)
+            scramle_dim1_idx = [np.where(stim[0] == value)[0][0] for value in scramle_dim1_param]
+            for i in range(self.initial_stim_count):
+                idx = i % len(scramle_dim1_idx)
+                # idx1 = i % len(stim[4])
+                initial_stim.append([scramle_dim1_idx[idx], 0, 1, 0, 0])  # use high contrast
+            # initial_stim = [[i, 0, 1, 0] for i in scramle_dim1_idx]
             
         else:
             shuffled_stim_list = [x.copy() for x in stim.tolist()]
-            np.random.seed(42)
+            # np.random.seed(42)
             for x in shuffled_stim_list:
                 np.random.shuffle(x)
         
-            initial_stim = []
+            # initial_stim = []
             for i in range(self.initial_stim_count):
                 ind = []
                 for shuffle, original in zip(shuffled_stim_list, stim.tolist()):
