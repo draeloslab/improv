@@ -4,7 +4,6 @@ actors:
     class: DisplayVisual
     visual: Visual
 
-  # Microscope actor should be commented out when running a live experiment
   Microscope:
     package: experiments.common_actors.load_disc
     class: FileAcquirer
@@ -17,15 +16,15 @@ actors:
     framerate: 15
 
   Acquirer:
-    package: actors.acquire_zmq
-    class: ZMQAcquirer
-    ip: 127.0.0.1 #192.168.1.1 #127.0.0.1 IP address is for running a pseudo-online run
-    ports: [50154, 5000,5007,5008,5009,5010,5011,4701,4703,5865,5005,5017,5018] 
-    output: output/
-    red_chan_image: output/red_channel_image.npy
-    init_filename: output/initialization.h5
-    init_frame: 60
-    
+      package: actors.acquire_zmq
+      class: ZMQAcquirer
+      ip: 127.0.0.1 #192.168.1.1 #127.0.0.1 IP address is for running a pseudo-online run
+      ports: [50154, 5000,5007,5008,5009,5010,5011,4701,4703,5865,5005,5017,5018] 
+      output: output/
+      red_chan_image: output/red_channel_image.npy
+      init_filename: output/initialization.h5
+      init_frame: 60
+      
   Stimulus:
     package: actors.stimulus
     class: VisualStimulus
@@ -42,9 +41,9 @@ actors:
   Visual:
     package: experiments.common_actors.visual_viz_stim
     class: CaimanVisualStim
-    
+      
   Analysis:
-    package: experiments.common_actors.analysis_viz 
+    package: experiments.common_actors.analysis
     class: VizStimAnalysis
     stimuli: stimuli.npy
     before_amount: 5
@@ -53,8 +52,9 @@ actors:
 
   Optimizer:
     package: experiments.common_actors.optimizer
-    class: BayesOptimizer #RandomSampler 
+    class: BayesOptimizer
     param_file: bayesopt_parameters.yaml
+    calibration: True
 
 connections:
   Acquirer.q_out: [Processor.q_in, Visual.raw_frame_queue]
@@ -63,6 +63,7 @@ connections:
   Acquirer.stim_queue: [Analysis.input_stim_queue, Visual.stim_in]
   Analysis.stim_out: [Optimizer.q_in] 
   Optimizer.stim_ind_out: [Stimulus.stim_ind_in]
+  Optimizer.stim_flag_out: [Acquirer.stim_flag_in]
   Optimizer.q_out: [Visual.optim_in]
 
 redis_config:

@@ -19,6 +19,7 @@ import cv2
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+from experiments.savier.gen_stim import StimulusSpace
 
 class ZMQAcquirer(Actor):
 
@@ -36,6 +37,10 @@ class ZMQAcquirer(Actor):
         self.output_folder = str(output)
         pathlib.Path(output).mkdir(exist_ok=True) 
         pathlib.Path(output+'timing/').mkdir(exist_ok=True)
+
+        # Stimulus Space information (loading from stimulus class)
+        self.stimuli_space = StimulusSpace()
+        self.stim_space = self.stimuli_space.stim_space
 
     def setup(self):
         self.context = zmq.Context()
@@ -81,23 +86,10 @@ class ZMQAcquirer(Actor):
             f.create_dataset("default", data=self.imgs)
             f.close()
 
-        # if not os.path.exists(self.red_chan_image):
-        #     if len(self.saveArrayRedChan) > 1:
-        #         mean_red = np.mean(np.array(self.saveArrayRedChan), axis=0)
-        #         np.save(self.red_chan_image, mean_red)
-
         self.frame_num = 0
         self.track = 0
 
         self.kill_flag = True
-
-        # ## reconnect socket
-        # self.socket.close()
-        # self.socket = context.socket(zmq.SUB)
-        # for port in self.ports:
-        #     self.socket.connect("tcp://"+str(self.ip)+":"+str(port))
-        #     print('RE-Connected to '+str(self.ip)+':'+str(port))
-        # self.socket.setsockopt(zmq.SUBSCRIBE, b'')
 
 
     def stop(self):
@@ -134,7 +126,7 @@ class ZMQAcquirer(Actor):
             # No messages available
             pass 
         except Exception as e:
-            print('error: {}'.format(e))
+            logger.info('error: {}'.format(e))
 
     def get_message(self, timeout=0.001):
         #  try receiving microscope message: 
@@ -164,6 +156,7 @@ class ZMQAcquirer(Actor):
         except pickle.UnpicklingError:
             pass
         except Exception as e:
+            # logger.info('error: {}'.format(e))
             logger.info('error from pickle load: {} - {}'.format({type(e).__name__}, e))
 
         
@@ -186,21 +179,6 @@ class ZMQAcquirer(Actor):
             self.total_times_frame.append(time.time() - t0)
             self.timestamp_frame.append([dt.now(), self.frame_num])
             # self.track += 1
-
-        # elif str(tag) in 'tail':
-        #     if not self.tailF:
-        #         logger.info('Receiving tail information')
-        #         self.tailF = True
-        #     self._collect_tail(msg_dict)
-
-        # elif 'scan' in tag:track
-        #     if 'scanner2' in msg_dict['source']:
-        #         logger.info('Photostim happened at frame {}'.format(self.frame_num))
-        #         self.photostims.append(self.frame_num)
-
-        # else:
-        #     logger.info('Had an error in tag: {}'.format(tag))
-        #     logger.info('{}'.format(msg))
 
 
     def _collect_frame(self, array):
@@ -256,78 +234,10 @@ class ZMQAcquirer(Actor):
             pass 
             # print(msg)  
         elif 'motionOn' in category:
-            # logger.info("motionON!!!!!!!!!!!!!!!!!!!!1 print something")
-            # logger.info("timerzz-timer.time {}".format(self.timerzz - time.time() ))
-            # if time.time() - self.timerzz > 1:
-            # logger.info("timerzz >>>>>>>>>>>>>>>>>>> 1 print something")
             self.stim_count += 1
-            # logger.info('inside acquire categories block ----- ')
-            ## visual stim with Matt
-            # angle2 = None
-            # angle, angle2 = make_tuple(msg_dict['angle'])
-            # if angle>=360:
-            #     angle-=360
-            # stim = self._realign_angle(angle)
-            # self.links['stim_queue'].put({self.frame_num:[stim, float(angle), float(angle2)]})
-            # self.stimmed.append([self.frame_num, stim, angle, angle2, time.time()])
-            # logger.info('Stimulus: {}, angle: {},{}, frame {}'.format(stim, angle, angle2, self.frame_num))
-            if msg_dict['texture']['texture_name'] in ('sin_gray', 'sin_rgb', 'grating_gray', 'grating_rgb'):
-                angle = float(msg_dict['stimulus']['angle'])
-                vel = float(msg_dict['stimulus']['velocity'])
-                self.links['stim_queue'].put({self.frame_num:[angle, vel]})
-                # self.stimmed.append([self.frame_num, angle, vel])
-                logger.info('Stimulus: Moving gratings angle {} with velocity {} at frame {}'.format(angle, vel, self.frame_num))
-            
-            elif msg_dict['stimulus']['stim_name'] == 'gray_circle':
-                logger.info('Collecting stimulus ..... ')
-                size = float(msg_dict['texture']['length'])
-                angle = float(msg_dict['stimulus']['angle'])
-                vel = float(msg_dict['stimulus']['velocity'])
-                freq = float(msg_dict['texture']['frequency'])
-                contrast = float(msg_dict['texture']['fg_intensity'])
-                # self.links['stim_queue'].put({self.frame_num:[int(angle), vel, int(size), int(freq), int(contrast)]})
-                self.links['stim_queue'].put({self.frame_num:[[int(angle), vel, int(size), int(freq), int(contrast)], self.stim_count]})
-                self.stimmed.append([self.frame_num, int(angle), vel, int(size), int(freq), int(contrast)])
+            self.stim_set(msg_dict)
 
-                if int(contrast) == 0:
-                    color = 'Black'
-                elif int(contrast) == 50:
-                    color = 'Dark gray'
-                elif int(contrast) == 100:
-                    color = 'Light gray' 
-                logger.info('Stimulus: {} {} Circle radius {} at angle {} deg at with velocity {} frame {}'.format(int(freq), color, size/2, int(angle), vel, self.frame_num))
-            else:
-                logger.info('collecting stimulus -- ')
-                try:
-                    angle = float(msg_dict['stimulus']['angle'])
-                    vel = float(msg_dict['stimulus']['velocity'])
-                    freq = int(msg_dict['texture']['frequency'])
-                    center_x = int(msg_dict['texture']['center_x'])
-                    center_y = int(msg_dict['texture']['center_y'])
-                    length = int(msg_dict['texture']['length'])
-                    width = int(msg_dict['texture']['width'])
-                except Exception as e: 
-                    logger.error('Error in acquire, in collecting stimulus {}'.format(e))
-
-                if msg_dict['texture']['texture_name'] == 'gray_ellipse':
-                    shape = int(0)
-                else:
-                    shape = int(1)
-
-                logger.info('sending stim queue')
-                self.links['stim_queue'].put({self.frame_num:[angle, vel, length, freq, center_x, center_y, shape]})
-                self.stimmed.append([self.frame_num, angle, vel, length, freq, center_x, center_y, shape])
-            
-                if shape == 0:
-                    logger.info('Stimulus: {} Ellipse of length {} and width {} at angle {} with velocity {} at intial position ({},{}) at frame {}'.format(freq, length, width, angle, vel, center_x, center_y, self.frame_num))
-                else:
-                    logger.info('Stimulus: {} Rectangle of length {} and width {} at angle {} with velocity {} at intial position ({},{}) at frame {}'.format(freq, length, width, angle, vel, center_x, center_y, self.frame_num))
-
-                # self.timerzz = time.time()
             logger.info('Number of stimuli: {}'.format(self.stim_count))
-            # else:
-            #     logger.info("!!!TIMERZZ IS GETTING STUFF LESS THAN A SECOND!!!!")
-            # self.stimsendtimes.append([sendtime])
 
     def _collect_tail(self, msg_dict):
         sendtime = msg_dict['timestamp']
@@ -340,7 +250,7 @@ class ZMQAcquirer(Actor):
         msg_unpacked = msg 
 
         category = None
-        if 'motionOn' in msg_unpacked:
+        if 'motionOn' in msg_unpacked or 'stimChange: {' in msg_unpacked: # since flashing spots has speed of 0, the tag is not motionOn but instead stimChange (which causes issues later on)
             category = 'motionOn'
         elif 'queueAddition' in msg_unpacked:
             category = 'queueAddition'
@@ -385,3 +295,49 @@ class ZMQAcquirer(Actor):
             logger.error('Stimulus angle unrecognized')
             stim = 0
         return stim
+
+
+    def stim_set(self, msg_dict):
+
+        if msg_dict['texture']['texture_name'] == 'gray_ellipse':
+            angle = int(msg_dict['stimulus']['angle'])
+            speed = float(msg_dict['stimulus']['velocity'])
+            size = int(msg_dict['texture']['length'])
+            freq = int(msg_dict['texture']['frequency'])
+            center_x = int(msg_dict['texture']['center_x'])
+            center_y = int(msg_dict['texture']['center_y'])
+            contrast = int(msg_dict['texture']['fg_intensity'])
+            shape = 0
+                        
+            # logger.info('Is speed = float(0): {}'.format(speed == float(0)))
+            if speed == float(0):
+                logger.info('Stimulus: Flashing spot at ({},{})'.format(center_x, center_y))
+            else:
+                if angle in [45, 135, 225, 315]:
+                    # Adjust angle to match stimulus space, remapping to the "center" of the stimulus screen
+                    center_x = 850
+                    center_y = 1000
+                logger.info('Stimulus: {} Moving dots with size {} at angle {} and speed {}'.format(freq, size, angle, speed))
+
+
+        elif msg_dict['texture']['texture_name'] == 'grating_gray':
+            try:
+                angle = int(msg_dict['stimulus']['angle'])
+                speed = float(msg_dict['stimulus']['velocity'])
+                size = -99 
+                freq = int(msg_dict['texture']['frequency'])
+                center_x = -99 
+                center_y = -99 
+                contrast = int(msg_dict['texture']['dark_value'])
+                shape = 1
+            except Exception as e:
+                logger.info('acquirer receiving msg error: {}'.format(e))
+            logger.info('Stimulus: Sin Drift Gratings at angle {} and speed {}'.format(angle, speed))
+      
+
+        stim_set_tag = msg_dict['stimulus']['note']
+        indices = self.stimuli_space.param_to_ridx([angle, speed, size, freq, center_x, center_y, contrast, shape], tag=stim_set_tag)
+        
+        self.links['stim_queue'].put({self.frame_num:indices})
+        self.stimmed.append([self.frame_num, angle, speed, size, freq, center_x, center_y, contrast, shape])
+        

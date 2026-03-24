@@ -141,3 +141,5 @@ output_*
 
 *.ipynb
 *.ipynb_checkpoints
+
+/output_figs
