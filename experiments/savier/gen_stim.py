@@ -18,6 +18,8 @@ class StimulusSpace():
 
         labels = ['angle', 'speed', 'size', 'frequency', 'center_x', 'center_y', 'contrast', 'shape']
         self.stim = np.array([x1, x2, x3, x4, x5, x6, x7, x8], dtype=object)
+        
+        self.stim_optim_space = np.array([x1, x2[1:], x3, x4, x5, x6, x7, x8], dtype=object) # Yes, it's 8D but needs it for analysis to find the right row index in the full space? (#TODO: keep checking this)
         self.stim_optim = np.array([x1, x2[1:], x3, x4, x7], dtype=object)
 
         param_space_grid = np.meshgrid(*self.stim, indexing='ij')
@@ -86,7 +88,7 @@ class StimulusSpace():
         spots = stationary_spots + moving_spots
 
         for params in spots:
-            param = self.idx_to_param(params)
+            param = self.idx_to_param(params, tag = 'calibration')
             row_index = self.param_to_ridx(param, tag='calibration')
             calibration_stim.append(row_index)
 
@@ -105,11 +107,16 @@ class StimulusSpace():
 
         return initial_stim
 
-    def param_to_idx(self, stimuli):
+    def param_to_idx(self, stimuli, tag):
         # translation from parameter space to index space
         indices = []
+        if tag == 'optim':
+            space = self.stim_optim_space
+        else:
+            space = self.stim
+
         for d, stim in enumerate(stimuli):
-            stim_space = self.stim[d]
+            stim_space = space[d]
             matches = np.where(stim_space == stim)[0]
 
             if matches.size == 0:
@@ -120,11 +127,15 @@ class StimulusSpace():
         
         return indices
 
-    def idx_to_param(self, indices):
+    def idx_to_param(self, indices, tag):
         # translation from index space to parameter spacez
         parameters = []
+        if tag == 'optim':
+            space = self.stim_optim_space
+        else:
+            space = self.stim
         for d,idx in enumerate(indices):
-            parameters.append(self.stim[d][idx])
+            parameters.append(space[d][idx])
         
         return parameters
     
