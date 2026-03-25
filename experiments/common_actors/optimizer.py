@@ -182,7 +182,7 @@ class BayesOptimizer(Actor):
                 self.counter += 1
                 self.timer = time.time()
             
-            if self.counter >= 5: #self.stimuli_space.calibration_stim_count:
+            if self.counter >= self.stimuli_space.calibration_stim_count: 
                 flag = True
             
             if flag:
