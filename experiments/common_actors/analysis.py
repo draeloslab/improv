@@ -25,6 +25,7 @@ class VizStimAnalysis(Actor):
         self.stimuli = self.stim_space['stimuli']
         self.d = self.stimuli.shape[0]
         self.param_space = self.stimuli_space.param_space
+        self.param_space_optim = self.stimuli_space.param_space_optim
         self.param_space_size = self.stimuli_space.param_space_size 
         self.param_index_space = self.stimuli_space.param_index_space
         # logger.info('reading in stim: {}'.format(self.stimuli))
@@ -191,13 +192,25 @@ class VizStimAnalysis(Actor):
 
     def updateStim_start(self, stim):
 
-        frame = list(stim.keys())[0]
-        whichStim = int(stim[frame])
+        # frame = list(stim.keys())[0]
+        # whichStim = int(stim[frame])
+        
+
+        frame = stim["frame"]
+        whichStim = stim["indices"]
+        tag = stim["tag"]
+        # logger.info('sig {}, frame {},  whichStim {}, tag {}'.format(stim, frame, whichStim, tag))
+
         self.current_stim = whichStim
 
-        multi_idx = self.param_index_space[whichStim]
+        if tag == 'optim':
+            params = self.param_space_optim[whichStim]
+            multi_idx = self.stimuli_space.param_to_idx(params, tag='optim')
+
+        else:
+            multi_idx = self.param_index_space[whichStim]
         multi_idx = np.asarray(multi_idx, dtype=int)
-        # logger.info('multi_idx: {}'.format(multi_idx))
+        logger.info('multi_idx: {}'.format(multi_idx))
 
         self.xs = multi_idx #np.vstack([self.xs, multi_idx])
         logger.info('xs: {}'.format(self.xs))
@@ -207,7 +220,7 @@ class VizStimAnalysis(Actor):
 
         curStim = 1
         
-        self.allStims[frame] = stim
+        self.allStims[frame] = {frame:whichStim} #stim
         if self.lastOnOff is None:
             self.lastOnOff = curStim
         # elif curStim == 1:
