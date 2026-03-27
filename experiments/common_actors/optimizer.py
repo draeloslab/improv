@@ -178,7 +178,7 @@ class BayesOptimizer(Actor):
                 self.counter += 1
                 self.timer = time.time()
             
-            if self.counter >= 5: #self.stimuli_space.calibration_stim_count:
+            if self.counter >= self.stimuli_space.calibration_stim_count:
                 flag = True
             
             if flag:
@@ -234,10 +234,10 @@ class BayesOptimizer(Actor):
                 if len(nonopt) >= 1:
                     obs_counts = np.count_nonzero(~np.isnan(self.y0[nonopt, :]), axis=1)
                     ready_mask = obs_counts >= 8
-                    logger.info(f"obs_counts for nonopt neurons: {obs_counts}")
+                    # logger.info(f"obs_counts for nonopt neurons: {obs_counts}")
                     if np.any(ready_mask):
                         ready = nonopt[ready_mask]
-                        logger.info(f"out of those nonopt, these are ready: {ready}")
+                        # logger.info(f"out of those nonopt, these are ready: {ready}")
                         self.nID = nonopt[np.argmax(np.nanmean(self.y0[ready,:], axis=1))]
                         logger.info('selecting most responsive neuron: {}'.format(self.nID))
                         self.optimized_n.append(self.nID)
@@ -457,7 +457,7 @@ class RandomSampler(Actor):
                 self.counter += 1
                 self.timer = time.time()
             
-            if self.counter >= 5: #self.stimuli_space.calibration_stim_count:
+            if self.counter >= self.stimuli_space.calibration_stim_count:
                 flag = True
             
             if flag:
