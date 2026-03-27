@@ -196,11 +196,17 @@ class CaimanProcessor(Actor):
         dims = image.shape
         self._updateCoords(A, dims)
         t5 = time.time()
+        logger.info(f"frame no {self.frame_number}, we have {C.shape[0]} neurons")
+        if C.shape[1] > 500:
+            C_to_put = C[:, -500:]  #only sending the latest 500 frames?
+        else:
+            C_to_put = C
 
         ids = []
         ids.append(self.client.put(self.coords)) #, "coords" + str(self.frame_number)))
         ids.append(self.client.put(image)) #, "proc_image" + str(self.frame_number)))
-        ids.append(self.client.put(C)) #, "S" + str(self.frame_number)))
+        # ids.append(self.client.put(C)) #, "S" + str(self.frame_number)))
+        ids.append(self.client.put(C_to_put)) #, "S" + str(self.frame_number)))
         ids.append(self.frame_number)
         t6 = time.time()
 

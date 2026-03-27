@@ -25,7 +25,6 @@ class VizStimAnalysis(Actor):
         self.stimuli = self.stim_space['stimuli']
         self.d = self.stimuli.shape[0]
         self.param_space = self.stimuli_space.param_space
-        self.param_space_optim = self.stimuli_space.param_space_optim
         self.param_space_size = self.stimuli_space.param_space_size 
         self.param_index_space = self.stimuli_space.param_index_space
         # logger.info('reading in stim: {}'.format(self.stimuli))
@@ -86,6 +85,8 @@ class VizStimAnalysis(Actor):
         self.puttime = []
         self.colortime = []
         self.stimtime = []
+        self.putstimtime = []
+        self.getCtime = []
         self.timestamp = []
         self.LL = []
         self.fit_times = []
@@ -102,6 +103,11 @@ class VizStimAnalysis(Actor):
         np.savetxt('output/timing/analysis_timestamp.txt', np.array(self.timestamp))
         np.savetxt('output/analysis_estsAvg.txt', np.array(self.estsAvg))
         np.savetxt('output/analysis_proc_S.txt', np.array(self.S))
+        np.savetxt('output/timing/analysis_puttime.txt', np.array(self.puttime))
+        np.savetxt('output/timing/analysis_colortime.txt', np.array(self.colortime))
+        np.savetxt('output/timing/analysis_stimtime.txt', np.array(self.stimtime))
+        np.savetxt('output/timing/analysis_putstimtime.txt', np.array(self.putstimtime))
+        np.savetxt('output/timing/analysis_getCtime.txt', np.array(self.getCtime))
 
         with open("output/analysis_stimY.pkl", 'wb') as f:
             pickle.dump(self.stimY, f)
@@ -131,9 +137,11 @@ class VizStimAnalysis(Actor):
                 self.q_out.put([1])
                 raise Empty
             self.frame = ids[-1]
+            t_get = time.time()
             self.coordDict = self.client.get(ids[0])
             self.image = self.client.get(ids[1])
             self.S = self.client.get(ids[2])
+            self.getCtime.append(time.time()-t_get)
 
             self.C = self.S
             self.C = np.where(np.isnan(self.C), 0, self.C)
@@ -173,6 +181,9 @@ class VizStimAnalysis(Actor):
                     logger.error('Nan in Cpop')
                 self.Call = self.C #already a windowed version #[:,self.frame-window:self.frame]
 
+            # trim C all and C pop for faster communication
+            self.Call = self.Call[:, -len(self.Cx):]
+            self.Cpop = self.Cpop[-len(self.Cx):]
             self.putAnalysis()
             self.putStimulus()
 
@@ -235,6 +246,8 @@ class VizStimAnalysis(Actor):
         ''' Throw things to DS and put IDs in queue for Visual
         '''
         t = time.time()
+        # logger.info(f"Cx shape {self.Cx.shape}, Call shape {self.Call.shape}, Cpop shape {self.Cpop.shape}, tune shape {len(self.tune)} with len {self.tune[0].shape}, color shape {self.color.shape}, coordDict len {len(self.coordDict)}, allStims len {len(self.allStims)}")
+        
         ids = []
         ids.append(self.client.put(self.Cx))    #, 'Cx'+str(self.frame))) 
         ids.append(self.client.put(self.Call))  #, 'Call'+str(self.frame)))
@@ -253,6 +266,7 @@ class VizStimAnalysis(Actor):
     def putStimulus(self):
         ''' Throw things to DS and put IDS in queue for Optimizer
         '''
+        t = time.time()
         ids = []
         ids.append(self.client.put(self.stimX))   #, 'stimX'+str(self.frame)))
         ids.append(self.client.put(self.stimY))   #, 'stimY'+str(self.frame)))
@@ -260,6 +274,7 @@ class VizStimAnalysis(Actor):
         ids.append(self.client.put(self.testNum)) #, 'stim_testNum'+str(self.frame)))
         ids.append(self.client.put(self.nID))     #, 'stim_nID'+str(self.frame)))
         self.links['stim_out'].put(ids)
+        self.putstimtime.append(time.time()-t)
 
     def stimAvg_start(self): #TODO: need to rewrite this section (since ys will no longer be a dict)
         t = time.time()
@@ -272,23 +287,26 @@ class VizStimAnalysis(Actor):
             self.ests = np.pad(self.ests, ((0,diff),(0,0),(0,0)), mode='constant')
 
         if self.currentStim is not None:
+            s_idx = int(self.currentStim)
             if self.stimStart == self.frame:
 
-                mean_val = np.mean(ests[:, self.frame-self.before_amount:self.frame], 1)
+                mean_val = np.mean(ests[:, -self.before_amount:], 1)
 
                 self.ests[:, self.currentStim, 1] = (self.counter[self.currentStim, 1] * self.ests[:, self.currentStim, 1] + mean_val) / (self.counter[self.currentStim, 1] +1)
                 self.counter[self.currentStim, 1] += self.before_amount
             
             elif self.frame in range(self.stimStart+1, self.stimStart+2):
 
-                val = ests[:, self.frame-1]
+                # val = ests[:, self.frame-1]
+                val = ests[:, -2]
 
                 self.ests[:, self.currentStim, 1] = (self.counter[self.currentStim, 1] * self.ests[:, self.currentStim, 1] + val) / (self.counter[self.currentStim, 1] +1)
                 self.counter[self.currentStim, 1] += 1
             
             elif self.frame in range(self.stimStart+2, self.stimStart+self.after_amount):
 
-                val = ests[:, self.frame-1]
+                # val = ests[:, self.frame-1]
+                val = ests[:, -2]
 
                 self.ests[:, self.currentStim, 0] = (self.counter[self.currentStim, 0] * self.ests[:, self.currentStim, 0] + val) / (self.counter[self.currentStim, 0] +1)
                 self.counter[self.currentStim, 0] += 1
@@ -297,7 +315,7 @@ class VizStimAnalysis(Actor):
                 logger.info('appending to X: {}'.format(self.xs))
 
                 self.stimX.append(self.xs)
-                self.stimY.append(np.mean(ests[:, self.frame-self.after_amount:self.frame], 1))
+                self.stimY.append(np.mean(ests[:, -self.after_amount:], 1))
                 logger.info('we have {} neurons right now'.format(ests.shape[0]))
 
                 self.testNum += 1
@@ -305,8 +323,9 @@ class VizStimAnalysis(Actor):
                 
                 sc = self.stim_count[self.currentStim]
                 idx = int(self.currentStim)
+                logger.info(f"this is s_idx {s_idx}, this is idx {idx}, same? {s_idx == idx}")
                 self.all_y[:numN, idx] = ((sc-1) * self.all_y[:numN, idx] + self.stimY[-1]) / sc
-        
+
         self.estsAvg = np.squeeze(self.ests[:, :, 0] - self.ests[:, :, 1])
         self.estsAvg = np.where(np.isnan(self.estsAvg), 0, self.estsAvg)
         self.estsAvg[self.estsAvg == np.inf] = 0
