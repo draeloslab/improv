@@ -13,7 +13,7 @@ actors:
     init_filename: output/initialization.h5
     filename: data/sample_stream0.h5
     init_frame: 0 #60
-    framerate: 15
+    framerate: 7.5
 
   Acquirer:
       package: actors.acquire_zmq
