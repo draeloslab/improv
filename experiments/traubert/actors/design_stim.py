@@ -29,7 +29,7 @@ class ImprovStimDesigner(Actor):
     def setup(self):
         pass
 
-    def respond_to_stim(self, u, delivery_time=None):
+    def handle_stim(self, u, delivery_time=None):
         dt = self.stim_regressor.dt
 
         self.stim_regressor.add_event(
