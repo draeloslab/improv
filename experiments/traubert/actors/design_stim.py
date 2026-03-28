@@ -3,9 +3,9 @@ from queue import Empty
 import numpy as np
 import time
 import logging
-from adaptive_latents import proSVD, CenteringTransformer, KernelSmoother
+from adaptive_latents import proSVD, CenteringEstimator, KernelSmoother
 from adaptive_latents.stim_designer import StimDesigner
-from adaptive_latents.stim_regressor import StimRegressor
+from adaptive_latents.stim_regressor import StimRegressor, StimEvent
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -19,14 +19,33 @@ class ImprovStimDesigner(Actor):
         self.C = None
         self.coords = None
 
-        self.centerer = CenteringTransformer(log_level=0)
+        self.centerer = CenteringEstimator(log_level=0)
         self.smoother = KernelSmoother(log_level=0)
         self.pro = proSVD(k=10, log_level=0)
 
         self.stim_designer = StimDesigner(should_log=False)
+        self.stim_regressor = StimRegressor()
 
     def setup(self):
         pass
+
+    def respond_to_stim(self, u, delivery_time=None):
+        dt = self.stim_regressor.dt
+
+        self.stim_regressor.add_event(
+            StimEvent(
+                u=u,
+                delivery_time=delivery_time,
+                no_fit_interval = (delivery_time, delivery_time),
+                difference_interval = (delivery_time-dt, None),
+                no_observe_interval=None,
+                eps=0
+            )
+        )
+
+        if 'we need to update':
+            updated_delivery_time = ...
+            self.stim_regressor.ignore_data_events[-1].difference_interval = (updated_delivery_time-dt, updated_delivery_time)
 
     def runStep(self):
         start_time = time.time()
@@ -47,7 +66,7 @@ class ImprovStimDesigner(Actor):
         if self.pro.Q is not None and data.shape[1] > self.pro.Q.shape[0]:
             self.pro.add_new_input_channels(data.shape[1] - self.pro.Q.shape[0])
             logger.info(f'jdg: new C shape: {C.shape}')
-        data = self.pro.partial_fit_transform(data)
+        data = self.pro.step(data)
 
         if self.pro.is_initialized:
             v = np.zeros([10,1])
