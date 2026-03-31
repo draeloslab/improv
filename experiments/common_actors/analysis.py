@@ -80,6 +80,7 @@ class VizStimAnalysis(Actor):
         self.testNum = 0 
         self.nID = 0
         self.stimText = None
+        # self.stimY_ls = []
 
         self.total_times = []
         self.puttime = []
@@ -113,6 +114,8 @@ class VizStimAnalysis(Actor):
             pickle.dump(self.stimY, f)
         with open("output/analysis_stimX.pkl", 'wb') as f:
             pickle.dump(self.stimX, f)
+        # with open("output/analysis_stimY_ls.pkl", 'wb') as f:
+        #     pickle.dump(self.stimY_ls, f)
             
         stim = []
         for i in self.allStims.keys():
@@ -280,7 +283,9 @@ class VizStimAnalysis(Actor):
         t = time.time()
 
         ests = self.C
-        
+        buffer_len = ests.shape[1]
+        buffer_start_idx = max(0, self.frame - (buffer_len - 1))
+
         if self.ests.shape[0]<ests.shape[0]:
             diff = ests.shape[0] - self.ests.shape[0]
             # added more neurons, grow the array
@@ -288,36 +293,62 @@ class VizStimAnalysis(Actor):
 
         if self.currentStim is not None:
             s_idx = int(self.currentStim)
+            local_idx_now = self.frame - buffer_start_idx
             if self.stimStart == self.frame:
-
-                mean_val = np.mean(ests[:, -self.before_amount:], 1)
-
+                local_end = local_idx_now + 1
+                local_start = max(0, local_end - self.before_amount)
+               
+                # mean_val = np.mean(ests[:, -self.before_amount:], 1)  # relative indexing; need to be replaced
+                mean_val = np.mean(ests[:, local_start:local_end], 1)
                 self.ests[:, self.currentStim, 1] = (self.counter[self.currentStim, 1] * self.ests[:, self.currentStim, 1] + mean_val) / (self.counter[self.currentStim, 1] +1)
                 self.counter[self.currentStim, 1] += self.before_amount
             
             elif self.frame in range(self.stimStart+1, self.stimStart+2):
+                target_frame = self.frame - 1
+                local_idx = target_frame - buffer_start_idx
 
-                # val = ests[:, self.frame-1]
-                val = ests[:, -2]
+                if 0 <= local_idx < buffer_len:
+                    val = ests[:, local_idx]
+                    self.ests[:, self.currentStim, 1] = (self.counter[self.currentStim, 1] * self.ests[:, self.currentStim, 1] + val) / (self.counter[self.currentStim, 1] + 1)
+                    self.counter[self.currentStim, 1] += 1
+                else:
+                    logger.warning(f"Frame {target_frame} missing from 500-frame buffer.")
 
-                self.ests[:, self.currentStim, 1] = (self.counter[self.currentStim, 1] * self.ests[:, self.currentStim, 1] + val) / (self.counter[self.currentStim, 1] +1)
-                self.counter[self.currentStim, 1] += 1
-            
+                # # val = ests[:, self.frame-1]
+                # val = ests[:, -2]  # dont use relative indexing (caiman need to send an array of frame num)
+
+                # self.ests[:, self.currentStim, 1] = (self.counter[self.currentStim, 1] * self.ests[:, self.currentStim, 1] + val) / (self.counter[self.currentStim, 1] +1)
+                # self.counter[self.currentStim, 1] += 1
+
             elif self.frame in range(self.stimStart+2, self.stimStart+self.after_amount):
+                target_frame = self.frame - 1
+                local_idx = target_frame - buffer_start_idx
+                
+                if 0 <= local_idx < buffer_len:
+                    val = ests[:, local_idx]
+                    self.ests[:, self.currentStim, 0] = (self.counter[self.currentStim, 0] * self.ests[:, self.currentStim, 0] + val) / (self.counter[self.currentStim, 0] + 1)
+                    self.counter[self.currentStim, 0] += 1
+                else:
+                    logger.warning(f"Frame {target_frame} missing from 500-frame buffer.")
 
-                # val = ests[:, self.frame-1]
-                val = ests[:, -2]
+                # # val = ests[:, self.frame-1]
+                # val = ests[:, -2]  # same, dont use relative indexing
 
-                self.ests[:, self.currentStim, 0] = (self.counter[self.currentStim, 0] * self.ests[:, self.currentStim, 0] + val) / (self.counter[self.currentStim, 0] +1)
-                self.counter[self.currentStim, 0] += 1
+                # self.ests[:, self.currentStim, 0] = (self.counter[self.currentStim, 0] * self.ests[:, self.currentStim, 0] + val) / (self.counter[self.currentStim, 0] +1)
+                # self.counter[self.currentStim, 0] += 1
 
             if self.frame == self.stimStart + self.after_amount:
                 logger.info('appending to X: {}'.format(self.xs))
 
                 self.stimX.append(self.xs)
-                self.stimY.append(np.mean(ests[:, -self.after_amount:], 1))
-                logger.info('we have {} neurons right now'.format(ests.shape[0]))
+                local_end = local_idx_now + 1
+                local_start = max(0, local_end - self.after_amount)
+                self.stimY.append(np.mean(ests[:, local_start:local_end], 1))
 
+                # self.stimY.append(np.mean(ests[:, -self.after_amount:], 1))  # relative indexing
+                logger.info('at frame {} we have {} neurons right now'.format(self.frame, ests.shape[0]))
+                # self.stimY_ls.append(ests[:, -self.after_amount:])  # relative indexing
+                # self.stimY_ls.append(ests[:, local_start:local_end])  # absolute indexing
                 self.testNum += 1
                 numN = self.ests.shape[0]
                 
