@@ -80,7 +80,6 @@ class VizStimAnalysis(Actor):
         self.testNum = 0 
         self.nID = 0
         self.stimText = None
-        # self.stimY_ls = []
 
         self.total_times = []
         self.puttime = []
@@ -114,8 +113,6 @@ class VizStimAnalysis(Actor):
             pickle.dump(self.stimY, f)
         with open("output/analysis_stimX.pkl", 'wb') as f:
             pickle.dump(self.stimX, f)
-        # with open("output/analysis_stimY_ls.pkl", 'wb') as f:
-        #     pickle.dump(self.stimY_ls, f)
             
         stim = []
         for i in self.allStims.keys():
@@ -347,8 +344,6 @@ class VizStimAnalysis(Actor):
 
                 # self.stimY.append(np.mean(ests[:, -self.after_amount:], 1))  # relative indexing
                 logger.info('at frame {} we have {} neurons right now'.format(self.frame, ests.shape[0]))
-                # self.stimY_ls.append(ests[:, -self.after_amount:])  # relative indexing
-                # self.stimY_ls.append(ests[:, local_start:local_end])  # absolute indexing
                 self.testNum += 1
                 numN = self.ests.shape[0]
                 
