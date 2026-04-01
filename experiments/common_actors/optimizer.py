@@ -90,7 +90,8 @@ class BayesOptimizer(Actor):
 
         self.calibration = calibration
         logger.info('calibration is {}'.format(self.stim_space['calibration_stim']))
-
+        self.calibration_display = self.calibration
+        logger.info(f'calibration display is {self.calibration_display}')
 
 
     def setup(self):
@@ -200,7 +201,7 @@ class BayesOptimizer(Actor):
                     # self.stim_ind = self.stim_space['initial_stim'][-1]
                     np.random.seed(self.seed)
                     # self.stim_ind = [np.random.choice(np.arange(0, stim)) for stim in self.stim_choice]
-                    self.stim_ind = np.random.randint(0, self.stimuli_space.param_space_size)
+                    self.stim_ind = np.random.randint(0, self.stimuli_space.param_space_size)  #FIXME: try to make this random stim one of those 2880 stimuli. 
                     logger.info(f"randomly selected stim_ind is {self.stim_ind}")
                 # self.stim_ind, flag = self.stimuli_space.initial_stim(self.stimuli, self.counter)
 
@@ -224,6 +225,9 @@ class BayesOptimizer(Actor):
         elif self.newN:
             logger.info("Reducing X from 8D to 5D for optimization - init")
             # logger.info(f"here is x_all yo: {self.X_all}")
+            if self.calibration_display:
+                logger.info(f"Have calibration stimuli, need to ignore the first 13 non-moving dots stimuli which is {self.X_all[:, :13]}")
+                self.X_all = self.X_all[:, 13:]  # TODO: this is hard-coded; need to change later?
             self.X = self.stimuli_space.param_space_shrinking(self.X_all) 
             # logger.info('self.X in INITIALIZATION is {} and has shape {} - init'.format(self.X, self.X.shape))
 
@@ -708,7 +712,8 @@ class RandomSamplerWithReplace(Actor):
         self.calibration = calibration
         if self.calibration:
             logger.info('calibration set is: {}'.format(self.stim_space['calibration_stim']))
-       
+        self.calibration_display = self.calibration
+        logger.info(f'calibration display is {self.calibration_display}')
 
     def setup(self):
     
@@ -1013,6 +1018,10 @@ class RandomBayesOptimizer(Actor):
         elif self.phase == 'bayes':
             # This block corresponds to 'elif self.newN:' from the original BayesOptimizer
             if self.bayes_newN:
+                logger.info("Reducing X from 8D to 5D for optimization - init")
+                if self.calibration_display:
+                    logger.info(f"Have calibration stimuli, need to ignore the first 13 non-moving dots stimuli which is {self.X_all[:, :13]}")
+                    self.X_all = self.X_all[:, 13:]  # TODO: this is hard-coded; need to change later?
                 self.X = self.stimuli_space.param_space_shrinking(self.X_all) 
                 nonopt = np.array(list(set(np.arange(self.y0.shape[0]))-set(self.optimized_n)))
                 logger.info('nonopt is {}, number of neurons '.format(nonopt,self.y0.shape[0]))
