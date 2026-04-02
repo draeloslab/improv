@@ -27,6 +27,7 @@ class VizStimAnalysis(Actor):
         self.param_space = self.stimuli_space.param_space
         self.param_space_size = self.stimuli_space.param_space_size 
         self.param_index_space = self.stimuli_space.param_index_space
+        self.param_space_optim = self.stimuli_space.param_space_optim
         # logger.info('reading in stim: {}'.format(self.stimuli))
 
 
