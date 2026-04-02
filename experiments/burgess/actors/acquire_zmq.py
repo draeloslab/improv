@@ -134,31 +134,57 @@ class ZMQAcquirer(Actor):
             # BUG: 031925, recv_pyobj may not work
             # msg = self.socket.recv_pyobj(flags=0)
             msg_obj = self.socket.recv()
+            is_matlab = msg_obj.startswith(b'image')
         except Exception as e:
             logger.info('error from receiving: {}'.format(e))
-   
-        try:
-            msg = pickle.loads(msg_obj)
-            if isinstance(msg, dict):
-                # logger.info("dictionary raw msg: {}".format(msg))
-                msg_dict = msg
-                message_data = msg_dict['data']
-                finalthing = np.array(message_data)
-                tag = msg_dict['type']
-                
-            elif isinstance(msg, str):
-                # logger.info('pandastim raw msg: {}'.format(msg))
-                msg_dict, category = self._msg_unpacker(msg)
-                tag = 'stim'
-                # logger.info("the tag is (pandastim) {}".format(tag))
-            else:
-                logger.info("hey this is from the inside of pyobj we don't know what the type is")
-        except pickle.UnpicklingError:
-            pass
-        except Exception as e:
-            # logger.info('error: {}'.format(e))
-            logger.info('error from pickle load: {} - {}'.format({type(e).__name__}, e))
+        
+        # if it's an pyobj
+        if not is_matlab:
+            try:
+                msg = pickle.loads(msg_obj)
+                if isinstance(msg, dict):
+                    # logger.info("dictionary raw msg: {}".format(msg))
+                    msg_dict = msg
+                    message_data = msg_dict['data']
+                    finalthing = np.array(message_data)
+                    tag = msg_dict['type']
+                    
+                elif isinstance(msg, str):
+                    # logger.info('pandastim raw msg: {}'.format(msg))
+                    msg_dict, category = self._msg_unpacker(msg)
+                    tag = 'stim'
+                    # logger.info("the tag is (pandastim) {}".format(tag))
+                else:
+                    logger.info("hey this is from the inside of pyobj we don't know what the type is")
+            except pickle.UnpicklingError:
+                pass
+            except Exception as e:
+                logger.info('error from pickle load: {} - {}'.format({type(e).__name__}, e))
 
+        # if it's from matlab
+        else:
+            try:
+                # logger.info("before us trying pickling ahah")
+                msg_body = msg_obj[5:]  # strip the header 'image'
+                timestamp = struct.unpack('d', msg_body[:8])[0]  # double (8 bytes)
+                timestamp = dt.utcfromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+                frame_bytes = msg_body[8:]
+                image_array = np.frombuffer(frame_bytes, dtype=np.uint8)
+                image_array =  65535 - image_array.view('<u2').reshape((750, 512))#(600, 512)) #np.frombuffer(frame_bytes, dtype=np.uint8)#.reshape((512, 796))
+                # logger.info('image_array_size: {}'.format(image_array.size))
+                if image_array.size == 512 * 750: #600 :#* 2:
+                    self.counter_img_number += 1
+                    msg = image_array.T #image_array.view(np.uint16).reshape((512, 796))  # TODO: dim hard coded, maybe move into params. 
+                    # logger.info('hey do i have correct image?')
+                if isinstance(msg, np.ndarray):  # is it ok to add this here?
+                    finalthing = msg
+                    tag = "scanbox_img"
+                    # logger.info('Image {} received from matlab at time {}'.format(self.counter_img_number, timestamp))
+                # else:
+                #     logger.info("yo this is np from buffer we don't know what the type is")
+            except Exception as e:
+                logger.info('error from np buffer: {}'.format(e))
+        
         
         if 'stim' in tag: 
             if not self.stimF:
@@ -173,12 +199,13 @@ class ZMQAcquirer(Actor):
         # elif 'frame' in tag: 
         else:
             t0 = time.time()
-            # if self.track %2 == 0:
-            self._collect_frame(finalthing)
-            self.frame_num += 1
+            # brought back the self.track, collect every other frame
+            if self.track %2 == 0:  # next two lines unindented
+                self._collect_frame(finalthing)
+                self.frame_num += 1
             self.total_times_frame.append(time.time() - t0)
             self.timestamp_frame.append([dt.now(), self.frame_num])
-            # self.track += 1
+            self.track += 1
 
 
     def _collect_frame(self, array):
