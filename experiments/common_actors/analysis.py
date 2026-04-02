@@ -27,6 +27,7 @@ class VizStimAnalysis(Actor):
         self.param_space = self.stimuli_space.param_space
         self.param_space_size = self.stimuli_space.param_space_size 
         self.param_index_space = self.stimuli_space.param_index_space
+        self.param_space_optim = self.stimuli_space.param_space_optim
         # logger.info('reading in stim: {}'.format(self.stimuli))
 
 
@@ -110,6 +111,8 @@ class VizStimAnalysis(Actor):
         self.puttime = []
         self.colortime = []
         self.stimtime = []
+        self.putstimtime = []
+        self.getCtime = []
         self.timestamp = []
         self.LL = []
         self.fit_times = []
@@ -126,6 +129,11 @@ class VizStimAnalysis(Actor):
         np.savetxt('output/timing/analysis_timestamp.txt', np.array(self.timestamp))
         np.savetxt('output/analysis_estsAvg.txt', np.array(self.estsAvg))
         np.savetxt('output/analysis_proc_S.txt', np.array(self.S))
+        np.savetxt('output/timing/analysis_puttime.txt', np.array(self.puttime))
+        np.savetxt('output/timing/analysis_colortime.txt', np.array(self.colortime))
+        np.savetxt('output/timing/analysis_stimtime.txt', np.array(self.stimtime))
+        np.savetxt('output/timing/analysis_putstimtime.txt', np.array(self.putstimtime))
+        np.savetxt('output/timing/analysis_getCtime.txt', np.array(self.getCtime))
 
         with open("output/analysis_stimY.pkl", 'wb') as f:
             pickle.dump(self.stimY, f)
@@ -155,9 +163,11 @@ class VizStimAnalysis(Actor):
                 self.q_out.put([1])
                 raise Empty
             self.frame = ids[-1]
+            t_get = time.time()
             self.coordDict = self.client.get(ids[0])
             self.image = self.client.get(ids[1])
             self.S = self.client.get(ids[2])
+            self.getCtime.append(time.time()-t_get)
 
             self.C = self.S
             self.C = np.where(np.isnan(self.C), 0, self.C)
@@ -199,6 +209,9 @@ class VizStimAnalysis(Actor):
                     logger.error('Nan in Cpop')
                 self.Call = self.C #already a windowed version #[:,self.frame-window:self.frame]
 
+            # trim C all and C pop for faster communication
+            self.Call = self.Call[:, -len(self.Cx):]
+            self.Cpop = self.Cpop[-len(self.Cx):]
             self.putAnalysis()
             self.putStimulus()
 
@@ -218,21 +231,25 @@ class VizStimAnalysis(Actor):
 
     def updateStim_start(self, stim):
 
-        frame = list(stim.keys())[0]
-        # the following block is from the old code but calculates the number of stim presentations
-        # whichStim = stim[frame][0][0]
-        # # convert stimID into 8 cardinal directions
-        # stimID = self.IDstim(int(whichStim))
+        # frame = list(stim.keys())[0]
+        # whichStim = int(stim[frame])
+        
 
-        # for i, label in enumerate(self.stim_space['labels']):
-        #     # logger.info('looking for {} in {}'.format(stim[frame][0][i], getattr(self, f'x_{label}')))
-        #     self.xs[label] = np.argwhere(stim[frame][0][i] == getattr(self, f'x_{label}'))[0]
-        whichStim = int(stim[frame])
+        frame = stim["frame"]
+        whichStim = stim["indices"]
+        tag = stim["tag"]
+        # logger.info('sig {}, frame {},  whichStim {}, tag {}'.format(stim, frame, whichStim, tag))
+
         self.current_stim = whichStim
 
-        multi_idx = self.param_index_space[whichStim]
+        if tag == 'optim':
+            params = self.param_space_optim[whichStim]
+            multi_idx = self.stimuli_space.param_to_idx(params, tag='optim')
+
+        else:
+            multi_idx = self.param_index_space[whichStim]
         multi_idx = np.asarray(multi_idx, dtype=int)
-        # logger.info('multi_idx: {}'.format(multi_idx))
+        logger.info('multi_idx: {}'.format(multi_idx))
 
         self.xs = multi_idx #np.vstack([self.xs, multi_idx])
         logger.info('xs: {}'.format(self.xs))
@@ -242,7 +259,7 @@ class VizStimAnalysis(Actor):
 
         curStim = 1
         
-        self.allStims[frame] = stim
+        self.allStims[frame] = {frame:whichStim} #stim
         if self.lastOnOff is None:
             self.lastOnOff = curStim
         # elif curStim == 1:
@@ -257,6 +274,8 @@ class VizStimAnalysis(Actor):
         ''' Throw things to DS and put IDs in queue for Visual
         '''
         t = time.time()
+        # logger.info(f"Cx shape {self.Cx.shape}, Call shape {self.Call.shape}, Cpop shape {self.Cpop.shape}, tune shape {len(self.tune)} with len {self.tune[0].shape}, color shape {self.color.shape}, coordDict len {len(self.coordDict)}, allStims len {len(self.allStims)}")
+        
         ids = []
         ids.append(self.client.put(self.Cx))    #, 'Cx'+str(self.frame))) 
         ids.append(self.client.put(self.Call))  #, 'Call'+str(self.frame)))
@@ -275,6 +294,7 @@ class VizStimAnalysis(Actor):
     def putStimulus(self):
         ''' Throw things to DS and put IDS in queue for Optimizer
         '''
+        t = time.time()
         ids = []
         ids.append(self.client.put(self.stimX))   #, 'stimX'+str(self.frame)))
         ids.append(self.client.put(self.stimY))   #, 'stimY'+str(self.frame)))
@@ -283,53 +303,84 @@ class VizStimAnalysis(Actor):
         ids.append(self.client.put(self.nID))     #, 'stim_nID'+str(self.frame)))
         # ids.append(self.client.put(self.total_stim_counts))
         self.links['stim_out'].put(ids)
+        self.putstimtime.append(time.time()-t)
 
     def stimAvg_start(self): #TODO: need to rewrite this section (since ys will no longer be a dict)
         t = time.time()
 
         ests = self.C
-        
+        buffer_len = ests.shape[1]
+        buffer_start_idx = max(0, self.frame - (buffer_len - 1))
+
         if self.ests.shape[0]<ests.shape[0]:
             diff = ests.shape[0] - self.ests.shape[0]
             # added more neurons, grow the array
             self.ests = np.pad(self.ests, ((0,diff),(0,0),(0,0)), mode='constant')
 
         if self.currentStim is not None:
+            s_idx = int(self.currentStim)
+            local_idx_now = self.frame - buffer_start_idx
             if self.stimStart == self.frame:
-
-                mean_val = np.mean(ests[:, self.frame-self.before_amount:self.frame], 1)
-
+                local_end = local_idx_now + 1
+                local_start = max(0, local_end - self.before_amount)
+               
+                # mean_val = np.mean(ests[:, -self.before_amount:], 1)  # relative indexing; need to be replaced
+                mean_val = np.mean(ests[:, local_start:local_end], 1)
                 self.ests[:, self.currentStim, 1] = (self.counter[self.currentStim, 1] * self.ests[:, self.currentStim, 1] + mean_val) / (self.counter[self.currentStim, 1] +1)
                 self.counter[self.currentStim, 1] += self.before_amount
             
             elif self.frame in range(self.stimStart+1, self.stimStart+2):
+                target_frame = self.frame - 1
+                local_idx = target_frame - buffer_start_idx
 
-                val = ests[:, self.frame-1]
+                if 0 <= local_idx < buffer_len:
+                    val = ests[:, local_idx]
+                    self.ests[:, self.currentStim, 1] = (self.counter[self.currentStim, 1] * self.ests[:, self.currentStim, 1] + val) / (self.counter[self.currentStim, 1] + 1)
+                    self.counter[self.currentStim, 1] += 1
+                else:
+                    logger.warning(f"Frame {target_frame} missing from 500-frame buffer.")
 
-                self.ests[:, self.currentStim, 1] = (self.counter[self.currentStim, 1] * self.ests[:, self.currentStim, 1] + val) / (self.counter[self.currentStim, 1] +1)
-                self.counter[self.currentStim, 1] += 1
-            
+                # # val = ests[:, self.frame-1]
+                # val = ests[:, -2]  # dont use relative indexing (caiman need to send an array of frame num)
+
+                # self.ests[:, self.currentStim, 1] = (self.counter[self.currentStim, 1] * self.ests[:, self.currentStim, 1] + val) / (self.counter[self.currentStim, 1] +1)
+                # self.counter[self.currentStim, 1] += 1
+
             elif self.frame in range(self.stimStart+2, self.stimStart+self.after_amount):
+                target_frame = self.frame - 1
+                local_idx = target_frame - buffer_start_idx
+                
+                if 0 <= local_idx < buffer_len:
+                    val = ests[:, local_idx]
+                    self.ests[:, self.currentStim, 0] = (self.counter[self.currentStim, 0] * self.ests[:, self.currentStim, 0] + val) / (self.counter[self.currentStim, 0] + 1)
+                    self.counter[self.currentStim, 0] += 1
+                else:
+                    logger.warning(f"Frame {target_frame} missing from 500-frame buffer.")
 
-                val = ests[:, self.frame-1]
+                # # val = ests[:, self.frame-1]
+                # val = ests[:, -2]  # same, dont use relative indexing
 
-                self.ests[:, self.currentStim, 0] = (self.counter[self.currentStim, 0] * self.ests[:, self.currentStim, 0] + val) / (self.counter[self.currentStim, 0] +1)
-                self.counter[self.currentStim, 0] += 1
+                # self.ests[:, self.currentStim, 0] = (self.counter[self.currentStim, 0] * self.ests[:, self.currentStim, 0] + val) / (self.counter[self.currentStim, 0] +1)
+                # self.counter[self.currentStim, 0] += 1
 
             if self.frame == self.stimStart + self.after_amount:
                 logger.info('appending to X: {}'.format(self.xs))
 
                 self.stimX.append(self.xs)
-                self.stimY.append(np.mean(ests[:, self.frame-self.after_amount:self.frame], 1))
-                logger.info('we have {} neurons right now'.format(ests.shape[0]))
+                local_end = local_idx_now + 1
+                local_start = max(0, local_end - self.after_amount)
+                self.stimY.append(np.mean(ests[:, local_start:local_end], 1))
 
+                # self.stimY.append(np.mean(ests[:, -self.after_amount:], 1))  # relative indexing
+                logger.info('at frame {} we have {} neurons right now'.format(self.frame, ests.shape[0]))
                 self.testNum += 1
                 numN = self.ests.shape[0]
                 
                 sc = self.stim_count[self.currentStim]
                 idx = int(self.currentStim)
+                logger.info(f"this is s_idx {s_idx}, this is idx {idx}, same? {s_idx == idx}")
                 self.all_y[:numN, idx] = ((sc-1) * self.all_y[:numN, idx] + self.stimY[-1]) / sc
-        
+
         self.estsAvg = np.squeeze(self.ests[:, :, 0] - self.ests[:, :, 1])
         self.estsAvg = np.where(np.isnan(self.estsAvg), 0, self.estsAvg)
         self.estsAvg[self.estsAvg == np.inf] = 0
