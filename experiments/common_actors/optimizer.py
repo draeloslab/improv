@@ -13,7 +13,7 @@ from datetime import datetime as dt
 from BayesOptim.model.improv_config import Config 
 from BayesOptim.model.optimizer import Optimizer
 
-from experiments.savier.gen_stim import StimulusSpace
+from experiments.burgess.gen_stim import StimulusSpace
 
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
