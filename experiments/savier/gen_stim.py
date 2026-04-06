@@ -20,7 +20,7 @@ class StimulusSpace():
         self.stim = np.array([x1, x2, x3, x4, x5, x6, x7, x8], dtype=object)
         
         self.stim_optim_space = np.array([x1, x2[1:], x3, x4, x5, x6, x7, x8], dtype=object) # Yes, it's 8D but needs it for analysis to find the right row index in the full space? (#TODO: keep checking this)
-        self.stim_optim = np.array([x1, x2[1:], x3, x4, x7], dtype=object)
+        self.stim_optim = np.array([x1, x2[1:], x3, x4, x7], dtype=object)  # 86543
 
         param_space_grid = np.meshgrid(*self.stim, indexing='ij')
         param_space_full = np.stack(param_space_grid, axis=-1).reshape(-1, len(self.stim)) 
@@ -56,7 +56,8 @@ class StimulusSpace():
         calibration_stim, self.calibration_stim_count = self.calibration_stim(self.stim)
 
         self.initial_stim_count = 8
-        initial_stim = self.initial_stim(self.stim)
+        # initial_stim = self.initial_stim(self.stim)
+        initial_stim = self.initial_stim(self.stim_optim_space)
 
         total_stim_time = 10 # duration of stimuli (in sec)
         hold_after = 5       # hold after period  (in sec)
@@ -101,7 +102,9 @@ class StimulusSpace():
         scramle_dim1_param = stim[0].copy()
         np.random.shuffle(scramle_dim1_param)
         for i in range(self.initial_stim_count):
-            i_stim = [scramle_dim1_param[i], stim[1][1], stim[2][1], stim[3][0], stim[4][0], stim[5][0], stim[6][1], stim[7][0]]
+            # various orientation, 0.02 speed, 137 size, 1 frequency, black contrast
+            i_stim = [scramle_dim1_param[i], stim[1][0], stim[2][1], stim[3][0], stim[4][1], stim[5][1], stim[6][0], stim[7][0]]
+            # logger.info('initial stim {}: {}'.format(i, i_stim))
             r_idx = self.param_to_ridx(i_stim, tag='initial')
             initial_stim.append(r_idx)
 
@@ -110,7 +113,7 @@ class StimulusSpace():
     def param_to_idx(self, stimuli, tag):
         # translation from parameter space to index space
         indices = []
-        if tag == 'optim':
+        if tag == 'optim' or tag == 'initial':
             space = self.stim_optim_space
         else:
             space = self.stim
@@ -130,7 +133,7 @@ class StimulusSpace():
     def idx_to_param(self, indices, tag):
         # translation from index space to parameter spacez
         parameters = []
-        if tag == 'optim':
+        if tag == 'optim' or tag == 'initial':
             space = self.stim_optim_space
         else:
             space = self.stim
@@ -141,7 +144,7 @@ class StimulusSpace():
     
     def param_to_ridx(self, stimuli, tag):
 
-        if tag == 'optim':
+        if tag == 'optim' or tag == 'initial':
             if isinstance(stimuli, np.ndarray) and stimuli.shape[0] == 5:
                 extended_stim = np.concatenate([stimuli[:4], [850, 1000], stimuli[4:], [0]])
                 row_index = np.argwhere((extended_stim == self.param_space_optim).all(axis=1))[0][0]
@@ -155,7 +158,7 @@ class StimulusSpace():
 
     def ridx_to_param(self, row_index, tag):
         
-        if tag == 'optim':
+        if tag == 'optim' or tag == 'initial':
             stimuli = self.param_space_optim[row_index]
         else:
             stimuli = self.param_space[row_index]

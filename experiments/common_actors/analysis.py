@@ -69,7 +69,8 @@ class VizStimAnalysis(Actor):
         self.currStim = -10
         self.allStims = {}
         self.estsAvg = None
-        
+
+
         self.xs = np.empty((0, self.d), dtype=int) #np.zeros((self.stim_space_dim))
         self.ys = np.zeros((1, self.stim_space_dim, 2))
         
@@ -215,9 +216,9 @@ class VizStimAnalysis(Actor):
 
         self.current_stim = whichStim
 
-        if tag == 'optim':
+        if tag == 'optim' or tag == 'initial':
             params = self.param_space_optim[whichStim]
-            multi_idx = self.stimuli_space.param_to_idx(params, tag='optim')
+            multi_idx = self.stimuli_space.param_to_idx(params, tag=tag)
 
         else:
             multi_idx = self.param_index_space[whichStim]
