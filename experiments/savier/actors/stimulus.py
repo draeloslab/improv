@@ -78,8 +78,8 @@ class VisualStimulus(Actor):
             t = time.time()
             row_index, tag = self.links['stim_ind_in'].get(timeout=0.0001) #TODO: need to confirm if this row_index makes sense
             logger.info('stim index: {}'.format(row_index))
-            if tag == 'optim':
-                parameters = self.stimuli_space.ridx_to_param(row_index, tag='optim') 
+            if tag == 'optim' or tag == 'initial':
+                parameters = self.stimuli_space.ridx_to_param(row_index, tag=tag)
             else: 
                 parameters = self.stimuli_space.ridx_to_param(row_index, tag='non_optim') 
             logger.info('parameters: {}'.format(parameters))
