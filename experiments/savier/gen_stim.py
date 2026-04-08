@@ -39,19 +39,24 @@ class StimulusSpace():
         param_space, idx = np.unique(temp, axis=0, return_index=True)
         self.param_space = param_space
         self.param_space_size = self.param_space.shape[0]
-        self.param_index_space = param_index_space_full[idx]
+        self.param_index_space = param_index_space_full[idx]  # this is the full index space
 
-        # param_space_optim (this will not include drift gratings or flashing spots, only moving dots)
-        mask_dg = np.any(param_space == -99, axis=1)
-        mask_fs = param_space[:, 1] == float(0)
-        mask1 = mask_dg | mask_fs
+        # # param_space_optim (this will not include drift gratings or flashing spots, only moving dots)
+        # mask_dg = np.any(param_space == -99, axis=1)
+        # mask_fs = param_space[:, 1] == float(0)
+        # mask1 = mask_dg | mask_fs
 
-        param_space_optim = self.param_space[~mask1]
-        mask_center_x = param_space_optim[:,4] == 850
-        mask_center_y = param_space_optim[:,5] == 1000
-        mask_shape = param_space_optim[:,7] == 0
-        mask2 = mask_center_x & mask_center_y & mask_shape
-        self.param_space_optim = param_space_optim[mask2]
+        # param_space_optim = self.param_space[~mask1]
+        # mask_center_x = param_space_optim[:,4] == 850
+        # mask_center_y = param_space_optim[:,5] == 1000
+        # mask_shape = param_space_optim[:,7] == 0
+        # mask2 = mask_center_x & mask_center_y & mask_shape
+        # self.param_space_optim = param_space_optim[mask2]
+        # logger.info(f"param_space_optim shape {self.param_space_optim.shape}: {self.param_space_optim}")
+
+        self.translation()
+
+        # logger.info(f"param_space and r2_param same? {np.array_equal(self.param_space_optim, self.r2_params)}")
 
         calibration_stim, self.calibration_stim_count = self.calibration_stim(self.stim)
 
@@ -74,6 +79,7 @@ class StimulusSpace():
             'hold_after': hold_after,
             'stat_t': stationary_t, 
         }
+        logger.info(f"stim_space: {self.stim_space}")
 
     #FIXME: need to put these functions into index space 
     def calibration_stim(self, stim):
@@ -92,6 +98,10 @@ class StimulusSpace():
             param = self.idx_to_param(params, tag = 'calibration')
             row_index = self.param_to_ridx(param, tag='calibration')
             calibration_stim.append(row_index)
+            # logger.info(f"{self.map_full_to_r1[row_index]}")
+            # if self.map_full_to_r1[row_index] >= 0:
+            #     logger.info(f"params is {params}, row_idx is {row_index}, remapped? is {self.map_full_to_r1[row_index]}, {self.r1_params[self.map_full_to_r1[row_index]]}")
+            
 
         return calibration_stim, len(calibration_stim)
 
@@ -113,9 +123,9 @@ class StimulusSpace():
     def param_to_idx(self, stimuli, tag):
         # translation from parameter space to index space
         indices = []
-        if tag == 'optim' or tag == 'initial':
+        if tag == 'optim' or tag == 'initial' or tag == "calibration_initial" or tag == 'random' or tag == 'grid':
             space = self.stim_optim_space
-        else:
+        else:  # calibration 
             space = self.stim
 
         for d, stim in enumerate(stimuli):
@@ -144,22 +154,43 @@ class StimulusSpace():
     
     def param_to_ridx(self, stimuli, tag):
 
-        if tag == 'optim' or tag == 'initial':
+        if tag == 'optim' or tag == 'initial' or tag == 'random' or tag == 'grid':
             if isinstance(stimuli, np.ndarray) and stimuli.shape[0] == 5:
+                # logger.info(f"stimuli before extending: {stimuli}")
                 extended_stim = np.concatenate([stimuli[:4], [850, 1000], stimuli[4:], [0]])
-                row_index = np.argwhere((extended_stim == self.param_space_optim).all(axis=1))[0][0]
+                # logger.info(f"stimuli after extending: {extended_stim}")
+                row_index = self.idx_r2_to_r1[np.argwhere((extended_stim == self.r2_params).all(axis=1))[0][0]]
+                # # self.idx_r2_to_r1
+                # extended_stim = np.concatenate([stimuli[:4], [850, 1000], stimuli[4:], [0]])
+                # row_index = np.argwhere((extended_stim == self.param_space_optim).all(axis=1))[0][0]  # TODO: translation happens here
 
             else:
-                row_index = np.argwhere((stimuli == self.param_space_optim).all(axis=1))[0][0]
-        else:
+                row_index = np.argwhere((stimuli == self.r1_params).all(axis=1))[0][0]
+                # row_index = np.argwhere((stimuli == self.param_space_optim).all(axis=1))[0][0]  # TODO: translation happens here
+        elif tag == "calibration_initial":
             row_index = np.argwhere((stimuli == self.param_space).all(axis=1))[0][0]
-
+            row_index = self.map_full_to_r1[row_index]
+            # logger.info(f"remapping HAPPENING the new row_index is {self.r1_params[row_index]} and index of {self.r1_coords[row_index]}")
+        else:  # calibration
+            row_index = np.argwhere((stimuli == self.param_space).all(axis=1))[0][0]
+            # if self.map_full_to_r1[row_index] >= 0:
+            #     # row_index = np.argwhere((stimuli == self.r1_params).all(axis=1))[0][0]
+            #     logger.info(f"remapping IMAGING the new row_index is {self.r1_params[self.map_full_to_r1[row_index]]} and index of {self.map_full_to_r1[row_index]}")
+                
         return row_index
 
     def ridx_to_param(self, row_index, tag):
         
-        if tag == 'optim' or tag == 'initial':
-            stimuli = self.param_space_optim[row_index]
+        if tag == 'optim':
+            # extended_row_index = np.concatenate([row_index[:4], [1, 1], row_index[4:], [0]])
+            stimuli = self.r2_params[row_index]
+        elif tag == 'initial' or tag == 'random' or tag == 'grid':
+            stimuli = self.r1_params[row_index]
+            # stimuli = self.param_space_optim[row_index] # TODO: translation happens here
+        elif tag == 'calibration_initial':
+            # logger.info("blurrrrrr")
+            stimuli = self.r1_params[self.map_full_to_r1[row_index]]
+            # stimuli = self.r1_params[row_index]
         else:
             stimuli = self.param_space[row_index]
 
@@ -177,3 +208,34 @@ class StimulusSpace():
         stimuli_optim = np.delete(stim_set_copy, [4,5,7], axis=0) 
 
         return stimuli_optim
+    
+    def translation(self):
+        # mapping from full space to R1 (all moving dots)
+        mask_r1 = (self.param_index_space[:, 7] != 1) & (self.param_index_space[:, 1] != 0)
+
+        # r1 to full
+        self.idx_r1_to_full = np.where(mask_r1)[0]
+        # logger.info(f"idx_r1_to_full shape {self.idx_r1_to_full.shape}: {self.idx_r1_to_full}")
+        # self.map_r1_to_full = self.idx_r1_to_full
+        self.r1_coords = self.param_index_space[mask_r1].copy()
+        self.r1_coords[:, 1] -= 1  # to account for the speed dimension
+        self.r1_params = self.param_space[mask_r1].copy()  # all subspace?
+        # logger.info(f"r1_coords shape {self.r1_coords.shape}: {self.r1_coords}")
+        # logger.info(f"r1_params shape {self.r1_params.shape}: {self.r1_params}")
+
+        # r2 to r1
+        mask_r2_within_r1 = (self.r1_coords[:, 4] == 1) & (self.r1_coords[:, 5] == 1)
+        self.idx_r2_to_r1 = np.where(mask_r2_within_r1)[0]
+        self.r2_coords = self.r1_coords[self.idx_r2_to_r1].copy()
+        self.r2_params = self.r1_params[self.idx_r2_to_r1].copy()  # 2880, 8
+
+
+        # full to r1 mapping
+        self.map_full_to_r1 = np.full(len(self.param_index_space), -1)
+        self.map_full_to_r1[self.idx_r1_to_full] = np.arange(len(self.idx_r1_to_full))
+        
+        # r1 to r2 mapping
+        self.map_r1_to_r2 = np.full(len(self.r1_coords), -1)
+        self.map_r1_to_r2[self.idx_r2_to_r1] = np.arange(len(self.idx_r2_to_r1))
+
+

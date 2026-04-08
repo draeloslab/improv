@@ -337,7 +337,7 @@ class ZMQAcquirer(Actor):
 
         stim_set_tag = msg_dict['stimulus']['note']
         indices = self.stimuli_space.param_to_ridx([angle, speed, size, freq, center_x, center_y, contrast, shape], tag=stim_set_tag)
-        
+        # logger.info(f"{[angle, speed, size, freq, center_x, center_y, contrast, shape]}")
         # self.links['stim_queue'].put({self.frame_num:indices})
         self.links['stim_queue'].put({"frame": self.frame_num,"indices": indices,"tag": stim_set_tag})
         self.stimmed.append([self.frame_num, angle, speed, size, freq, center_x, center_y, contrast, shape])

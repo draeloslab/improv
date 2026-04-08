@@ -27,7 +27,7 @@ class VizStimAnalysis(Actor):
         self.param_space = self.stimuli_space.param_space
         self.param_space_size = self.stimuli_space.param_space_size 
         self.param_index_space = self.stimuli_space.param_index_space
-        self.param_space_optim = self.stimuli_space.param_space_optim
+        self.param_space_optim = self.stimuli_space.r1_params #param_space_optim
         # logger.info('reading in stim: {}'.format(self.stimuli))
 
 
@@ -242,12 +242,16 @@ class VizStimAnalysis(Actor):
 
         self.current_stim = whichStim
 
-        if tag == 'optim' or tag == 'initial':
+        if tag == 'optim' or tag == 'initial' or tag == 'calibration_initial' or tag == 'random' or tag == 'grid':
             params = self.param_space_optim[whichStim]
             multi_idx = self.stimuli_space.param_to_idx(params, tag=tag)
 
         else:
             multi_idx = self.param_index_space[whichStim]
+            # multi_idx_copy = multi_idx.copy()
+            # if self.stimuli_space.map_full_to_r1[whichStim] >= 0:
+            #     # multi_idx = self.stimuli_space.r1_coords[self.stimuli_space.map_full_to_r1[whichStim]]
+            #     logger.info(f"AHAHAHAHAH multi_idx remapping this was multi_idx {multi_idx_copy}, and this is multi_idx {multi_idx}")
         multi_idx = np.asarray(multi_idx, dtype=int)
         logger.info('multi_idx: {}'.format(multi_idx))
 
