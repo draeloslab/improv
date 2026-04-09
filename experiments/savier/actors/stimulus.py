@@ -78,11 +78,11 @@ class VisualStimulus(Actor):
             t = time.time()
             row_index, tag = self.links['stim_ind_in'].get(timeout=0.0001) #TODO: need to confirm if this row_index makes sense
             logger.info('stim index: {}'.format(row_index))
-            if tag == 'optim' or tag == 'initial' or tag == 'calibration_initial' or tag == 'random':
+            if tag == 'optim' or tag == 'initial' or tag == 'calibration_initial' or tag == 'random' or tag == "grid":
                 logger.info(f"from stimulius actor we got tag {tag}")
                 parameters = self.stimuli_space.ridx_to_param(row_index, tag=tag)
             else: 
-                parameters = self.stimuli_space.ridx_to_param(row_index, tag='non_optim') 
+                parameters = self.stimuli_space.ridx_to_param(row_index, tag='calibration')#'non_optim') 
             logger.info('parameters: {}'.format(parameters))
             stim = self.create_frame(parameters, tag=tag)
 

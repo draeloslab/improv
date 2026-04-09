@@ -349,7 +349,7 @@ class BayesOptimizer(Actor):
                 ids.append(self.client.put(curr_est)) #, 'est'))
                 ids.append(self.client.put(curr_unc)) #, 'unc'))
                 self.q_out.put(ids)
-
+                logger.info(f"anything weird/ nan in curr_est? {np.isnan(curr_est).any()} what about curr_unc {np.isnan(curr_unc).any()}")
                 stopCrit, PI = self.optim.stopping()
                 logger.info('----------- stopCrit: {}'.format(stopCrit))
                 self.stopping[self.test_count] = stopCrit
@@ -572,7 +572,7 @@ class GridSampler(Actor):
             self.stimuli_optim[1][[0, 2, 5]],      # speed -> [0.02, 0.06, 0.12]
             self.stimuli_optim[2][[0, 2, 4]],      # size -> [50, 225, 400]
             self.stimuli_optim[3][[1, 3]],         # frequency -> [3, 20]
-            self.stimuli_optim[4][0, 2] #[[0, 1, 2]]       # contrast -> [0, 50, 100]
+            self.stimuli_optim[4][[0, 2]] #[[0, 1, 2]]       # contrast -> [0, 50, 100]
         ]
         logger.info(f"self.stimuli_reduced is {self.stimuli_reduced}")
         self.total_stim_time = self.stim_space['total_stim_time']
@@ -684,7 +684,12 @@ class GridSampler(Actor):
         elif self.newN:
             if self.stim_ind is None:
                 logger.info('grid')
-                grid = self.stim_star_reduced[self.counter]  # FIXME: this is grid not random
+                if self.counter < self.stim_star_reduced.shape[0]:
+                    grid = self.stim_star_reduced[self.counter]  # FIXME: this is grid not random
+                else:
+                    logger.info(f"!!!!!!!SELF.COUNTER {self.counter} EXCEED THE GRID LENGTH, STOP NOW!!!!!!!")
+                    grid = self.stim_star[self.counter]
+                # grid = self.stim_star_reduced[self.counter]  # FIXME: this is grid not random
                 self.stim_ind = self.stimuli_space.param_to_ridx(grid, tag='grid')
 
                 #FIXME: make checkpoints here and read all possible dimensions
@@ -696,7 +701,7 @@ class GridSampler(Actor):
                 # param4 = np.argwhere(int(grid[4]) == self.stimuli_optim[4])[0][0]
 
                 # self.stim_ind = [param0, param1, param2, param3, param4]
-                logger.info('grid stimulus indices chosen: {}'.format(self.stim_ind))
+                logger.info('grid stimulus indices chosen: {} with counter {} and grid {}'.format(self.stim_ind, self.counter, grid))
 
             if (time.time() - self.timer) >= self.total_stim_time:
                 self.links['stim_ind_out'].put([self.stim_ind, 'grid'])
