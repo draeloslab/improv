@@ -238,10 +238,12 @@ class BayesOptimizer(Actor):
             logger.info("Reducing X from 8D to 5D for optimization - init")
             # logger.info(f"here is x_all yo: {self.X_all}")
             if self.calibration_display:
-                logger.info(f"Have calibration stimuli, need to ignore the first 13 non-moving dots stimuli which is {self.X_all[:, :13]}")
+                logger.info(f"Have calibration stimuli, need to ignore the first 13 non-moving dots stimuli as well as related responses")
                 self.X_all = self.X_all[:, 13:]  # TODO: this is hard-coded; need to change later?
+                self.y0 = self.y0[:, 13:]
+                # logger.info(f"after trimming this is shape of self.x_all {self.X_all.shape} the sahpe of y0 {self.y0.shape}")
             self.X = self.stimuli_space.param_space_shrinking(self.X_all) 
-            logger.info('self.X in INITIALIZATION is {} and has shape {} - init'.format(self.X, self.X.shape))
+            # logger.info('self.X in INITIALIZATION is {} and has shape {} - init'.format(self.X, self.X.shape))
 
             nonopt = np.array(list(set(np.arange(self.y0.shape[0]))-set(self.optimized_n)))
             logger.info('nonopt is {}, number of neurons {}'.format(nonopt,self.y0.shape[0]))
