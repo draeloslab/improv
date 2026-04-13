@@ -210,18 +210,20 @@ class StimulusSpace():
         return stimuli_optim
     
     def translation(self):
+        '''
+        "Translating" between full space and 2 subspaces (R1 and R2). 
+        R1 is the subspace containing all moving dots (with shape 25920,8)
+        R2 is ths subspace containing all moving dots with fixed center_x and center_y (with shape 2880, 8)
+        '''
+
         # mapping from full space to R1 (all moving dots)
         mask_r1 = (self.param_index_space[:, 7] != 1) & (self.param_index_space[:, 1] != 0)
 
         # r1 to full
         self.idx_r1_to_full = np.where(mask_r1)[0]
-        # logger.info(f"idx_r1_to_full shape {self.idx_r1_to_full.shape}: {self.idx_r1_to_full}")
-        # self.map_r1_to_full = self.idx_r1_to_full
         self.r1_coords = self.param_index_space[mask_r1].copy()
         self.r1_coords[:, 1] -= 1  # to account for the speed dimension
         self.r1_params = self.param_space[mask_r1].copy()  # all subspace?
-        # logger.info(f"r1_coords shape {self.r1_coords.shape}: {self.r1_coords}")
-        # logger.info(f"r1_params shape {self.r1_params.shape}: {self.r1_params}")
 
         # r2 to r1
         mask_r2_within_r1 = (self.r1_coords[:, 4] == 1) & (self.r1_coords[:, 5] == 1)
