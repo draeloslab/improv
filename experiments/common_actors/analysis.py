@@ -382,7 +382,7 @@ class VizStimAnalysis(Actor):
                 
                 sc = self.stim_count[self.currentStim]
                 idx = int(self.currentStim)
-                logger.info(f"this is s_idx {s_idx}, this is idx {idx}, same? {s_idx == idx}")
+                # logger.info(f"this is s_idx {s_idx}, this is idx {idx}, same? {s_idx == idx}")
                 self.all_y[:numN, idx] = ((sc-1) * self.all_y[:numN, idx] + self.stimY[-1]) / sc
 
         self.estsAvg = np.squeeze(self.ests[:, :, 0] - self.ests[:, :, 1])
