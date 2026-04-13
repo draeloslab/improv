@@ -90,9 +90,7 @@ class BayesOptimizer(Actor):
 
         self.calibration = calibration
         logger.info('calibration is {}'.format(self.stim_space['calibration_stim']))
-        self.calibration_display = self.calibration
         self.tag_to_go = "calibration"
-        logger.info(f'calibration display is {self.calibration_display}')
 
 
     def setup(self):
@@ -133,6 +131,7 @@ class BayesOptimizer(Actor):
             ids = self.q_in.get(timeout=0.0001)
             X = self.client.get(ids[0])
             Y = self.client.get(ids[1])
+            self.calibration_not_moving_dots = self.client.get(ids[-1])
             # stim_count = self.client.get(ids[-1]) # -1 to account for initial stim
             # logger.info('X, Y: {}, {}'.format(X, Y))
 
@@ -237,10 +236,10 @@ class BayesOptimizer(Actor):
         elif self.newN:
             logger.info("Reducing X from 8D to 5D for optimization - init")
             # logger.info(f"here is x_all yo: {self.X_all}")
-            if self.calibration_display:
-                logger.info(f"Have calibration stimuli, need to ignore the first 13 non-moving dots stimuli as well as related responses")
-                self.X_all = self.X_all[:, 13:]  # TODO: this is hard-coded; need to change later?
-                self.y0 = self.y0[:, 13:]
+            if self.calibration_not_moving_dots > 0:
+                logger.info(f"Have calibration stimuli, need to ignore the first {self.calibration_not_moving_dots} non-moving dots stimuli as well as related responses")
+                self.X_all = self.X_all[:, self.calibration_not_moving_dots:]  # TODO: this is hard-coded; need to change later?
+                self.y0 = self.y0[:, self.calibration_not_moving_dots:]
                 # logger.info(f"after trimming this is shape of self.x_all {self.X_all.shape} the sahpe of y0 {self.y0.shape}")
             self.X = self.stimuli_space.param_space_shrinking(self.X_all) 
             # logger.info('self.X in INITIALIZATION is {} and has shape {} - init'.format(self.X, self.X.shape))
@@ -756,8 +755,6 @@ class RandomSamplerWithReplace(Actor):
         self.calibration = calibration
         if self.calibration:
             logger.info('calibration set is: {}'.format(self.stim_space['calibration_stim']))
-        self.calibration_display = self.calibration
-        logger.info(f'calibration display is {self.calibration_display}')
 
     def setup(self):
     
@@ -963,7 +960,8 @@ class RandomBayesOptimizer(Actor):
             ids = self.q_in.get(timeout=0.0001)
             X = self.client.get(ids[0])
             Y = self.client.get(ids[1])
-            stim_count = self.client.get(ids[-1]) # -1 to account for initial stim
+            self.calibration_not_moving_dots = self.client.get(ids[-1])
+            # stim_count = self.client.get(ids[-1]) # -1 to account for initial stim
             tmpX = np.squeeze(np.array(X)).T
             sh = len(tmpX.shape)
             if sh > 1:
@@ -977,7 +975,7 @@ class RandomBayesOptimizer(Actor):
                 self.y0 = b.T
                 is_nan_2d = np.isnan(self.y0)
                 self.start_stimulus = np.argmax(~is_nan_2d, axis=1)
-                self.stim_count = stim_count-1
+                # self.stim_count = stim_count-1
             except:
                 pass
         except Empty:
@@ -1077,10 +1075,10 @@ class RandomBayesOptimizer(Actor):
             # This block corresponds to 'elif self.newN:' from the original BayesOptimizer
             if self.bayes_newN:
                 logger.info("Reducing X from 8D to 5D for optimization - init")
-                if self.calibration_display:
-                    logger.info(f"Have calibration stimuli, need to ignore the first 13 non-moving dots/ dots with different indexing stimuli which is {self.X_all[:, :13]}")
-                    self.X_all = self.X_all[:, 13:]  # TODO: this is hard-coded; need to change later?
-                    self.y0 = self.y0[:, 13:]
+                if self.calibration_not_moving_dots > 0:
+                    logger.info(f"Have calibration stimuli, need to ignore the first {self.calibration_not_moving_dots} non-moving dots/ dots with different indexing stimuli which is {self.X_all[:, :13]}")
+                    self.X_all = self.X_all[:, self.calibration_not_moving_dots:]  # TODO: this is hard-coded; need to change later?
+                    self.y0 = self.y0[:, self.calibration_not_moving_dots:]
                 self.X = self.stimuli_space.param_space_shrinking(self.X_all) 
                 nonopt = np.array(list(set(np.arange(self.y0.shape[0]))-set(self.optimized_n)))
                 logger.info('nonopt is {}, number of neurons '.format(nonopt,self.y0.shape[0]))

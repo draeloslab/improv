@@ -30,7 +30,7 @@ class VizStimAnalysis(Actor):
         self.param_space_optim = self.stimuli_space.r1_params #param_space_optim
         # logger.info('reading in stim: {}'.format(self.stimuli))
 
-
+        self.calibration_not_moving_dots = 0
         self.before_amount = before_amount
         self.after_amount = after_amount
         self.calc_color = calc_color
@@ -238,6 +238,9 @@ class VizStimAnalysis(Actor):
         frame = stim["frame"]
         whichStim = stim["indices"]
         tag = stim["tag"]
+        if tag == "calibration":
+            self.calibration_not_moving_dots += 1
+            logger.info(f"current frame {frame}, whichstim {whichStim}, tag {tag}, counting {self.calibration_not_moving_dots}")
         # logger.info('sig {}, frame {},  whichStim {}, tag {}'.format(stim, frame, whichStim, tag))
 
         self.current_stim = whichStim
@@ -305,6 +308,7 @@ class VizStimAnalysis(Actor):
         ids.append(self.client.put(self.frame))
         ids.append(self.client.put(self.testNum)) #, 'stim_testNum'+str(self.frame)))
         ids.append(self.client.put(self.nID))     #, 'stim_nID'+str(self.frame)))
+        ids.append(self.client.put(self.calibration_not_moving_dots))
         # ids.append(self.client.put(self.total_stim_counts))
         self.links['stim_out'].put(ids)
         self.putstimtime.append(time.time()-t)
