@@ -103,34 +103,34 @@ class VisualStimulus(Actor):
 
         if stim is not None:
 
-            if self.speed == float(0):
-                center_x = self.center_x
-                center_y = self.center_y
-            else:
-            #NOTE: this is hardcoded for specific directions and their most visible "center" point on the visible grid (this will move to experiments folder)
-                if self.angle == 45:
-                    center_x = 80
-                    center_y = 1400
-                elif self.angle == 135:
-                    center_x = 750
-                    center_y = 1500
-                elif self.angle == 225:
-                    center_x = 350
-                    center_y = 1000
-                elif self.angle == 315:
-                    center_x = 1400
-                    center_y = 1500
-                else:
-                    center_x = 850
-                    center_y = 1000
+            # if self.speed == float(0):
+            #     center_x = self.center_x
+            #     center_y = self.center_y
+            # else:
+            # #NOTE: this is hardcoded for specific directions and their most visible "center" point on the visible grid (this will move to experiments folder)
+            #     if self.angle == 45:
+            #         center_x = 80
+            #         center_y = 1400
+            #     elif self.angle == 135:
+            #         center_x = 750
+            #         center_y = 1500
+            #     elif self.angle == 225:
+            #         center_x = 350
+            #         center_y = 1000
+            #     elif self.angle == 315:
+            #         center_x = 1400
+            #         center_y = 1500
+            #     else:
+            #         center_x = 850
+            #         center_y = 1000
 
             if self.shape == 0:
                 texture_name = 'gray_ellipse'
                 
                 text = {'texture_size': 1600,
                         'frequency': int(self.frequency),
-                        'center_x': center_x,
-                        'center_y': center_y,
+                        'center_x': self.center_x,
+                        'center_y': self.center_y,
                         'width': int(self.size), 
                         'length': int(self.size),
                         'texture_name': texture_name,
@@ -173,7 +173,9 @@ class VisualStimulus(Actor):
             'angle': 45, 
             'speed': 0.02,
             'size': 50, 
-            'frequency': 1, 
+            'frequency': 1,
+            'center_x': 800,
+            'center_y': 800, 
             'contrast': 50,
             'shape': 0,
         }

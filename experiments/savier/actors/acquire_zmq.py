@@ -313,10 +313,10 @@ class ZMQAcquirer(Actor):
             if speed == float(0):
                 logger.info('Stimulus: Flashing spot at ({},{}) at frame {}'.format(center_x, center_y, self.frame_num))
             else:
-                if angle in [45, 135, 225, 315]:
-                    # Adjust angle to match stimulus space, remapping to the "center" of the stimulus screen
-                    center_x = 850
-                    center_y = 1000
+                # if angle in [45, 135, 225, 315]:
+                #     # Adjust angle to match stimulus space, remapping to the "center" of the stimulus screen
+                #     center_x = 850
+                #     center_y = 1000
                 logger.info('Stimulus: {} Moving dots with size {} at angle {} and speed {} with contrast {} at frame {}'.format(freq, size, angle, speed, contrast, self.frame_num))
 
 
