@@ -1080,6 +1080,7 @@ class RandomBayesOptimizer(Actor):
                 if self.calibration_display:
                     logger.info(f"Have calibration stimuli, need to ignore the first 13 non-moving dots/ dots with different indexing stimuli which is {self.X_all[:, :13]}")
                     self.X_all = self.X_all[:, 13:]  # TODO: this is hard-coded; need to change later?
+                    self.y0 = self.y0[:, 13:]
                 self.X = self.stimuli_space.param_space_shrinking(self.X_all) 
                 nonopt = np.array(list(set(np.arange(self.y0.shape[0]))-set(self.optimized_n)))
                 logger.info('nonopt is {}, number of neurons '.format(nonopt,self.y0.shape[0]))
