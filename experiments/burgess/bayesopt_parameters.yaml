@@ -1,0 +1,24 @@
+General:
+  seed: 42
+  init_T: 8
+  max_tests: 15
+  improv: True
+
+Stimuli:
+  d: 5
+  x1_range: 8 #8 #5
+  x2_range: 6
+  x3_range: 5
+  x4_range: 4
+  x5_range: 3
+
+Optimizer:
+  n: 1  # only for counting optimizers, differ from d
+  gamma: 1 #1e-1 #1
+  var: 0.5
+  nu: 0.5 #1e-1
+  eta: 5e-2
+  optim_1:
+    kernel: ['rbf', 'rbf', 'rbf', 'rbf', 'rbf']  
+    stopping_crit: 3e-4 #3e-4 #4e-4
+  

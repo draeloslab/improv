@@ -70,31 +70,7 @@ class VizStimAnalysis(Actor):
         self.allStims = {}
         self.estsAvg = None
 
-        # # self.x_stim = []
-        # self.counters = {}
-        # self.ys = {}
-        # self.y_results = {}
-        # self.xs = {}
-        # for i, label in enumerate(self.stim_space['labels']):
-        #     stim = self.stimuli[i]
-        #     logger.info('stimuli: {}'.format(self.stimuli[i]))
-        #     param = f'x_{label}'
-        #     setattr(self, param, stim)
-        #     logger.info('params: {}'.format(getattr(self, param, stim)))
-        #     # self.x_stim.append(stim)
-        #     self.counters[label] = np.ones((stim.shape[0], 2))
-        #     self.ys[label] = np.zeros((1, stim.shape[0], 2))
-        #     self.y_results[label] = None
-        #     self.xs[label] = 0 
 
-        # # logger.info('dictionaries: {}, {}, {}, {}'.format(self.counters, self.ys, self.y_results, self.xs))
-
-        # #FIXME: hardcoded
-        # dims = [getattr(self, f'x_{label}').shape[0] for label in self.stim_space['labels']]
-        # self.all_y = np.zeros((500, *dims)) #NOTE: what is 500? 
-        # self.stim_count = np.zeros((dims))
-        # self.total_stim_counts = None
-        
         self.xs = np.empty((0, self.d), dtype=int) #np.zeros((self.stim_space_dim))
         self.ys = np.zeros((1, self.stim_space_dim, 2))
         
@@ -181,8 +157,6 @@ class VizStimAnalysis(Actor):
                 self.updateStim_start(sig) #NOTE: do we even need a function for this? 
                 logger.info('we called updatedStim_start')
                 self.stimText = list(sig.values())
-                # self.total_stim_counts = self.stimText[-1][-1]
-                # logger.info('total_stim_counts: {}'.format(self.total_stim_counts))
             except Empty as e:
                 pass # no change in input stimulus
             except Exception as e:
@@ -305,7 +279,6 @@ class VizStimAnalysis(Actor):
         ids.append(self.client.put(self.frame))
         ids.append(self.client.put(self.testNum)) #, 'stim_testNum'+str(self.frame)))
         ids.append(self.client.put(self.nID))     #, 'stim_nID'+str(self.frame)))
-        # ids.append(self.client.put(self.total_stim_counts))
         self.links['stim_out'].put(ids)
         self.putstimtime.append(time.time()-t)
 

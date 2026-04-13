@@ -133,8 +133,6 @@ class BayesOptimizer(Actor):
             ids = self.q_in.get(timeout=0.0001)
             X = self.client.get(ids[0])
             Y = self.client.get(ids[1])
-            # stim_count = self.client.get(ids[-1]) # -1 to account for initial stim
-            # logger.info('X, Y: {}, {}'.format(X, Y))
 
             # logger.info('X: {}'.format(X))
 
@@ -154,7 +152,6 @@ class BayesOptimizer(Actor):
                 # logger.info('self.y0 has shape {}'.format(self.y0.shape))
                 is_nan_2d = np.isnan(self.y0)
                 self.start_stimulus = np.argmax(~is_nan_2d, axis=1)
-                # self.stim_count = stim_count-1
                 # logger.info(f"this is self.start_stimulus: {self.start_stimulus}")
             except:
                 pass
@@ -247,7 +244,6 @@ class BayesOptimizer(Actor):
 
             nonopt = np.array(list(set(np.arange(self.y0.shape[0]))-set(self.optimized_n)))
             logger.info('nonopt is {}, number of neurons {}'.format(nonopt,self.y0.shape[0]))
-            # logger.info('Initialization check: stim_count: {}, Y length: {}, same len? {}'.format(self.stim_count, self.y0.shape[1], self.y0.shape[1] == self.stim_count))
             # ready = [i for i in nonopt if self._obs_count(i) >= 8]  #self.min_init_obs = 8
             if len(nonopt) >= 1 or len(self.goback_neurons)>=1:
                 if len(nonopt) >= 1:
@@ -280,9 +276,6 @@ class BayesOptimizer(Actor):
                     y0_with_nan = self.y0[self.nID, -self.y0.shape[1]:].T
                     leading_zeros = np.argmax(~np.isnan(y0_with_nan))
                     logger.info(f"leading zeros for neuron {self.nID} is {leading_zeros}")
-                    logger.info(f"condition 2. initialize with {self.y0.shape[1]-leading_zeros} stim")
-                    logger.info(f"X has shape {self.X[:, -(self.y0.shape[1]-leading_zeros):].T.shape}, y has shape {self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T.shape}")
-                    self.optim.initialize_GP(self.X[:, -(self.y0.shape[1]-leading_zeros):].T, self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T)
                     logger.info(f"condition 2. initialize with {self.y0.shape[1]-leading_zeros} stim")
                     logger.info(f"X has shape {self.X[:, -(self.y0.shape[1]-leading_zeros):].T.shape}, y has shape {self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T.shape}")
                     self.optim.initialize_GP(self.X[:, -(self.y0.shape[1]-leading_zeros):].T, self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T)
@@ -326,14 +319,6 @@ class BayesOptimizer(Actor):
 
             t_update = time.time()
             if self.stim_ind is None: 
-                # the following block is from the old code, but it checks the stim count
-                # logger.info('Update check: stim_count: {}, Y length: {}, same len? {}'.format(self.stim_count, self.y0.shape[1], self.y0.shape[1] == self.stim_count))
-                # X = np.zeros(self.d) 
-                # for i in range(self.d):
-                #     X[i] = self.GP_stimuli[i][int(self.X[i,-1])]
-                # logger.info('optim {} (test: {}), update GP with {}, {}'.format(self.nID, self.test_count, X, self.y0[self.nID, -1]))
-                # self.optim.update_GP(np.squeeze(X), self.y0[self.nID,-1])
-
                 # X = np.zeros(self.d) 
                 # for i in range(self.d):
                 #     X[i] = self.GP_stimuli[i][int(self.X[i,-1])] #NOTE: this is bascially matching the stimulus with teh stim set, so we don't need this anymore 
@@ -963,7 +948,6 @@ class RandomBayesOptimizer(Actor):
             ids = self.q_in.get(timeout=0.0001)
             X = self.client.get(ids[0])
             Y = self.client.get(ids[1])
-            stim_count = self.client.get(ids[-1]) # -1 to account for initial stim
             tmpX = np.squeeze(np.array(X)).T
             sh = len(tmpX.shape)
             if sh > 1:
@@ -977,7 +961,6 @@ class RandomBayesOptimizer(Actor):
                 self.y0 = b.T
                 is_nan_2d = np.isnan(self.y0)
                 self.start_stimulus = np.argmax(~is_nan_2d, axis=1)
-                self.stim_count = stim_count-1
             except:
                 pass
         except Empty:
@@ -1058,7 +1041,7 @@ class RandomBayesOptimizer(Actor):
                 # for i in range(self.d):
                 #     next_ind.append(np.where(self.stimuli[i] == random_stim[i])[0][0])
                 # self.stim_ind = next_ind
-                # logger.info(f"random_idx is {random_idx}, random_stim is {next_ind}")
+                logger.info(f"random_idx is {random_idx}, random_stim is {next_ind}")
 
             if (time.time() - self.timer) >= self.total_stim_time:
                 logger.info(f"sending {self.stim_ind} to stimulus actor ")
@@ -1158,12 +1141,6 @@ class RandomBayesOptimizer(Actor):
                 # need to update the GP
                 t_update = time.time()
                 if self.stim_ind is None: 
-                    # the following block is from the old code, but it checks the stim count
-                    # logger.info('Update check: stim_count: {}, Y length: {}, same len? {}'.format(self.stim_count, self.y0.shape[1], self.y0.shape[1] == self.stim_count))
-                    # X = np.zeros(self.d) 
-                    # for i in range(self.d):
-                    #     X[i] = self.GP_stimuli[i][int(self.X[i,-1])]
-
                     # X = np.zeros(self.d) 
                     # for i in range(self.d):
                     #     X[i] = self.GP_stimuli[i][int(self.X[i,-1])]
