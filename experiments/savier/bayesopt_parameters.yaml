@@ -14,6 +14,7 @@ Stimuli:
 
 Optimizer:
   n: 1  # only for counting optimizers, differ from d
+  mse_cutoff: 0.5
   gamma: 1 #1e-1 #1
   var: 0.5
   nu: 0.5 #1e-1
