@@ -91,7 +91,7 @@ class StimulusSpace():
             calibration_stim.append(row_index)
         
         stationary_spots = [[0,0,0,0,1,1,1,0], [0,0,0,0,0,2,1,0], [0,0,0,0,2,2,1,0], [0,0,0,0,2,0,1,0], [0,0,0,0,0,0,1,0]]
-        moving_spots = [[i,2,0,1,0,0,1,0] for i in range(0,6,2)]
+        moving_spots = [[i,2,0,1,1,1,1,0] for i in range(0,6,2)]
         spots = stationary_spots + moving_spots
 
         for params in spots:
@@ -239,6 +239,3 @@ class StimulusSpace():
         # r1 to r2 mapping
         self.map_r1_to_r2 = np.full(len(self.r1_coords), -1)
         self.map_r1_to_r2[self.idx_r2_to_r1] = np.arange(len(self.idx_r2_to_r1))
-
-
-s = StimulusSpace()
