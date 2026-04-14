@@ -90,8 +90,7 @@ class BayesOptimizer(Actor):
 
         self.calibration = calibration
         logger.info('calibration is {}'.format(self.stim_space['calibration_stim']))
-        self.calibration_display = self.calibration
-        logger.info(f'calibration display is {self.calibration_display}')
+        self.tag_to_go = "calibration"
 
 
     def setup(self):
@@ -132,6 +131,9 @@ class BayesOptimizer(Actor):
             ids = self.q_in.get(timeout=0.0001)
             X = self.client.get(ids[0])
             Y = self.client.get(ids[1])
+            self.calibration_not_moving_dots = self.client.get(ids[-1])
+            # stim_count = self.client.get(ids[-1]) # -1 to account for initial stim
+            # logger.info('X, Y: {}, {}'.format(X, Y))
 
             # logger.info('X: {}'.format(X))
 
@@ -170,9 +172,16 @@ class BayesOptimizer(Actor):
                 logger.info('Calibration counter is {}/{}'.format(self.counter+1, len(self.stim_space['calibration_stim'])))
                 self.stim_ind = self.stim_space['calibration_stim'][self.counter]
                 logger.info('calibration_stim set: {}'.format(self.stim_ind))
+                # logger.info(f"what is this?? {self.stimuli_space.map_full_to_r1[self.stim_ind]}")
+                if self.stimuli_space.map_full_to_r1[self.stim_ind] >= 0:
+                    self.tag_to_go = "calibration_initial"
+                    # logger.info(f"HEYYYY optimizer is remapping the tags yooo, now it's {self.tag_to_go}")
+                else:
+                    # logger.info(f"calibration calibration, this is the index {self.stimuli_space.param_index_space[self.stim_ind]}")
+                    self.tag_to_go = "calibration"
             
             if (time.time() - self.timer) >= self.total_stim_time:
-                self.links['stim_ind_out'].put([self.stim_ind, 'calibration'])
+                self.links['stim_ind_out'].put([self.stim_ind, self.tag_to_go])
                 # stim_flag = 'calibration'
                 # self.links['stim_flag_out'].put(stim_flag)
                 self.stim_ind = None
@@ -226,9 +235,11 @@ class BayesOptimizer(Actor):
         elif self.newN:
             logger.info("Reducing X from 8D to 5D for optimization - init")
             # logger.info(f"here is x_all yo: {self.X_all}")
-            if self.calibration_display:
-                logger.info(f"Have calibration stimuli, need to ignore the first 16 non-moving dots stimuli which is {self.X_all[:, :16]}")
-                self.X_all = self.X_all[:, 16:]  # TODO: this is hard-coded; need to change later?
+            if self.calibration_not_moving_dots > 0:
+                logger.info(f"Have calibration stimuli, need to ignore the first {self.calibration_not_moving_dots} non-moving dots stimuli as well as related responses")
+                self.X_all = self.X_all[:, self.calibration_not_moving_dots:]  # TODO: this is hard-coded; need to change later?
+                self.y0 = self.y0[:, self.calibration_not_moving_dots:]
+                # logger.info(f"after trimming this is shape of self.x_all {self.X_all.shape} the sahpe of y0 {self.y0.shape}")
             self.X = self.stimuli_space.param_space_shrinking(self.X_all) 
             # logger.info('self.X in INITIALIZATION is {} and has shape {} - init'.format(self.X, self.X.shape))
 
@@ -326,7 +337,7 @@ class BayesOptimizer(Actor):
                 ids.append(self.client.put(curr_est)) #, 'est'))
                 ids.append(self.client.put(curr_unc)) #, 'unc'))
                 self.q_out.put(ids)
-
+                logger.info(f"anything weird/ nan in curr_est? {np.isnan(curr_est).any()} what about curr_unc {np.isnan(curr_unc).any()}")
                 stopCrit, PI = self.optim.stopping()
                 logger.info('----------- stopCrit: {}'.format(stopCrit))
                 self.stopping[self.test_count] = stopCrit
@@ -455,9 +466,15 @@ class RandomSampler(Actor):
                 logger.info('Calibration counter is {}/{}'.format(self.counter+1, len(self.stim_space['calibration_stim'])))
                 self.stim_ind = self.stim_space['calibration_stim'][self.counter]
                 logger.info('calibration_stim set: {}'.format(self.stim_ind))
+                if self.stimuli_space.map_full_to_r1[self.stim_ind] >= 0:
+                    self.tag_to_go = "calibration_initial"
+                    # logger.info(f"HEYYYY optimizer is remapping the tags yooo, now it's {self.tag_to_go}")
+                else:
+                    # logger.info(f"calibration calibration, this is the index {self.stimuli_space.param_index_space[self.stim_ind]}")
+                    self.tag_to_go = "calibration"
             
             if (time.time() - self.timer) >= self.total_stim_time:
-                self.links['stim_ind_out'].put([self.stim_ind, 'calibration'])
+                self.links['stim_ind_out'].put([self.stim_ind, self.tag_to_go])
                 self.stim_ind = None
                 self.counter += 1
                 self.timer = time.time()
@@ -501,9 +518,10 @@ class RandomSampler(Actor):
         elif self.newN:
             if self.stim_ind is None:
                 logger.info('random')
-                # random_stim = self.stim_star_shuffle[self.counter]
+                random_stim = self.stim_star_shuffle[self.counter]
+                self.stim_ind = self.stimuli_space.param_to_ridx(random_stim, tag = "random")
                 # TODO: actually will just need to send a random row index it's not that deep bro
-                self.stim_ind = np.random.randint(0, self.stimuli_optim.shape[0])
+                # self.stim_ind = np.random.randint(0, self.stimuli_optim.shape[0])  # this is actually incorrect
 
                 # #FIXME: make checkpoints here and read all possible dimensions
                 # #FIXME: This is a manual method (need to fix to make it more flexible)
@@ -517,7 +535,7 @@ class RandomSampler(Actor):
                 logger.info('random stimulus indices chosen: {}'.format(self.stim_ind))
 
             if (time.time() - self.timer) >= self.total_stim_time:
-                self.links['stim_ind_out'].put([self.stim_ind, 'optim'])
+                self.links['stim_ind_out'].put([self.stim_ind, 'random'])
                 self.stim_ind = None
                 self.counter += 1
                 self.newN = True
@@ -542,7 +560,7 @@ class GridSampler(Actor):
             self.stimuli_optim[1][[0, 2, 5]],      # speed -> [0.02, 0.06, 0.12]
             self.stimuli_optim[2][[0, 2, 4]],      # size -> [50, 225, 400]
             self.stimuli_optim[3][[1, 3]],         # frequency -> [3, 20]
-            self.stimuli_optim[4][[0, 1, 2]]       # contrast -> [0, 50, 100]
+            self.stimuli_optim[4][[0, 2]] #[[0, 1, 2]]       # contrast -> [0, 50, 100]
         ]
         logger.info(f"self.stimuli_reduced is {self.stimuli_reduced}")
         self.total_stim_time = self.stim_space['total_stim_time']
@@ -602,14 +620,20 @@ class GridSampler(Actor):
                 logger.info('Calibration counter is {}/{}'.format(self.counter+1, len(self.stim_space['calibration_stim'])))
                 self.stim_ind = self.stim_space['calibration_stim'][self.counter]
                 logger.info('calibration_stim set: {}'.format(self.stim_ind))
+                if self.stimuli_space.map_full_to_r1[self.stim_ind] >= 0:
+                    self.tag_to_go = "calibration_initial"
+                    # logger.info(f"HEYYYY optimizer is remapping the tags yooo, now it's {self.tag_to_go}")
+                else:
+                    # logger.info(f"calibration calibration, this is the index {self.stimuli_space.param_index_space[self.stim_ind]}")
+                    self.tag_to_go = "calibration"
             
             if (time.time() - self.timer) >= self.total_stim_time:
-                self.links['stim_ind_out'].put([self.stim_ind, 'calibration'])
+                self.links['stim_ind_out'].put([self.stim_ind, self.tag_to_go])
                 self.stim_ind = None
                 self.counter += 1
                 self.timer = time.time()
             
-            if self.counter >= 5: #self.stimuli_space.calibration_stim_count:
+            if self.counter >= self.stimuli_space.calibration_stim_count:
                 flag = True
             
             if flag:
@@ -648,8 +672,13 @@ class GridSampler(Actor):
         elif self.newN:
             if self.stim_ind is None:
                 logger.info('grid')
-                grid = self.stim_star_reduced[self.counter]  # FIXME: this is grid not random
-                self.stim_ind = self.stimuli_space.param_to_ridx(grid, tag='optim')
+                if self.counter < self.stim_star_reduced.shape[0]:
+                    grid = self.stim_star_reduced[self.counter]  # FIXME: this is grid not random
+                else:
+                    logger.info(f"!!!!!!!SELF.COUNTER {self.counter} EXCEED THE GRID LENGTH, STOP NOW!!!!!!!")
+                    grid = self.stim_star[self.counter]
+                # grid = self.stim_star_reduced[self.counter]  # FIXME: this is grid not random
+                self.stim_ind = self.stimuli_space.param_to_ridx(grid, tag='grid')
 
                 #FIXME: make checkpoints here and read all possible dimensions
                 #FIXME: This is a manual method (need to fix to make it more flexible)
@@ -660,10 +689,10 @@ class GridSampler(Actor):
                 # param4 = np.argwhere(int(grid[4]) == self.stimuli_optim[4])[0][0]
 
                 # self.stim_ind = [param0, param1, param2, param3, param4]
-                logger.info('grid stimulus indices chosen: {}'.format(self.stim_ind))
+                logger.info('grid stimulus indices chosen: {} with counter {} and grid {}'.format(self.stim_ind, self.counter, grid))
 
             if (time.time() - self.timer) >= self.total_stim_time:
-                self.links['stim_ind_out'].put([self.stim_ind, 'optim'])
+                self.links['stim_ind_out'].put([self.stim_ind, 'grid'])
                 self.stim_ind = None
                 self.counter += 1
                 self.newN = True
@@ -713,8 +742,6 @@ class RandomSamplerWithReplace(Actor):
         self.calibration = calibration
         if self.calibration:
             logger.info('calibration set is: {}'.format(self.stim_space['calibration_stim']))
-        self.calibration_display = self.calibration
-        logger.info(f'calibration display is {self.calibration_display}')
 
     def setup(self):
     
@@ -742,14 +769,20 @@ class RandomSamplerWithReplace(Actor):
                 logger.info('Calibration counter is {}/{}'.format(self.counter+1, len(self.stim_space['calibration_stim'])))
                 self.stim_ind = self.stim_space['calibration_stim'][self.counter]
                 logger.info('calibration_stim set: {}'.format(self.stim_ind))
+                if self.stimuli_space.map_full_to_r1[self.stim_ind] >= 0:
+                    self.tag_to_go = "calibration_initial"
+                    # logger.info(f"HEYYYY optimizer is remapping the tags yooo, now it's {self.tag_to_go}")
+                else:
+                    # logger.info(f"calibration calibration, this is the index {self.stimuli_space.param_index_space[self.stim_ind]}")
+                    self.tag_to_go = "calibration"
             
             if (time.time() - self.timer) >= self.total_stim_time:
-                self.links['stim_ind_out'].put([self.stim_ind, 'calibration'])
+                self.links['stim_ind_out'].put([self.stim_ind, self.tag_to_go])
                 self.stim_ind = None
                 self.counter += 1
                 self.timer = time.time()
             
-            if self.counter >= 5: #self.stimuli_space.calibration_stim_count:
+            if self.counter >= self.stimuli_space.calibration_stim_count:
                 flag = True
             
             if flag:
@@ -803,7 +836,7 @@ class RandomSamplerWithReplace(Actor):
                 logger.info('random stimulus indices chosen: {}'.format(self.stim_ind))
 
             if (time.time() - self.timer) >= self.total_stim_time:
-                self.links['stim_ind_out'].put([self.stim_ind, 'optim'])
+                self.links['stim_ind_out'].put([self.stim_ind, 'random'])
                 self.stim_ind = None
                 self.counter += 1
                 self.newN = True
@@ -914,6 +947,8 @@ class RandomBayesOptimizer(Actor):
             ids = self.q_in.get(timeout=0.0001)
             X = self.client.get(ids[0])
             Y = self.client.get(ids[1])
+            self.calibration_not_moving_dots = self.client.get(ids[-1])
+            # stim_count = self.client.get(ids[-1]) # -1 to account for initial stim
             tmpX = np.squeeze(np.array(X)).T
             sh = len(tmpX.shape)
             if sh > 1:
@@ -927,6 +962,7 @@ class RandomBayesOptimizer(Actor):
                 self.y0 = b.T
                 is_nan_2d = np.isnan(self.y0)
                 self.start_stimulus = np.argmax(~is_nan_2d, axis=1)
+                # self.stim_count = stim_count-1
             except:
                 pass
         except Empty:
@@ -945,16 +981,22 @@ class RandomBayesOptimizer(Actor):
                 logger.info('Calibration counter is {}/{}'.format(self.counter+1, len(self.stim_space['calibration_stim'])))
                 self.stim_ind = self.stim_space['calibration_stim'][self.counter]
                 logger.info('calibration_stim set: {}'.format(self.stim_ind))
+                if self.stimuli_space.map_full_to_r1[self.stim_ind] >= 0:
+                    self.tag_to_go = "calibration_initial"
+                    # logger.info(f"HEYYYY optimizer is remapping the tags yooo, now it's {self.tag_to_go}")
+                else:
+                    # logger.info(f"calibration calibration, this is the index {self.stimuli_space.param_index_space[self.stim_ind]}")
+                    self.tag_to_go = "calibration"
             
             if (time.time() - self.timer) >= self.total_stim_time:
-                self.links['stim_ind_out'].put([self.stim_ind, 'calibration'])
+                self.links['stim_ind_out'].put([self.stim_ind, self.tag_to_go])
                 # stim_flag = 'calibration'
                 # self.links['stim_flag_out'].put(stim_flag)
                 self.stim_ind = None
                 self.counter += 1
                 self.timer = time.time()
             
-            if self.counter >= 5: #self.stimuli_space.calibration_stim_count:
+            if self.counter >= self.stimuli_space.calibration_stim_count:
                 flag = True
             
             if flag:
@@ -1005,7 +1047,7 @@ class RandomBayesOptimizer(Actor):
 
             if (time.time() - self.timer) >= self.total_stim_time:
                 logger.info(f"sending {self.stim_ind} to stimulus actor ")
-                self.links['stim_ind_out'].put([self.stim_ind, 'optim'])
+                self.links['stim_ind_out'].put([self.stim_ind, 'random'])
                 self.stim_ind = None
                 self.counter += 1
                 self.timer = time.time()
@@ -1020,9 +1062,10 @@ class RandomBayesOptimizer(Actor):
             # This block corresponds to 'elif self.newN:' from the original BayesOptimizer
             if self.bayes_newN:
                 logger.info("Reducing X from 8D to 5D for optimization - init")
-                if self.calibration_display:
-                    logger.info(f"Have calibration stimuli, need to ignore the first 16 non-moving dots/ dots with different indexing stimuli which is {self.X_all[:, :16]}")
-                    self.X_all = self.X_all[:, 16:]  # TODO: this is hard-coded; need to change later?
+                if self.calibration_not_moving_dots > 0:
+                    logger.info(f"Have calibration stimuli, need to ignore the first {self.calibration_not_moving_dots} non-moving dots/ dots with different indexing stimuli which is {self.X_all[:, :13]}")
+                    self.X_all = self.X_all[:, self.calibration_not_moving_dots:]  # TODO: this is hard-coded; need to change later?
+                    self.y0 = self.y0[:, self.calibration_not_moving_dots:]
                 self.X = self.stimuli_space.param_space_shrinking(self.X_all) 
                 nonopt = np.array(list(set(np.arange(self.y0.shape[0]))-set(self.optimized_n)))
                 logger.info('nonopt is {}, number of neurons '.format(nonopt,self.y0.shape[0]))

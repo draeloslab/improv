@@ -27,10 +27,10 @@ class VizStimAnalysis(Actor):
         self.param_space = self.stimuli_space.param_space
         self.param_space_size = self.stimuli_space.param_space_size 
         self.param_index_space = self.stimuli_space.param_index_space
-        self.param_space_optim = self.stimuli_space.param_space_optim
+        self.param_space_optim = self.stimuli_space.r1_params #param_space_optim
         # logger.info('reading in stim: {}'.format(self.stimuli))
 
-
+        self.calibration_not_moving_dots = 0
         self.before_amount = before_amount
         self.after_amount = after_amount
         self.calc_color = calc_color
@@ -212,16 +212,23 @@ class VizStimAnalysis(Actor):
         frame = stim["frame"]
         whichStim = stim["indices"]
         tag = stim["tag"]
+        if tag == "calibration":
+            self.calibration_not_moving_dots += 1
+            logger.info(f"current frame {frame}, whichstim {whichStim}, tag {tag}, counting {self.calibration_not_moving_dots}")
         # logger.info('sig {}, frame {},  whichStim {}, tag {}'.format(stim, frame, whichStim, tag))
 
         self.current_stim = whichStim
 
-        if tag == 'optim' or tag == 'initial':
+        if tag == 'optim' or tag == 'initial' or tag == 'calibration_initial' or tag == 'random' or tag == 'grid':
             params = self.param_space_optim[whichStim]
             multi_idx = self.stimuli_space.param_to_idx(params, tag=tag)
 
         else:
             multi_idx = self.param_index_space[whichStim]
+            # multi_idx_copy = multi_idx.copy()
+            # if self.stimuli_space.map_full_to_r1[whichStim] >= 0:
+            #     # multi_idx = self.stimuli_space.r1_coords[self.stimuli_space.map_full_to_r1[whichStim]]
+            #     logger.info(f"AHAHAHAHAH multi_idx remapping this was multi_idx {multi_idx_copy}, and this is multi_idx {multi_idx}")
         multi_idx = np.asarray(multi_idx, dtype=int)
         logger.info('multi_idx: {}'.format(multi_idx))
 
@@ -275,6 +282,8 @@ class VizStimAnalysis(Actor):
         ids.append(self.client.put(self.frame))
         ids.append(self.client.put(self.testNum)) #, 'stim_testNum'+str(self.frame)))
         ids.append(self.client.put(self.nID))     #, 'stim_nID'+str(self.frame)))
+        ids.append(self.client.put(self.calibration_not_moving_dots))
+        # ids.append(self.client.put(self.total_stim_counts))
         self.links['stim_out'].put(ids)
         self.putstimtime.append(time.time()-t)
 
@@ -351,7 +360,7 @@ class VizStimAnalysis(Actor):
                 
                 sc = self.stim_count[self.currentStim]
                 idx = int(self.currentStim)
-                logger.info(f"this is s_idx {s_idx}, this is idx {idx}, same? {s_idx == idx}")
+                # logger.info(f"this is s_idx {s_idx}, this is idx {idx}, same? {s_idx == idx}")
                 self.all_y[:numN, idx] = ((sc-1) * self.all_y[:numN, idx] + self.stimY[-1]) / sc
 
         self.estsAvg = np.squeeze(self.ests[:, :, 0] - self.ests[:, :, 1])

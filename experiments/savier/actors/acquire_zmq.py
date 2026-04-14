@@ -313,10 +313,10 @@ class ZMQAcquirer(Actor):
             if speed == float(0):
                 logger.info('Stimulus: Flashing spot at ({},{}) at frame {}'.format(center_x, center_y, self.frame_num))
             else:
-                if angle in [45, 135, 225, 315]:
-                    # Adjust angle to match stimulus space, remapping to the "center" of the stimulus screen
-                    center_x = 850
-                    center_y = 1000
+                # if angle in [45, 135, 225, 315]:
+                #     # Adjust angle to match stimulus space, remapping to the "center" of the stimulus screen
+                #     center_x = 850
+                #     center_y = 1000
                 logger.info('Stimulus: {} Moving dots with size {} at angle {} and speed {} with contrast {} at frame {}'.format(freq, size, angle, speed, contrast, self.frame_num))
 
 
@@ -337,7 +337,7 @@ class ZMQAcquirer(Actor):
 
         stim_set_tag = msg_dict['stimulus']['note']
         indices = self.stimuli_space.param_to_ridx([angle, speed, size, freq, center_x, center_y, contrast, shape], tag=stim_set_tag)
-        
+        # logger.info(f"{[angle, speed, size, freq, center_x, center_y, contrast, shape]}")
         # self.links['stim_queue'].put({self.frame_num:indices})
         self.links['stim_queue'].put({"frame": self.frame_num,"indices": indices,"tag": stim_set_tag})
         self.stimmed.append([self.frame_num, angle, speed, size, freq, center_x, center_y, contrast, shape])
