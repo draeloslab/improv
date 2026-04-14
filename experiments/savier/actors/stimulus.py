@@ -17,7 +17,7 @@ logger.setLevel(logging.INFO)
 
 class VisualStimulus(Actor):
 
-    def __init__(self, *args, ip=None, port=None, seed=1234, stimuli = None, **kwargs):
+    def __init__(self, *args, ip=None, port=None, seed=1234, stimuli = None, grid_pattern = None, **kwargs):
         super().__init__(*args, **kwargs)
         self.ip = ip
         self.port = port
@@ -26,6 +26,7 @@ class VisualStimulus(Actor):
         self.stop_sending = False
 
         self.params = []
+        self.grid_pattern = grid_pattern
         
         # self.stimuli = np.load(stimuli, allow_pickle=True)
         self.stimuli_space = StimulusSpace()
@@ -133,6 +134,7 @@ class VisualStimulus(Actor):
                         'center_y': self.center_y,
                         'width': int(self.size), 
                         'length': int(self.size),
+                        'pattern': self.grid_pattern,
                         'texture_name': texture_name,
                         'bg_intensity': 200,
                         'fg_intensity': int(self.contrast),
