@@ -4,7 +4,7 @@ import numpy as np
 import time
 import logging
 from adaptive_latents import proSVD, CenteringEstimator, KernelSmoother
-from adaptive_latents.stim_designer import StimDesigner
+from adaptive_latents.stim_designer import StimDesigner, OptimizationMethod
 from adaptive_latents.stim_regressor import StimRegressor, StimEvent
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -23,7 +23,7 @@ class ImprovStimDesigner(Actor):
         self.smoother = KernelSmoother(log_level=0)
         self.pro = proSVD(k=10, log_level=0)
 
-        self.stim_designer = StimDesigner(should_log=False)
+        self.stim_designer = StimDesigner(should_log=False, optimization_method=OptimizationMethod.HOMOGENOUS)
         self.stim_regressor = StimRegressor()
 
     def setup(self):
@@ -61,7 +61,7 @@ class ImprovStimDesigner(Actor):
         data = C[:,columns_seen:].T
 
 
-        # data = self.centerer.partial_fit_transform(data)
+        data = self.centerer.partial_fit_transform(data)
         # data = self.smoother.partial_fit_transform(data)
         if self.pro.Q is not None and data.shape[1] > self.pro.Q.shape[0]:
             self.pro.add_new_input_channels(data.shape[1] - self.pro.Q.shape[0])
@@ -71,7 +71,8 @@ class ImprovStimDesigner(Actor):
         if self.pro.is_initialized:
             v = np.zeros([10,1])
             v[0] = 1
-            stim = self.stim_designer.design_stim(v=v, u_dimension=self.pro.Q.shape[0], u_to_s_function= lambda u: self.pro.Q.T @ u)
+            R_U, _ ,_  = np.linalg.svd(self.pro.R) # this is fast, R is small
+            stim = self.stim_designer.design_stim(v=R_U@v, u_dimension=self.pro.Q.shape[0], u_to_s_function= lambda u: self.pro.Q.T @ u)
             # logger.info(stim)
 
         self.C = C
