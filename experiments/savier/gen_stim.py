@@ -10,8 +10,8 @@ class StimulusSpace():
         x1 = np.array([0, 45, 90, 135, 180, 225, 270, 315]) 
         x2 = np.array([0.0, 0.02, 0.04, 0.06, 0.08, 0.10, 0.12]) 
         x3 = np.array([50, 137, 225, 312, 400])
-        x4 = np.array([1, 7, 39, 95])
-        x5 = np.array([100, 800, 1500]) #1450])
+        x4 = np.array([1, 3, 10, 20]) # 7, 39, 95])
+        x5 = np.array([100, 800, 1200]) #1500]) #1450])
         x6 = np.array([450, 800, 1150])
         x7 = np.array([0, 50, 100])
         x8 = np.array([0,1])
@@ -85,7 +85,7 @@ class StimulusSpace():
     def calibration_stim(self, stim):
         
         calibration_stim = []
-        drift_grating = self.param_space[(self.param_space[:,7] == 1) & (self.param_space[:,1] == 0.02) & (self.param_space[:,3] == 7) & (self.param_space[:,6] == 50)]
+        drift_grating = self.param_space[(self.param_space[:,7] == 1) & (self.param_space[:,1] == 0.02) & (self.param_space[:,3] == 3) & (self.param_space[:,6] == 50)]
         for param in drift_grating:
             row_index = self.param_to_ridx(param, tag = 'calibration')
             calibration_stim.append(row_index)
@@ -157,7 +157,7 @@ class StimulusSpace():
         if tag == 'optim' or tag == 'initial' or tag == 'random' or tag == 'grid':
             if isinstance(stimuli, np.ndarray) and stimuli.shape[0] == 5:
                 # logger.info(f"stimuli before extending: {stimuli}")
-                extended_stim = np.concatenate([stimuli[:4], [850, 1000], stimuli[4:], [0]])
+                extended_stim = np.concatenate([stimuli[:4], [800, 800], stimuli[4:], [0]])
                 # logger.info(f"stimuli after extending: {extended_stim}")
                 row_index = self.idx_r2_to_r1[np.argwhere((extended_stim == self.r2_params).all(axis=1))[0][0]]
                 # # self.idx_r2_to_r1
