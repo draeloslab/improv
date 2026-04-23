@@ -118,8 +118,8 @@ class BayesOptimizer(Actor):
         # np.save('output/optimizer_start_stimulus.npy', np.array(self.start_stimulus))
 
         try:
-            np.savetxt('output/timing/optimizer_time.txt', np.array(self.total_times))
             np.savetxt('output/timing/optimizer_time_udpates.txt', self.total_times_update, fmt="%s")
+            np.savetxt('output/timing/optimizer_time.txt', np.array(self.total_times))
         except Exception as e:
             logger.error("Trouble saving optimizer timings: {}".format(e))
             pass

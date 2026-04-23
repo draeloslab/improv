@@ -67,6 +67,9 @@ class ZMQAcquirer(Actor):
         self.tailsendtimes = []
         self.tails = []
         self.photostims = []
+        self.receive_time = []
+        self.pickle_load_time = []
+        self.unpacking_time = []
 
         self.tailF = False
         self.stimF = False
@@ -114,6 +117,9 @@ class ZMQAcquirer(Actor):
         np.savetxt('output/timing/acquire_pstim_time.txt', self.total_times_pstim, fmt="%s")
         np.savetxt('output/timing/acquire_frame_timestamp.txt', self.timestamp_frame, fmt="%s")
         np.savetxt('output/timing/acquire_pstim_timestamp.txt', self.timestamp_pstim, fmt="%s")
+        np.savetxt('output/timing/acquire_receive_time.txt', self.receive_time, fmt="%s")
+        np.savetxt('output/timing/acquire_pickle_load_time.txt', self.pickle_load_time, fmt="%s")
+        np.savetxt('output/timing/acquire_unpacking_time.txt', self.unpacking_time, fmt="%s")
         np.save('output/fullstim.npy', self.fullStimmsg)
 
         logger.info('Acquisition complete, avg time per frame: {}'.format(np.mean(self.total_times_frame)))
@@ -133,24 +139,31 @@ class ZMQAcquirer(Actor):
         try:
             # BUG: 031925, recv_pyobj may not work
             # msg = self.socket.recv_pyobj(flags=0)
+            time_recv = time.time()
             msg_obj = self.socket.recv()
+            self.receive_time.append(time.time() - time_recv)
+            
         except Exception as e:
             logger.info('error from receiving: {}'.format(e))
    
         try:
+            pickle_load_time = time.time()
             msg = pickle.loads(msg_obj)
+            self.pickle_load_time.append(time.time() - pickle_load_time)
+            unpacker_time = time.time()
             if isinstance(msg, dict):
                 # logger.info("dictionary raw msg: {}".format(msg))
                 msg_dict = msg
                 message_data = msg_dict['data']
                 finalthing = np.array(message_data)
                 tag = msg_dict['type']
-                
+                self.unpacking_time.append(time.time() - unpacker_time)
             elif isinstance(msg, str):
                 # logger.info('pandastim raw msg: {}'.format(msg))
                 msg_dict, category = self._msg_unpacker(msg)
                 tag = 'stim'
                 # logger.info("the tag is (pandastim) {}".format(tag))
+                self.unpacking_time.append(time.time() - unpacker_time)
             else:
                 logger.info("hey this is from the inside of pyobj we don't know what the type is")
         except pickle.UnpicklingError:
