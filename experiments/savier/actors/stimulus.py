@@ -26,19 +26,17 @@ class VisualStimulus(Actor):
         self.stop_sending = False
 
         self.params = []
-        self.grid_pattern = grid_pattern
         
-        # self.stimuli = np.load(stimuli, allow_pickle=True)
         self.stimuli_space = StimulusSpace()
         self.stim_space = self.stimuli_space.stim_space
-        # logger.info('stim: {}'.format(self.stim_space['stimuli']))
-        # logger.info('reading in stim: {}'.format(self.stimuli))
         self.stimuli = self.stim_space['stimuli']
-        # self.stimuli = np.array([np.sort(stim) for stim in self.stim_space['stimuli']], dtype=object)
+        self.grid_pattern = grid_pattern
         # logger.info('reading in stim: {}'.format(self.stimuli))
+
         self.total_stim_time = self.stim_space['total_stim_time']
         self.hold_after = self.stim_space['hold_after']
         self.stat_t = self.stim_space['stat_t']
+
         np.save('output/generated_stimuli.npy', self.stim_space['stimuli'])
 
 
@@ -103,27 +101,6 @@ class VisualStimulus(Actor):
         # logger.info('PARMS INSIDE SEND FRAME {}'.format(params))
 
         if stim is not None:
-
-            # if self.speed == float(0):
-            #     center_x = self.center_x
-            #     center_y = self.center_y
-            # else:
-            # #NOTE: this is hardcoded for specific directions and their most visible "center" point on the visible grid (this will move to experiments folder)
-            #     if self.angle == 45:
-            #         center_x = 80
-            #         center_y = 1400
-            #     elif self.angle == 135:
-            #         center_x = 750
-            #         center_y = 1500
-            #     elif self.angle == 225:
-            #         center_x = 350
-            #         center_y = 1000
-            #     elif self.angle == 315:
-            #         center_x = 1400
-            #         center_y = 1500
-            #     else:
-            #         center_x = 850
-            #         center_y = 1000
 
             if self.shape == 0:
                 texture_name = 'gray_ellipse'
@@ -190,15 +167,27 @@ class VisualStimulus(Actor):
         else:
             stim_name = 'grating_gray'
 
-        stim = {
+        if self.speed == float(0):
+            stim = {
                 'stim_name': stim_name,
                 'angle': int(self.angle),
                 'velocity': self.speed,
-                'stationary_time': self.stat_t,
-                'duration': self.total_stim_time, 
-                'hold_after': float(stim_t-self.hold_after),
+                'stationary_time': 0, #1 self.stat_t,
+                'duration': 1, #self.total_stim_time, 
+                'hold_after': float(1), #float(stim_t-self.hold_after),
                 'note': tag
                     }
+            
+        else:
+            stim = {
+                    'stim_name': stim_name,
+                    'angle': int(self.angle),
+                    'velocity': self.speed,
+                    'stationary_time': self.stat_t,
+                    'duration': self.total_stim_time, 
+                    'hold_after': float(stim_t-self.hold_after),
+                    'note': tag
+                        }
 
         self.timer = time.time()
         return stim 
