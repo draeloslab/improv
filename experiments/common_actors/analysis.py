@@ -184,8 +184,9 @@ class VizStimAnalysis(Actor):
                 self.Call = self.C #already a windowed version #[:,self.frame-window:self.frame]
 
             # trim C all and C pop for faster communication
-            self.Call = self.Call[:, -len(self.Cx):]
-            self.Cpop = self.Cpop[-len(self.Cx):]
+            if self.Call is not None and len(self.Cx) > 0:
+                self.Call = self.Call[:, -len(self.Cx):]
+                self.Cpop = self.Cpop[-len(self.Cx):]
             self.putAnalysis()
             self.putStimulus()
 
