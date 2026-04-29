@@ -76,6 +76,8 @@ class VizStimAnalysis(Actor):
         
         self.all_y = np.zeros((500, self.param_space_size)) #NOTE: what is 500? 
         self.stim_count = np.zeros((self.param_space_size, ), dtype=int) #np.zeros((dims), dtype=int)
+        self.total_stim_counts = 0 #None
+        self.old_stim_num = 0 
 
         self.stimX = []
         self.stimY = []
@@ -157,6 +159,9 @@ class VizStimAnalysis(Actor):
                 self.updateStim_start(sig) #NOTE: do we even need a function for this? 
                 logger.info('we called updatedStim_start')
                 self.stimText = list(sig.values())
+                self.total_stim_counts = self.stimText[-1]
+                logger.info('total_stim_counts: {}'.format(self.total_stim_counts)) # add a logger: when send to optimizer
+                self.should_send_frame_num = self.frame + self.after_amount
             except Empty as e:
                 pass # no change in input stimulus
             except Exception as e:
@@ -189,7 +194,9 @@ class VizStimAnalysis(Actor):
                 self.Cpop = self.Cpop[-len(self.Cx):]
             self.putAnalysis()
             self.putStimulus()
-
+            if self.total_stim_counts > self.old_stim_num: 
+                logger.info('sent stimX and stimY to optimizer at frame: {}'.format(self.frame))
+                self.old_stim_num = self.total_stim_counts
             
 
             self.timestamp.append([time.time(), self.frame])
@@ -284,7 +291,7 @@ class VizStimAnalysis(Actor):
         ids.append(self.client.put(self.testNum)) #, 'stim_testNum'+str(self.frame)))
         ids.append(self.client.put(self.nID))     #, 'stim_nID'+str(self.frame)))
         ids.append(self.client.put(self.calibration_not_moving_dots))
-        # ids.append(self.client.put(self.total_stim_counts))
+        ids.append(self.client.put(self.total_stim_counts))
         self.links['stim_out'].put(ids)
         self.putstimtime.append(time.time()-t)
 
@@ -355,6 +362,7 @@ class VizStimAnalysis(Actor):
                 self.stimY.append(np.mean(ests[:, local_start:local_end], 1))
 
                 # self.stimY.append(np.mean(ests[:, -self.after_amount:], 1))  # relative indexing
+                logger.info(f"done appending at frame {self.frame}. before the estimated frame num {self.should_send_frame_num}? {self.frame <= self.should_send_frame_num}")
                 logger.info('at frame {} we have {} neurons right now'.format(self.frame, ests.shape[0]))
                 self.testNum += 1
                 numN = self.ests.shape[0]
