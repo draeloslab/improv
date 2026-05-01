@@ -94,6 +94,9 @@ class VizStimAnalysis(Actor):
         self.timestamp = []
         self.LL = []
         self.fit_times = []
+        self.ana_q_in_ts = []
+        self.ana_input_stim_queue_ts = []
+        self.ana_stim_out_ts = []
 
     def stop(self):
         print('Analysis broke, avg time per frame: ', np.mean(self.total_times, axis=0))
@@ -112,6 +115,9 @@ class VizStimAnalysis(Actor):
         np.savetxt('output/timing/analysis_stimtime.txt', np.array(self.stimtime))
         np.savetxt('output/timing/analysis_putstimtime.txt', np.array(self.putstimtime))
         np.savetxt('output/timing/analysis_getCtime.txt', np.array(self.getCtime))
+        np.savetxt('output/timing/analysis_q_in_ts.txt', np.array(self.ana_q_in_ts))
+        np.savetxt('output/timing/analysis_input_stim_queue_ts.txt', np.array(self.ana_input_stim_queue_ts))
+        np.savetxt('output/timing/analysis_stim_out_ts.txt', np.array(self.ana_stim_out_ts))
 
         with open("output/analysis_stimY.pkl", 'wb') as f:
             pickle.dump(self.stimY, f)
@@ -141,6 +147,7 @@ class VizStimAnalysis(Actor):
                 self.q_out.put([1])
                 raise Empty
             self.frame = ids[-1]
+            self.ana_q_in_ts.append([self.frame, time.time()])
             t_get = time.time()
             self.coordDict = self.client.get(ids[0])
             self.image = self.client.get(ids[1])
@@ -156,6 +163,7 @@ class VizStimAnalysis(Actor):
             # Just do overall average activity for now
             try: 
                 sig = self.links['input_stim_queue'].get(timeout=0.0001) # sig: index pointing to a specific stimulus 
+                self.ana_input_stim_queue_ts.append([self.frame, time.time()])
                 self.updateStim_start(sig) #NOTE: do we even need a function for this? 
                 logger.info('we called updatedStim_start')
                 self.stimText = list(sig.values())
@@ -293,6 +301,7 @@ class VizStimAnalysis(Actor):
         ids.append(self.client.put(self.calibration_not_moving_dots))
         ids.append(self.client.put(self.total_stim_counts))
         self.links['stim_out'].put(ids)
+        self.ana_stim_out_ts.append([self.frame, time.time()])
         self.putstimtime.append(time.time()-t)
 
     def stimAvg_start(self): #TODO: need to rewrite this section (since ys will no longer be a dict)

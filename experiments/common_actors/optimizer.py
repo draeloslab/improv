@@ -87,6 +87,8 @@ class BayesOptimizer(Actor):
         self.saved_GP_est = []
         self.saved_GP_unc = []
         self.start_stimulus = []
+        self.opt_q_in_ts = []
+        self.opt_stim_ind_out_ts = []
 
         self.calibration = calibration
         logger.info('calibration is {}'.format(self.stim_space['calibration_stim']))
@@ -120,20 +122,24 @@ class BayesOptimizer(Actor):
         try:
             np.savetxt('output/timing/optimizer_time_udpates.txt', self.total_times_update, fmt="%s")
             np.savetxt('output/timing/optimizer_time.txt', np.array(self.total_times))
+            np.savetxt('output/timing/optimizer_q_in_ts.txt', np.array(self.opt_q_in_ts))
+            np.savetxt('output/timing/optimizer_stim_ind_out_ts.txt', np.array(self.opt_stim_ind_out_ts))
         except Exception as e:
             logger.error("Trouble saving optimizer timings: {}".format(e))
             pass
         logger.info('Optimizer complete, avg time per frame: {}'.format(np.mean(self.total_times)))
 
     def runStep(self):
-        t = time.time()
         try:
+            t = time.time()
             ids = self.q_in.get(timeout=0.0001)
+            
             X = self.client.get(ids[0])
             Y = self.client.get(ids[1])
             self.calibration_not_moving_dots = self.client.get(ids[-2])
             stim_count = self.client.get(ids[-1]) # -1 to account for initial stim
             frame_num = self.client.get(ids[2])
+            self.opt_q_in_ts.append([frame_num, time.time()])
             # logger.info('X, Y: {}, {}'.format(X, Y))
 
             # logger.info('X: {}'.format(X))
@@ -185,6 +191,7 @@ class BayesOptimizer(Actor):
             
             if (time.time() - self.timer) >= self.total_stim_time:
                 self.links['stim_ind_out'].put([self.stim_ind, self.tag_to_go])
+                self.opt_stim_ind_out_ts.append([self.stim_ind, time.time()])
                 # stim_flag = 'calibration'
                 # self.links['stim_flag_out'].put(stim_flag)
                 self.stim_ind = None

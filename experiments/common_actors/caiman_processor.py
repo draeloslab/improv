@@ -70,6 +70,8 @@ class LiveTwoP(CaimanProcessor):
         self.total_times = []
         self.timestamp = []
         self.counter = 0
+        self.proc_q_in_ts = []
+        self.proc_q_out_ts = []
 
     def stop(self):
         try:

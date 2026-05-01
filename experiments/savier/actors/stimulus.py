@@ -61,10 +61,12 @@ class VisualStimulus(Actor):
         self.tailsendtimes = []
         self.tails = []
         self.requested_stim = []
+        self.stim_stim_ind_in_ts = []
 
     def stop(self):
 
         np.savetxt('output/timing/stimulus_frame_time.txt', np.array(self.total_times))
+        np.savetxt("output/timing/stimulus_stim_ind_in_ts.txtx", np.array(self.stim_stim_ind_in_ts))
         # np.savetxt('output/requested_stimuli.txt', self.requested_stim, fmt="%s")
 
         logger.info('Stimulus complete, avg time per frame: {}'.format(np.mean(self.total_times)))
@@ -76,6 +78,7 @@ class VisualStimulus(Actor):
         try: 
             t = time.time()
             row_index, tag = self.links['stim_ind_in'].get(timeout=0.0001) #TODO: need to confirm if this row_index makes sense
+            self.stim_stim_ind_in_ts.append([row_index, time.time()])
             logger.info('stim index: {}'.format(row_index))
             if tag == 'optim' or tag == 'initial' or tag == 'calibration_initial' or tag == 'random' or tag == "grid":
                 logger.info(f"from stimulius actor we got tag {tag}")
