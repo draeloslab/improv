@@ -3,8 +3,8 @@ model_path_0: '/home/chesteklab/Downloads/all_videos_top_viewFeb4-trainset95shuf
 model_snapshot_0: "snapshot-best-040.pt"
 model_path_2: '/home/chesteklab/Downloads/all_videos_side_viewFeb8-trainset95shuffle5/train'
 model_snapshot_2: "snapshot-best-010.pt"
-video_path_0: '/home/chesteklab/camera_video/2026-02-26/123621/camera_video_0_0226_1236.mp4'
-video_path_2: '/home/chesteklab/camera_video/2026-02-26/123621/camera_video_2_0226_1236.mp4'
+video_path_0: '/home/chesteklab/camera_video/2026-02-27/102051/camera_video_0_0227_1020.mp4'
+video_path_2: '/home/chesteklab/camera_video/2026-02-27/102051/camera_video_2_0227_1020.mp4'
 threshold: 0.2
 output_path: '/home/chesteklab/predictions'
 resize: 0.5

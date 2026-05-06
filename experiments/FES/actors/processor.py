@@ -110,7 +110,7 @@ class Processor(Actor):
                 initial_var=10,    
                 process_var=1,     
                 dlc_var=10,        
-                lik_thresh=0.6     
+                lik_thresh=0.6    
             )
             logger.info(f'Kalman filter initialized for camera {self.camera_num}')
 
@@ -122,8 +122,7 @@ class Processor(Actor):
             self.frame_num = 0
             self.frame_sentTime = 0
             self.frames_log = 200 # num frames after which to log
-            self.angle_queue = deque(maxlen=10)  # to store last 10 angles for smoothing
-            self.recent_predictions = [None for _ in range(5)]
+            self.angle_queue = deque(maxlen=15)  # to store last 10 angles for smoothing
             self.alpha = config['alpha']
             self.interp_thresh = config['threshold']
             self.prev_angle = None
@@ -329,7 +328,7 @@ class Processor(Actor):
                         smoothed_angle = np.mean(self.angle_queue) if len(self.angle_queue) > 0 else angle
 
                         # Apply sudden jump detection on the smoothed angle
-                        if self.prev_angle is not None and np.abs(smoothed_angle - self.prev_angle) > 500000:
+                        if self.prev_angle is not None and np.abs(smoothed_angle - self.prev_angle) > 500:
                             smoothed_angle = self.prev_angle  # ignore sudden large jumps
                         self.prev_angle = smoothed_angle
                     else:
@@ -337,7 +336,7 @@ class Processor(Actor):
                         smoothed_angle = np.mean(self.angle_queue) if len(self.angle_queue) > 0 else angle
 
                         # Apply sudden jump detection on the smoothed angle
-                        if self.prev_angle is not None and np.abs(smoothed_angle - self.prev_angle) > 5000000:
+                        if self.prev_angle is not None and np.abs(smoothed_angle - self.prev_angle) > 500:
                             smoothed_angle = self.prev_angle  # ignore sudden large jumps
                         self.prev_angle = smoothed_angle
                     self.postprocess_latencies.append(time.perf_counter() - t0)

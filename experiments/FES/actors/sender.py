@@ -147,7 +147,8 @@ class Sender(Actor):
                 _, angle = element
                 camera_start_cam0 = None
                 frame_num_cam0 = -1
-            self.last_angle = self.normalize_to_range(angle, 486, 386)  # Convert from 100-180 to 0-1023
+            # self.last_angle = angle
+            self.last_angle = self.normalize_to_range(angle, 700, 330)  # Convert from 100-180 to 0-1023
             # self.last_angle = (angle-100) * 10  # Store the angle for reuse # Roughly convert from 120 -180 to 200 to 800
             self.last_frame_num_cam0 = frame_num_cam0
             got_fresh_cam0 = True
@@ -170,7 +171,8 @@ class Sender(Actor):
                 _, angle2 = element2
                 camera_start_cam2 = None
                 frame_num_cam2 = -1
-            self.last_angle2 = self.normalize_to_range(angle2, 1075, 910)  # Convert from 800-1200 to 0-1023
+            # self.last_angle2 = angle2
+            self.last_angle2 = self.normalize_to_range(angle2, 1075, 400)  # Convert from 800-1200 to 0-1023
             # self.last_angle2 = (angle2-800) * 2  # roughly convert from 800-1200 to 0-800
             self.last_frame_num_cam2 = frame_num_cam2
             got_fresh_cam2 = True

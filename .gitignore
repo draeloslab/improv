@@ -145,7 +145,8 @@ benchmarks/**
 
 output/
 output_*
-.npy
+*.npy
+*.svg
 
 *_og.py
 *_old.py
