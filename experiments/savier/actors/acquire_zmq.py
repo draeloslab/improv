@@ -67,6 +67,10 @@ class ZMQAcquirer(Actor):
         self.tailsendtimes = []
         self.tails = []
         self.photostims = []
+        self.receive_time = []
+        # self.pickle_load_time = []
+        # self.unpacking_time = []
+        self.acq_stim_queue_ts = []
 
         self.tailF = False
         self.stimF = False
@@ -114,6 +118,10 @@ class ZMQAcquirer(Actor):
         np.savetxt('output/timing/acquire_pstim_time.txt', self.total_times_pstim, fmt="%s")
         np.savetxt('output/timing/acquire_frame_timestamp.txt', self.timestamp_frame, fmt="%s")
         np.savetxt('output/timing/acquire_pstim_timestamp.txt', self.timestamp_pstim, fmt="%s")
+        np.savetxt('output/timing/acquire_receive_time.txt', self.receive_time, fmt="%s")
+        # np.savetxt('output/timing/acquire_pickle_load_time.txt', self.pickle_load_time, fmt="%s")
+        # np.savetxt('output/timing/acquire_unpacking_time.txt', self.unpacking_time, fmt="%s")
+        np.savetxt('output/timing/acquire_stim_queue_time.txt', self.acq_stim_queue_ts)
         np.save('output/fullstim.npy', self.fullStimmsg)
 
         logger.info('Acquisition complete, avg time per frame: {}'.format(np.mean(self.total_times_frame)))
@@ -133,24 +141,30 @@ class ZMQAcquirer(Actor):
         try:
             # BUG: 031925, recv_pyobj may not work
             # msg = self.socket.recv_pyobj(flags=0)
+            time_recv = time.time()
             msg_obj = self.socket.recv()
+            self.receive_time.append(time.time() - time_recv)
         except Exception as e:
             logger.info('error from receiving: {}'.format(e))
    
         try:
+            # pickle_load_time = time.time()
             msg = pickle.loads(msg_obj)
+            # self.pickle_load_time.append(time.time() - pickle_load_time)
+            # unpacker_time = time.time()
             if isinstance(msg, dict):
                 # logger.info("dictionary raw msg: {}".format(msg))
                 msg_dict = msg
                 message_data = msg_dict['data']
                 finalthing = np.array(message_data)
                 tag = msg_dict['type']
-                
+                # self.unpacking_time.append(time.time() - unpacker_time)
             elif isinstance(msg, str):
                 # logger.info('pandastim raw msg: {}'.format(msg))
                 msg_dict, category = self._msg_unpacker(msg)
                 tag = 'stim'
                 # logger.info("the tag is (pandastim) {}".format(tag))
+                # self.unpacking_time.append(time.time() - unpacker_time)
             else:
                 logger.info("hey this is from the inside of pyobj we don't know what the type is")
         except pickle.UnpicklingError:
@@ -311,13 +325,13 @@ class ZMQAcquirer(Actor):
                         
             # logger.info('Is speed = float(0): {}'.format(speed == float(0)))
             if speed == float(0):
-                logger.info('Stimulus: Flashing spot at ({},{})'.format(center_x, center_y))
+                logger.info('Stimulus: Flashing spot at ({},{}) at frame {}'.format(center_x, center_y, self.frame_num))
             else:
-                if angle in [45, 135, 225, 315]:
-                    # Adjust angle to match stimulus space, remapping to the "center" of the stimulus screen
-                    center_x = 850
-                    center_y = 1000
-                logger.info('Stimulus: {} Moving dots with size {} at angle {} and speed {} with contrast {}'.format(freq, size, angle, speed, contrast))
+                # if angle in [45, 135, 225, 315]:
+                #     # Adjust angle to match stimulus space, remapping to the "center" of the stimulus screen
+                #     center_x = 850
+                #     center_y = 1000
+                logger.info('Stimulus: {} Moving dots with size {} at angle {} and speed {} with contrast {} at frame {}'.format(freq, size, angle, speed, contrast, self.frame_num))
 
 
         elif msg_dict['texture']['texture_name'] == 'grating_gray':
@@ -332,13 +346,14 @@ class ZMQAcquirer(Actor):
                 shape = 1
             except Exception as e:
                 logger.info('acquirer receiving msg error: {}'.format(e))
-            logger.info('Stimulus: Sin Drift Gratings at angle {} and speed {}'.format(angle, speed))
-      
+            logger.info('Stimulus: Sin Drift Gratings at angle {} and speed {} at frame {}'.format(angle, speed, self.frame_num))
+            
 
         stim_set_tag = msg_dict['stimulus']['note']
         indices = self.stimuli_space.param_to_ridx([angle, speed, size, freq, center_x, center_y, contrast, shape], tag=stim_set_tag)
-        
+        # logger.info(f"{[angle, speed, size, freq, center_x, center_y, contrast, shape]}")
         # self.links['stim_queue'].put({self.frame_num:indices})
-        self.links['stim_queue'].put({"frame": self.frame_num,"indices": indices,"tag": stim_set_tag})
+        self.links['stim_queue'].put({"frame": self.frame_num,"indices": indices,"tag": stim_set_tag, "stim_count": self.stim_count})
+        self.acq_stim_queue_ts.append([self.frame_num, time.time()])
         self.stimmed.append([self.frame_num, angle, speed, size, freq, center_x, center_y, contrast, shape])
         

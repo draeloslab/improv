@@ -32,6 +32,7 @@ actors:
     ip: '*'
     port: 6006
     stimuli: stimuli.npy
+    grid_pattern: 'rectangular'
 
   Processor:
     package: experiments.common_actors.caiman_processor

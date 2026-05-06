@@ -1,7 +1,7 @@
 General:
-  seed: 42
-  init_T: 4
-  max_tests: 5 #15
+  seed: 7 #42
+  init_T: 8
+  max_tests: 15
   improv: True
 
 Stimuli:
@@ -14,11 +14,13 @@ Stimuli:
 
 Optimizer:
   n: 1  # only for counting optimizers, differ from d
-  gamma: 1 #1e-1 #1
+  mse_cutoff: 0.5
+  gamma: 0.05 #1e-1 #1
   var: 0.5
   nu: 0.5 #1e-1
   eta: 5e-2
   optim_1:
-    kernel: ['rbf', 'rbf', 'rbf', 'rbf', 'rbf']  
-    stopping_crit: 4e-4 #3e-4 
+    kernel: ['rbf_periodic', 'rbf', 'rbf', 'rbf', 'rbf']  
+    stopping_crit: 1e-4 #3e-4 
+    periodic_p: 8
   
