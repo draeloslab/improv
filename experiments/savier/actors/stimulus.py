@@ -97,6 +97,7 @@ class VisualStimulus(Actor):
 
 
     def send_frame(self, stim):
+        ''' send_frame takes the stim object and adds the texture parameters before sending the request to pandastim'''
 
         # logger.info('PARMS INSIDE SEND FRAME {}'.format(params))
 
@@ -140,6 +141,8 @@ class VisualStimulus(Actor):
             logger.error('Tried to send a None frame')
 
     def create_frame(self, parameters, tag):
+        ''' create_frame creates the stim object based on the request from the Optimizer actor'''
+
         stim_t = self. stat_t + self.total_stim_time 
 
         # NOTE: this is creating self.<param> based on the labels defined in gen_stim
