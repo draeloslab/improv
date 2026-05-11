@@ -28,7 +28,6 @@ class VizStimAnalysis(Actor):
         self.param_space_size = self.stimuli_space.param_space_size 
         self.param_index_space = self.stimuli_space.param_index_space
         self.param_space_optim = self.stimuli_space.r1_params #param_space_optim
-        # logger.info('reading in stim: {}'.format(self.stimuli))
 
         self.calibration_not_moving_dots = 0
         self.before_amount = before_amount
@@ -154,7 +153,7 @@ class VizStimAnalysis(Actor):
             # Just do overall average activity for now
             try: 
                 sig = self.links['input_stim_queue'].get(timeout=0.0001) # sig: index pointing to a specific stimulus 
-                self.updateStim_start(sig) #NOTE: do we even need a function for this? 
+                self.updateStim_start(sig) 
                 logger.info('we called updatedStim_start')
                 self.stimText = list(sig.values())
             except Empty as e:
@@ -189,8 +188,6 @@ class VizStimAnalysis(Actor):
             self.putAnalysis()
             self.putStimulus()
 
-            
-
             self.timestamp.append([time.time(), self.frame])
             self.total_times.append(time.time()-t)
 
@@ -204,10 +201,7 @@ class VizStimAnalysis(Actor):
     
 
     def updateStim_start(self, stim):
-
-        # frame = list(stim.keys())[0]
-        # whichStim = int(stim[frame])
-        
+        ''' updateStim_start takes in the pandastim message from acquirer, translates to index space, and tags it as the current stimulus'''
 
         frame = stim["frame"]
         whichStim = stim["indices"]
@@ -225,10 +219,6 @@ class VizStimAnalysis(Actor):
 
         else:
             multi_idx = self.param_index_space[whichStim]
-            # multi_idx_copy = multi_idx.copy()
-            # if self.stimuli_space.map_full_to_r1[whichStim] >= 0:
-            #     # multi_idx = self.stimuli_space.r1_coords[self.stimuli_space.map_full_to_r1[whichStim]]
-            #     logger.info(f"AHAHAHAHAH multi_idx remapping this was multi_idx {multi_idx_copy}, and this is multi_idx {multi_idx}")
         multi_idx = np.asarray(multi_idx, dtype=int)
         logger.info('multi_idx: {}'.format(multi_idx))
 
@@ -288,6 +278,7 @@ class VizStimAnalysis(Actor):
         self.putstimtime.append(time.time()-t)
 
     def stimAvg_start(self): #TODO: need to rewrite this section (since ys will no longer be a dict)
+        ''' stimAvg_start calculates the average response to the current stimulus'''
         t = time.time()
 
         ests = self.C
@@ -322,12 +313,6 @@ class VizStimAnalysis(Actor):
                 else:
                     logger.warning(f"Frame {target_frame} missing from 500-frame buffer.")
 
-                # # val = ests[:, self.frame-1]
-                # val = ests[:, -2]  # dont use relative indexing (caiman need to send an array of frame num)
-
-                # self.ests[:, self.currentStim, 1] = (self.counter[self.currentStim, 1] * self.ests[:, self.currentStim, 1] + val) / (self.counter[self.currentStim, 1] +1)
-                # self.counter[self.currentStim, 1] += 1
-
             elif self.frame in range(self.stimStart+2, self.stimStart+self.after_amount):
                 target_frame = self.frame - 1
                 local_idx = target_frame - buffer_start_idx
@@ -339,11 +324,6 @@ class VizStimAnalysis(Actor):
                 else:
                     logger.warning(f"Frame {target_frame} missing from 500-frame buffer.")
 
-                # # val = ests[:, self.frame-1]
-                # val = ests[:, -2]  # same, dont use relative indexing
-
-                # self.ests[:, self.currentStim, 0] = (self.counter[self.currentStim, 0] * self.ests[:, self.currentStim, 0] + val) / (self.counter[self.currentStim, 0] +1)
-                # self.counter[self.currentStim, 0] += 1
 
             if self.frame == self.stimStart + self.after_amount:
                 logger.info('appending to X: {}'.format(self.xs))
@@ -353,7 +333,6 @@ class VizStimAnalysis(Actor):
                 local_start = max(0, local_end - self.after_amount)
                 self.stimY.append(np.mean(ests[:, local_start:local_end], 1))
 
-                # self.stimY.append(np.mean(ests[:, -self.after_amount:], 1))  # relative indexing
                 logger.info('at frame {} we have {} neurons right now'.format(self.frame, ests.shape[0]))
                 self.testNum += 1
                 numN = self.ests.shape[0]
