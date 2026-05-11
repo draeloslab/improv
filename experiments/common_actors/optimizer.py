@@ -23,6 +23,8 @@ class BayesOptimizer(Actor):
     def __init__(self, *args, stimuli=None, param_file=None, calibration=False, **kwargs):
         super().__init__(*args, **kwargs)
 
+        ''' BayesOptimizer displays a calibration stimuli set, an initial stimuli set, and then proceeds to begin the optimization processes'''
+
         # Stimulus Space information (loading from stimulus class)
         self.stimuli_space = StimulusSpace()
         self.stim_space = self.stimuli_space.stim_space
