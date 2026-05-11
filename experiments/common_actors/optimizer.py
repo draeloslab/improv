@@ -87,6 +87,8 @@ class BayesOptimizer(Actor):
         self.saved_GP_est = []
         self.saved_GP_unc = []
         self.start_stimulus = []
+        self.opt_q_in_ts = []
+        self.opt_stim_ind_out_ts = []
 
         self.calibration = calibration
         logger.info('calibration is {}'.format(self.stim_space['calibration_stim']))
@@ -118,21 +120,26 @@ class BayesOptimizer(Actor):
         # np.save('output/optimizer_start_stimulus.npy', np.array(self.start_stimulus))
 
         try:
-            np.savetxt('output/timing/optimizer_time.txt', np.array(self.total_times))
             np.savetxt('output/timing/optimizer_time_udpates.txt', self.total_times_update, fmt="%s")
+            np.savetxt('output/timing/optimizer_time.txt', np.array(self.total_times))
+            np.savetxt('output/timing/optimizer_q_in_ts.txt', np.array(self.opt_q_in_ts))
+            np.savetxt('output/timing/optimizer_stim_ind_out_ts.txt', np.array(self.opt_stim_ind_out_ts))
         except Exception as e:
             logger.error("Trouble saving optimizer timings: {}".format(e))
             pass
         logger.info('Optimizer complete, avg time per frame: {}'.format(np.mean(self.total_times)))
 
     def runStep(self):
-        t = time.time()
         try:
+            t = time.time()
             ids = self.q_in.get(timeout=0.0001)
+            
             X = self.client.get(ids[0])
             Y = self.client.get(ids[1])
-            self.calibration_not_moving_dots = self.client.get(ids[-1])
-            # stim_count = self.client.get(ids[-1]) # -1 to account for initial stim
+            self.calibration_not_moving_dots = self.client.get(ids[-2])
+            stim_count = self.client.get(ids[-1]) # -1 to account for initial stim
+            frame_num = self.client.get(ids[2])
+            self.opt_q_in_ts.append([frame_num, time.time()])
             # logger.info('X, Y: {}, {}'.format(X, Y))
 
             # logger.info('X: {}'.format(X))
@@ -153,6 +160,9 @@ class BayesOptimizer(Actor):
                 # logger.info('self.y0 has shape {}'.format(self.y0.shape))
                 is_nan_2d = np.isnan(self.y0)
                 self.start_stimulus = np.argmax(~is_nan_2d, axis=1)
+                self.stim_count = stim_count #-1
+                self.frame_num = frame_num
+                # logger.info(f"this is self.start_stimulus: {self.start_stimulus}")
             except:
                 pass
             
@@ -181,6 +191,7 @@ class BayesOptimizer(Actor):
             
             if (time.time() - self.timer) >= self.total_stim_time:
                 self.links['stim_ind_out'].put([self.stim_ind, self.tag_to_go])
+                self.opt_stim_ind_out_ts.append([self.stim_ind, time.time()])
                 # stim_flag = 'calibration'
                 # self.links['stim_flag_out'].put(stim_flag)
                 self.stim_ind = None
@@ -235,8 +246,10 @@ class BayesOptimizer(Actor):
                 logger.info(f"Have calibration stimuli, need to ignore the first {self.calibration_not_moving_dots} non-moving dots stimuli as well as related responses")
                 self.X_all = self.X_all[:, self.calibration_not_moving_dots:]  # TODO: this is hard-coded; need to change later?
                 self.y0 = self.y0[:, self.calibration_not_moving_dots:]
+                self.stim_count = self.stim_count - self.calibration_not_moving_dots
                 # logger.info(f"after trimming this is shape of self.x_all {self.X_all.shape} the sahpe of y0 {self.y0.shape}")
             self.X = self.stimuli_space.param_space_shrinking(self.X_all) 
+            logger.info('Initialization check: stim_count: {}, Y length: {}, same len? {}'.format(self.stim_count, self.y0.shape[1], self.y0.shape[1] == self.stim_count))
             # logger.info('self.X in INITIALIZATION is {} and has shape {} - init'.format(self.X, self.X.shape))
 
             nonopt = np.array(list(set(np.arange(self.y0.shape[0]))-set(self.optimized_n)))
@@ -310,8 +323,13 @@ class BayesOptimizer(Actor):
             self.X = self.stimuli_space.param_space_shrinking(self.X_all) 
 
             t_update = time.time()
-            if self.stim_ind is None:  
-                logger.info('looking at self.X: {}, {}, {}'.format(self.X[:,-1], self.X[:,-2], self.X[:,-3])) 
+            if self.stim_ind is None: 
+                # X = np.zeros(self.d) 
+                # for i in range(self.d):
+                #     X[i] = self.GP_stimuli[i][int(self.X[i,-1])] #NOTE: this is bascially matching the stimulus with teh stim set, so we don't need this anymore 
+                logger.info('Update check: stim_count: {}, Y length: {}, same len? {}'.format(self.stim_count, self.y0.shape[1], self.y0.shape[1] == self.stim_count))
+                logger.info(f"from optimizer update, the frame num is {self.frame_num}")
+                # logger.info('looking at self.X: {}, {}, {}'.format(self.X[:,-1], self.X[:,-2], self.X[:,-3])) 
                 logger.info('optim {} (test: {}), update GP with {}, {}'.format(self.nID, self.test_count, self.X[:,-1], self.y0[self.nID, -1]))
                 self.optim.update_GP(np.squeeze(self.X[:, -1]), self.y0[self.nID,-1])
 
@@ -899,7 +917,7 @@ class RandomBayesOptimizer(Actor):
             X = self.client.get(ids[0])
             Y = self.client.get(ids[1])
             self.calibration_not_moving_dots = self.client.get(ids[-1])
-            # stim_count = self.client.get(ids[-1]) # -1 to account for initial stim
+            stim_count = self.client.get(ids[-1]) # -1 to account for initial stim
             tmpX = np.squeeze(np.array(X)).T
             sh = len(tmpX.shape)
             if sh > 1:

@@ -75,6 +75,8 @@ class VizStimAnalysis(Actor):
         
         self.all_y = np.zeros((500, self.param_space_size)) #NOTE: what is 500? 
         self.stim_count = np.zeros((self.param_space_size, ), dtype=int) #np.zeros((dims), dtype=int)
+        self.total_stim_counts = 0 #None
+        self.old_stim_num = 0 
 
         self.stimX = []
         self.stimY = []
@@ -91,6 +93,9 @@ class VizStimAnalysis(Actor):
         self.timestamp = []
         self.LL = []
         self.fit_times = []
+        self.ana_q_in_ts = []
+        self.ana_input_stim_queue_ts = []
+        self.ana_stim_out_ts = []
 
     def stop(self):
         print('Analysis broke, avg time per frame: ', np.mean(self.total_times, axis=0))
@@ -109,6 +114,9 @@ class VizStimAnalysis(Actor):
         np.savetxt('output/timing/analysis_stimtime.txt', np.array(self.stimtime))
         np.savetxt('output/timing/analysis_putstimtime.txt', np.array(self.putstimtime))
         np.savetxt('output/timing/analysis_getCtime.txt', np.array(self.getCtime))
+        np.savetxt('output/timing/analysis_q_in_ts.txt', np.array(self.ana_q_in_ts))
+        np.savetxt('output/timing/analysis_input_stim_queue_ts.txt', np.array(self.ana_input_stim_queue_ts))
+        np.savetxt('output/timing/analysis_stim_out_ts.txt', np.array(self.ana_stim_out_ts))
 
         with open("output/analysis_stimY.pkl", 'wb') as f:
             pickle.dump(self.stimY, f)
@@ -138,6 +146,7 @@ class VizStimAnalysis(Actor):
                 self.q_out.put([1])
                 raise Empty
             self.frame = ids[-1]
+            self.ana_q_in_ts.append([self.frame, time.time()])
             t_get = time.time()
             self.coordDict = self.client.get(ids[0])
             self.image = self.client.get(ids[1])
@@ -153,9 +162,13 @@ class VizStimAnalysis(Actor):
             # Just do overall average activity for now
             try: 
                 sig = self.links['input_stim_queue'].get(timeout=0.0001) # sig: index pointing to a specific stimulus 
-                self.updateStim_start(sig) 
+                self.ana_input_stim_queue_ts.append([self.frame, time.time()])
+                self.updateStim_start(sig) #NOTE: do we even need a function for this? 
                 logger.info('we called updatedStim_start')
                 self.stimText = list(sig.values())
+                self.total_stim_counts = self.stimText[-1]
+                logger.info('total_stim_counts: {}'.format(self.total_stim_counts)) # add a logger: when send to optimizer
+                self.should_send_frame_num = self.frame + self.after_amount
             except Empty as e:
                 pass # no change in input stimulus
             except Exception as e:
@@ -183,10 +196,15 @@ class VizStimAnalysis(Actor):
                 self.Call = self.C #already a windowed version #[:,self.frame-window:self.frame]
 
             # trim C all and C pop for faster communication
-            self.Call = self.Call[:, -len(self.Cx):]
-            self.Cpop = self.Cpop[-len(self.Cx):]
+            if self.Call is not None and len(self.Cx) > 0:
+                self.Call = self.Call[:, -len(self.Cx):]
+                self.Cpop = self.Cpop[-len(self.Cx):]
             self.putAnalysis()
             self.putStimulus()
+            if self.total_stim_counts > self.old_stim_num: 
+                logger.info('sent stimX and stimY to optimizer at frame: {}'.format(self.frame))
+                self.old_stim_num = self.total_stim_counts
+            
 
             self.timestamp.append([time.time(), self.frame])
             self.total_times.append(time.time()-t)
@@ -273,8 +291,9 @@ class VizStimAnalysis(Actor):
         ids.append(self.client.put(self.testNum)) #, 'stim_testNum'+str(self.frame)))
         ids.append(self.client.put(self.nID))     #, 'stim_nID'+str(self.frame)))
         ids.append(self.client.put(self.calibration_not_moving_dots))
-        # ids.append(self.client.put(self.total_stim_counts))
+        ids.append(self.client.put(self.total_stim_counts))
         self.links['stim_out'].put(ids)
+        self.ana_stim_out_ts.append([self.frame, time.time()])
         self.putstimtime.append(time.time()-t)
 
     def stimAvg_start(self): #TODO: need to rewrite this section (since ys will no longer be a dict)
@@ -333,6 +352,8 @@ class VizStimAnalysis(Actor):
                 local_start = max(0, local_end - self.after_amount)
                 self.stimY.append(np.mean(ests[:, local_start:local_end], 1))
 
+                # self.stimY.append(np.mean(ests[:, -self.after_amount:], 1))  # relative indexing
+                logger.info(f"done appending at frame {self.frame}. before the estimated frame num {self.should_send_frame_num}? {self.frame <= self.should_send_frame_num}")
                 logger.info('at frame {} we have {} neurons right now'.format(self.frame, ests.shape[0]))
                 self.testNum += 1
                 numN = self.ests.shape[0]

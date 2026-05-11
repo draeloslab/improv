@@ -70,6 +70,8 @@ class CaimanProcessor(Actor):
         self.total_times = []
         self.timestamp = []
         self.counter = 0
+        self.proc_q_in_ts = []
+        self.proc_q_out_ts = []
 
     def stop(self):
         print("Processor broke, avg time per frame: ", np.mean(self.total_times, axis=0))
@@ -86,6 +88,8 @@ class CaimanProcessor(Actor):
 
         np.savetxt("output/timing/putAnalysis_time.txt", np.array(self.putAnalysis_time))
         np.savetxt("output/timing/procFrame_time.txt", np.array(self.procFrame_time))
+        np.savetxt("output/timing/proc_q_in_ts.txt", np.array(self.proc_q_in_ts))
+        np.savetxt("output/timing/proc_q_out_ts.txt", np.array(self.proc_q_out_ts))
 
         print("Number of times coords updated ", self.counter)
 
@@ -211,13 +215,14 @@ class CaimanProcessor(Actor):
         t6 = time.time()
 
         self.q_out.put(ids)
-
+        self.proc_q_out_ts.append([self.frame_number, time.time()])
         self.putAnalysis_time.append([time.time() - t, t2 - t, t3 - t2, t4 - t3, t5 - t4, t6 - t5])
 
     def _checkFrames(self):
         """Check to see if we have frames for processing"""
         try:
             res = self.q_in.get(timeout=0.0005)
+            self.proc_q_in_ts.append([self.frame_number, time.time()])
             return res
         # TODO: add'l error handling
         except Empty:
