@@ -57,7 +57,6 @@ class StimulusSpace():
         calibration_stim, self.calibration_stim_count = self.calibration_stim(self.stim)
 
         self.initial_stim_count = 8
-        # initial_stim = self.initial_stim(self.stim)
         initial_stim = self.initial_stim(self.stim_optim_space)
 
         total_stim_time = 10 # duration of stimuli (in sec)
