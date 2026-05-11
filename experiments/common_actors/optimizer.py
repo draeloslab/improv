@@ -26,14 +26,12 @@ class BayesOptimizer(Actor):
         # Stimulus Space information (loading from stimulus class)
         self.stimuli_space = StimulusSpace()
         self.stim_space = self.stimuli_space.stim_space
-        # logger.info("what is stimuli_space {}; what is stim_space {}".format(self.stimuli_space, self.stim_space))
         self.stimuli = self.stim_space['stimuli']
         self.stimuli_optim = self.stim_space['stimuli_optim']
-        # self.stimuli = np.array([np.sort(stim) for stim in self.stim_space['stimuli']], dtype=object)
-        # logger.info('reading in stim: {}'.format(self.stimuli))
         self.total_stim_time = self.stim_space['total_stim_time']
         self.d = self.stimuli_optim.shape[0]
         self.initial_length = self.stimuli_space.initial_stim_count
+
         logger.info('Stimuli info: Num of Stimuli Parameters: {}, Num of Initial Stim: {}'.format(self.d, self.initial_length))
         logger.info("Stim space specification: {}".format(self.stim_space))
 
@@ -153,7 +151,6 @@ class BayesOptimizer(Actor):
                 # logger.info('self.y0 has shape {}'.format(self.y0.shape))
                 is_nan_2d = np.isnan(self.y0)
                 self.start_stimulus = np.argmax(~is_nan_2d, axis=1)
-                # logger.info(f"this is self.start_stimulus: {self.start_stimulus}")
             except:
                 pass
             
@@ -209,11 +206,8 @@ class BayesOptimizer(Actor):
                 elif self.counter - 1 == self.stimuli_space.initial_stim_count:
                     # self.stim_ind = self.stim_space['initial_stim'][-1]
                     np.random.seed(self.seed)
-                    # self.stim_ind = [np.random.choice(np.arange(0, stim)) for stim in self.stim_choice]
-                    # self.stim_ind = np.random.randint(0, self.stimuli_space.param_space_size)  #FIXME: try to make this random stim one of those 2880 stimuli. 
                     self.stim_ind = np.random.randint(0, self.stim_star.shape[0])  # choose from 2880 stimuli
                     logger.info(f"randomly selected stim_ind is {self.stim_ind}")
-                # self.stim_ind, flag = self.stimuli_space.initial_stim(self.stimuli, self.counter)
 
             if (time.time() - self.timer) >= self.total_stim_time:
                 self.links['stim_ind_out'].put([self.stim_ind, 'initial'])
@@ -308,21 +302,13 @@ class BayesOptimizer(Actor):
                 ind, xt_1 = self.optim.max_acq() #isn't the ind, technically going to be the row index? 
                 logger.info('optim.max_acq: {}'.format(ind))
                 self.stim_ind = ind
-                # logger.info('INITIALIZATION - suggest next stim: {}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
-                # next_ind = []
-                # for i in range(self.d):
-                #     next_ind.append(np.where(self.stimuli_optim[i] == self.stim_star[ind][i])[0][0]) #NOTE: hmmmmmmmm
-                # self.stim_ind = next_ind  # prevents duplicate update on X[:,-1], y[-1]
         
         else:
             # logger.info("Reducing X from 8D to 5D for optimization - update")
             self.X = self.stimuli_space.param_space_shrinking(self.X_all) 
 
             t_update = time.time()
-            if self.stim_ind is None: 
-                # X = np.zeros(self.d) 
-                # for i in range(self.d):
-                #     X[i] = self.GP_stimuli[i][int(self.X[i,-1])] #NOTE: this is bascially matching the stimulus with teh stim set, so we don't need this anymore 
+            if self.stim_ind is None:  
                 logger.info('looking at self.X: {}, {}, {}'.format(self.X[:,-1], self.X[:,-2], self.X[:,-3])) 
                 logger.info('optim {} (test: {}), update GP with {}, {}'.format(self.nID, self.test_count, self.X[:,-1], self.y0[self.nID, -1]))
                 self.optim.update_GP(np.squeeze(self.X[:, -1]), self.y0[self.nID,-1])
@@ -374,13 +360,8 @@ class BayesOptimizer(Actor):
                     ind, xt_1 = self.optim.max_acq()
                     logger.info('optim.max_acq: {}'.format(ind))
                     self.stim_ind = ind
-                    # logger.info('suggest next stim: {}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
-                    # next_ind = []
-                    # for i in range(self.d):
-                    #     next_ind.append(np.where(self.stimuli_optim[i] == self.stim_star[ind][i])[0][0]) #NOTE: hmmmmmmmm
-                    # self.stim_ind = next_ind
 
-            # Need to send ind to stimulus actor to create this stim request ??
+            # Need to send ind to stimulus actor to create this stim request
             if (time.time() - self.timer) >= self.total_stim_time:
                 self.links['stim_ind_out'].put([self.stim_ind, 'optim'])
                 # self.links['stim_flag_out'].put(stim_flag)
@@ -520,18 +501,7 @@ class RandomSampler(Actor):
                 logger.info('random')
                 random_stim = self.stim_star_shuffle[self.counter]
                 self.stim_ind = self.stimuli_space.param_to_ridx(random_stim, tag = "random")
-                # TODO: actually will just need to send a random row index it's not that deep bro
-                # self.stim_ind = np.random.randint(0, self.stimuli_optim.shape[0])  # this is actually incorrect
 
-                # #FIXME: make checkpoints here and read all possible dimensions
-                # #FIXME: This is a manual method (need to fix to make it more flexible)
-                # param0 = np.argwhere(int(random_stim[0]) == self.stimuli_optim[0])[0][0]
-                # param1 = np.argwhere(random_stim[1] == self.stimuli_optim[1])[0][0]
-                # param2 = np.argwhere(int(random_stim[2]) == self.stimuli_optim[2])[0][0]
-                # param3 = np.argwhere(int(random_stim[3]) == self.stimuli_optim[3])[0][0]
-                # param4 = np.argwhere(int(random_stim[4]) == self.stimuli_optim[4])[0][0]
-
-                # self.stim_ind = [param0, param1, param2, param3, param4]
                 logger.info('random stimulus indices chosen: {}'.format(self.stim_ind))
 
             if (time.time() - self.timer) >= self.total_stim_time:
@@ -679,16 +649,6 @@ class GridSampler(Actor):
                     grid = self.stim_star[self.counter]
                 # grid = self.stim_star_reduced[self.counter]  # FIXME: this is grid not random
                 self.stim_ind = self.stimuli_space.param_to_ridx(grid, tag='grid')
-
-                #FIXME: make checkpoints here and read all possible dimensions
-                #FIXME: This is a manual method (need to fix to make it more flexible)
-                # param0 = np.argwhere(int(grid[0]) == self.stimuli_optim[0])[0][0]
-                # param1 = np.argwhere(grid[1] == self.stimuli_optim[1])[0][0]
-                # param2 = np.argwhere(int(grid[2]) == self.stimuli_optim[2])[0][0]
-                # param3 = np.argwhere(int(grid[3]) == self.stimuli_optim[3])[0][0]
-                # param4 = np.argwhere(int(grid[4]) == self.stimuli_optim[4])[0][0]
-
-                # self.stim_ind = [param0, param1, param2, param3, param4]
                 logger.info('grid stimulus indices chosen: {} with counter {} and grid {}'.format(self.stim_ind, self.counter, grid))
 
             if (time.time() - self.timer) >= self.total_stim_time:
@@ -822,17 +782,6 @@ class RandomSamplerWithReplace(Actor):
             if self.stim_ind is None:
                 logger.info('random with replacement')
                 self.stim_ind = np.random.randint(0, self.stim_star.shape[0])  # should be [0,2880)
-                # random_stim = self.stim_star[random_idx]
-
-                # #FIXME: make checkpoints here and read all possible dimensions
-                # #FIXME: This is a manual method (need to fix to make it more flexible)
-                # param0 = np.argwhere(int(random_stim[0]) == self.stimuli_optim[0])[0][0]
-                # param1 = np.argwhere(random_stim[1] == self.stimuli_optim[1])[0][0]
-                # param2 = np.argwhere(int(random_stim[2]) == self.stimuli_optim[2])[0][0]
-                # param3 = np.argwhere(int(random_stim[3]) == self.stimuli_optim[3])[0][0]
-                # param4 = np.argwhere(int(random_stim[4]) == self.stimuli_optim[4])[0][0]
-
-                # self.stim_ind = [param0, param1, param2, param3, param4]
                 logger.info('random stimulus indices chosen: {}'.format(self.stim_ind))
 
             if (time.time() - self.timer) >= self.total_stim_time:
@@ -990,8 +939,6 @@ class RandomBayesOptimizer(Actor):
             
             if (time.time() - self.timer) >= self.total_stim_time:
                 self.links['stim_ind_out'].put([self.stim_ind, self.tag_to_go])
-                # stim_flag = 'calibration'
-                # self.links['stim_flag_out'].put(stim_flag)
                 self.stim_ind = None
                 self.counter += 1
                 self.timer = time.time()
@@ -1035,14 +982,8 @@ class RandomBayesOptimizer(Actor):
                 # if self.counter < self.random_steps:
                 logger.info(f'Random sampling step {self.counter + 1}/{self.random_steps}')
                 random_idx = np.random.randint(self.stim_star.shape[0])
-                # random_stim = self.stim_star[random_idx]
-                self.stim_ind = random_idx  
 
-                # # Convert the selected stimulus values back to indices for the stimulus actor 
-                # next_ind = []
-                # for i in range(self.d):
-                #     next_ind.append(np.where(self.stimuli[i] == random_stim[i])[0][0])
-                # self.stim_ind = next_ind
+                self.stim_ind = random_idx  
                 logger.info(f"random_idx is {random_idx}, random_stim is {next_ind}")
 
             if (time.time() - self.timer) >= self.total_stim_time:
@@ -1134,9 +1075,6 @@ class RandomBayesOptimizer(Actor):
                     # immediately calculates suggested next stim
                     ind, xt_1 = self.optim.max_acq()
                     logger.info('INITIALIZATION - suggest next stim: {}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
-                    # next_ind = []
-                    # for i in range(self.d):
-                    #     next_ind.append(np.where(self.stimuli[i] == self.stim_star[ind][i])[0][0])
                     self.stim_ind = ind  # prevents duplicate update on X[:,-1], y[-1]
         
             # This block corresponds to the 'else:' (main optimization loop) from BayesOptimizer
@@ -1144,9 +1082,6 @@ class RandomBayesOptimizer(Actor):
                 # need to update the GP
                 t_update = time.time()
                 if self.stim_ind is None: 
-                    # X = np.zeros(self.d) 
-                    # for i in range(self.d):
-                    #     X[i] = self.GP_stimuli[i][int(self.X[i,-1])]
                     self.X = self.stimuli_space.param_space_shrinking(self.X_all) 
 
                     logger.info('optim {} (test: {}), update GP with {}, {}'.format(self.nID, self.test_count, X, self.y0[self.nID, -1]))
@@ -1198,9 +1133,6 @@ class RandomBayesOptimizer(Actor):
                     else:
                         ind, xt_1 = self.optim.max_acq()
                         logger.info('suggest next stim: {}'.format(ind)) #{}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
-                        # next_ind = []
-                        # for i in range(self.d):
-                        #     next_ind.append(np.where(self.stimuli[i] == self.stim_star[ind][i])[0][0])
                         self.stim_ind = ind
 
                 # Need to send ind to stimulus actor to create this stim request ??
