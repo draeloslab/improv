@@ -96,7 +96,8 @@ class FileAcquirer(Actor):
             self._socket.send_pyobj(dict({
                 "type": "img_data",
                 "data": frame,
-                "timestamp": str(dt.now())
+                "ts": time.time(), #str(dt.now()),
+                "counter": self.frame_num
             }))
             # self.timestamp.append([time.time(), self.frame_num])
             self.frame_num += 1

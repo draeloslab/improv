@@ -63,7 +63,7 @@ class CaimanProcessor(Actor):
 
         self.fitframe_time = []
         self.putAnalysis_time = []
-        self.procFrame_time = []  # aka t_motion
+        # self.procFrame_time = []  # aka t_motion
         self.detect_time = []
         self.shape_time = []
         self.flag = False
@@ -72,6 +72,7 @@ class CaimanProcessor(Actor):
         self.counter = 0
         self.proc_q_in_ts = []
         self.proc_q_out_ts = []
+        self.proc_q_in_qsize = []
 
     def stop(self):
         print("Processor broke, avg time per frame: ", np.mean(self.total_times, axis=0))
@@ -86,10 +87,11 @@ class CaimanProcessor(Actor):
         np.savetxt("output/timing/shape_time.txt", self.shape_time)
         np.savetxt("output/timing/detect_time.txt", self.detect_time)
 
-        np.savetxt("output/timing/putAnalysis_time.txt", np.array(self.putAnalysis_time))
-        np.savetxt("output/timing/procFrame_time.txt", np.array(self.procFrame_time))
+        # np.savetxt("output/timing/putAnalysis_time.txt", np.array(self.putAnalysis_time))
+        # np.savetxt("output/timing/procFrame_time.txt", np.array(self.procFrame_time))
         np.savetxt("output/timing/proc_q_in_ts.txt", np.array(self.proc_q_in_ts))
         np.savetxt("output/timing/proc_q_out_ts.txt", np.array(self.proc_q_out_ts))
+        np.savetxt("output/timing/proc_q_in_qsize.txt", np.array(self.proc_q_in_qsize))
 
         print("Number of times coords updated ", self.counter)
 
@@ -184,22 +186,22 @@ class CaimanProcessor(Actor):
         """Put whatever estimates we currently have
         into the data store
         """
-        t = time.time()
+        # t = time.time()
         nb = self.onAc.params.get("init", "nb")
         A = self.onAc.estimates.Ab[:, nb:]
         before = self.params['online']['init_batch']  
         # self.frame_number-500 if self.frame_number > 500 else 0
         C = self.onAc.estimates.C_on[nb : self.onAc.M, before : self.frame_number + before]  # .get_ordered()
-        t2 = time.time()
-        t3 = time.time()
+        # t2 = time.time()
+        # t3 = time.time()
 
         image = self.makeImage()
         if self.frame_number == 1:
             np.savetxt("output/image.txt", np.array(image))
-        t4 = time.time()
+        # t4 = time.time()
         dims = image.shape
         self._updateCoords(A, dims)
-        t5 = time.time()
+        # t5 = time.time()
         # logger.info(f"frame no {self.frame_number}, we have {C.shape[0]} neurons")
         if C.shape[1] > 500:
             C_to_put = C[:, -500:]  #only sending the latest 500 frames?
@@ -212,16 +214,18 @@ class CaimanProcessor(Actor):
         # ids.append(self.client.put(C)) #, "S" + str(self.frame_number)))
         ids.append(self.client.put(C_to_put)) #, "S" + str(self.frame_number)))
         ids.append(self.frame_number)
-        t6 = time.time()
+        # t6 = time.time()
 
         self.q_out.put(ids)
         self.proc_q_out_ts.append([self.frame_number, time.time()])
-        self.putAnalysis_time.append([time.time() - t, t2 - t, t3 - t2, t4 - t3, t5 - t4, t6 - t5])
+        # self.putAnalysis_time.append([time.time() - t, t2 - t, t3 - t2, t4 - t3, t5 - t4, t6 - t5])
 
     def _checkFrames(self):
         """Check to see if we have frames for processing"""
         try:
             res = self.q_in.get(timeout=0.0005)
+            # logger.info(f"from processor do we have a queue item? {self.q_in.qsize()}")
+            self.proc_q_in_qsize.append([self.frame_number, self.q_in.qsize()])
             self.proc_q_in_ts.append([self.frame_number, time.time()])
             return res
         # TODO: add'l error handling

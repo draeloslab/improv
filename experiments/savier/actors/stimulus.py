@@ -62,13 +62,16 @@ class VisualStimulus(Actor):
         self.tails = []
         self.requested_stim = []
         self.stim_stim_ind_in_ts = []
+        self.stim_ind_in_qsize = []
+        self.stim_send_ts = []
 
     def stop(self):
 
         np.savetxt('output/timing/stimulus_frame_time.txt', np.array(self.total_times))
-        np.savetxt("output/timing/stimulus_stim_ind_in_ts.txtx", np.array(self.stim_stim_ind_in_ts))
+        np.savetxt("output/timing/stimulus_stim_ind_in_ts.txt", np.array(self.stim_stim_ind_in_ts))
         # np.savetxt('output/requested_stimuli.txt', self.requested_stim, fmt="%s")
-
+        np.savetxt("output/timing/stim_ind_in_qsize.txt", np.array(self.stim_ind_in_qsize))
+        np.savetxt("output/timing/stimulus_send_ts.txt", np.array(self.stim_send_ts))
         logger.info('Stimulus complete, avg time per frame: {}'.format(np.mean(self.total_times)))
         # logger.info('Stim got through {} frames'.format(self.frame_num))
         
@@ -78,6 +81,8 @@ class VisualStimulus(Actor):
         try: 
             t = time.time()
             row_index, tag = self.links['stim_ind_in'].get(timeout=0.0001) #TODO: need to confirm if this row_index makes sense
+            self.stim_ind_in_qsize.append([row_index, self.links['stim_ind_in'].qsize()])
+            # logger.info(f"from stimulus do we have a queue item? {self.links['stim_ind_in'].qsize()}")
             self.stim_stim_ind_in_ts.append([row_index, time.time()])
             logger.info('stim index: {}'.format(row_index))
             if tag == 'optim' or tag == 'initial' or tag == 'calibration_initial' or tag == 'random' or tag == "grid":
@@ -137,6 +142,7 @@ class VisualStimulus(Actor):
             self._socket.send_string(self.stimulus_topic, zmq.SNDMORE)
             self._socket.send_pyobj(stimulus)
             self.timer = time.time()
+            self.stim_send_ts.append([self.displayed_stim_num, self.timer])
             logger.info('Number of stimuli requested: {}'.format(self.displayed_stim_num))
             self.displayed_stim_num += 1
         else:
