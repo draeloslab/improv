@@ -17,7 +17,7 @@ logger.setLevel(logging.INFO)
 
 class VisualStimulus(Actor):
 
-    def __init__(self, *args, ip=None, port=None, seed=1234, stimuli = None, **kwargs):
+    def __init__(self, *args, ip=None, port=None, seed=1234, stimuli = None, grid_pattern = None, **kwargs):
         super().__init__(*args, **kwargs)
         self.ip = ip
         self.port = port
@@ -27,17 +27,16 @@ class VisualStimulus(Actor):
 
         self.params = []
         
-        # self.stimuli = np.load(stimuli, allow_pickle=True)
         self.stimuli_space = StimulusSpace()
         self.stim_space = self.stimuli_space.stim_space
-        # logger.info('stim: {}'.format(self.stim_space['stimuli']))
-        # logger.info('reading in stim: {}'.format(self.stimuli))
         self.stimuli = self.stim_space['stimuli']
-        # self.stimuli = np.array([np.sort(stim) for stim in self.stim_space['stimuli']], dtype=object)
+        self.grid_pattern = grid_pattern
         # logger.info('reading in stim: {}'.format(self.stimuli))
+
         self.total_stim_time = self.stim_space['total_stim_time']
         self.hold_after = self.stim_space['hold_after']
         self.stat_t = self.stim_space['stat_t']
+
         np.save('output/generated_stimuli.npy', self.stim_space['stimuli'])
 
 
@@ -62,10 +61,12 @@ class VisualStimulus(Actor):
         self.tailsendtimes = []
         self.tails = []
         self.requested_stim = []
+        self.stim_stim_ind_in_ts = []
 
     def stop(self):
 
         np.savetxt('output/timing/stimulus_frame_time.txt', np.array(self.total_times))
+        np.savetxt("output/timing/stimulus_stim_ind_in_ts.txtx", np.array(self.stim_stim_ind_in_ts))
         # np.savetxt('output/requested_stimuli.txt', self.requested_stim, fmt="%s")
 
         logger.info('Stimulus complete, avg time per frame: {}'.format(np.mean(self.total_times)))
@@ -76,12 +77,16 @@ class VisualStimulus(Actor):
         # Listen to request from Optimizer actor? 
         try: 
             t = time.time()
-            indices = self.links['stim_ind_in'].get(timeout=0.0001)
-            # logger.info('indices: {}'.format(indices))
-            parameters = self.stimuli_space.idx_to_param(indices) 
-            # logger.info('parameters: {}'.format(parameters))
-
-            stim = self.create_frame(parameters)
+            row_index, tag = self.links['stim_ind_in'].get(timeout=0.0001) #TODO: need to confirm if this row_index makes sense
+            self.stim_stim_ind_in_ts.append([row_index, time.time()])
+            logger.info('stim index: {}'.format(row_index))
+            if tag == 'optim' or tag == 'initial' or tag == 'calibration_initial' or tag == 'random' or tag == "grid":
+                logger.info(f"from stimulius actor we got tag {tag}")
+                parameters = self.stimuli_space.ridx_to_param(row_index, tag=tag)
+            else: 
+                parameters = self.stimuli_space.ridx_to_param(row_index, tag='calibration')#'non_optim') 
+            logger.info('parameters: {}'.format(parameters))
+            stim = self.create_frame(parameters, tag=tag)
 
             self.send_frame(stim)
 
@@ -93,44 +98,39 @@ class VisualStimulus(Actor):
         except Exception as e:
             logger.error('Error in receiving stimulus indices from optimizer: {}'.format(e))
 
-        # need to log stimuli requests
-       
 
     def send_frame(self, stim):
+        ''' send_frame takes the stim object and adds the texture parameters before sending the request to pandastim'''
 
         # logger.info('PARMS INSIDE SEND FRAME {}'.format(params))
 
         if stim is not None:
 
-            #NOTE: this is hardcoded for specific directions and their most visible "center" point on the visible grid (this will move to experiments folder)
-            if self.angle == 45:
-                center_x = 80
-                center_y = 1400
-            elif self.angle == 135:
-                center_x = 750
-                center_y = 1500
-            elif self.angle == 225:
-                center_x = 350
-                center_y = 1000
-            elif self.angle == 315:
-                center_x = 1400
-                center_y = 1500
-            else:
-                center_x = 850
-                center_y = 1000
-
-
-            text = {'texture_size': 1600,
+            if self.shape == 0:
+                texture_name = 'gray_ellipse'
+                
+                text = {'texture_size': 1600,
                         'frequency': int(self.frequency),
-                        'center_x': center_x,
-                        'center_y': center_y,
+                        'center_x': self.center_x,
+                        'center_y': self.center_y,
                         'width': int(self.size), 
                         'length': int(self.size),
-                        'texture_name': 'gray_ellipse',
+                        'pattern': self.grid_pattern,
+                        'texture_name': texture_name,
                         'bg_intensity': 200,
                         'fg_intensity': int(self.contrast),
                         }
-                
+
+            else:
+                texture_name = 'grating_gray'
+                text = {'texture_size': 1600,
+                        'frequency': int(self.frequency),
+                        'texture_name': texture_name,
+                        'light_value': 200,
+                        'dark_value': int(self.contrast),
+                        }
+
+            
             stimulus = {'stimulus': stim, 'texture': text}
             # logger.info('stimulus: {}'.format(stimulus))
             
@@ -143,7 +143,9 @@ class VisualStimulus(Actor):
         else:
             logger.error('Tried to send a None frame')
 
-    def create_frame(self, parameters):
+    def create_frame(self, parameters, tag):
+        ''' create_frame creates the stim object based on the request from the Optimizer actor'''
+
         stim_t = self. stat_t + self.total_stim_time 
 
         # NOTE: this is creating self.<param> based on the labels defined in gen_stim
@@ -154,23 +156,44 @@ class VisualStimulus(Actor):
         # This allows for some flexibility when adding/removing parameters in gen_stim
         default_params = {
             'angle': 45, 
-            'velocity': 0.02,
+            'speed': 0.02,
             'size': 50, 
-            'frequency': 1, 
-            'contrast': 50
+            'frequency': 1,
+            'center_x': 800,
+            'center_y': 800, 
+            'contrast': 50,
+            'shape': 0,
         }
         for key, default_param in default_params.items():
             if not hasattr(self, key):
                 setattr(self, key, default_param)
 
-        stim = {
-                'stim_name': 'gray_circle', # 'gray_ellipse'
+        if self.shape == 0:
+            stim_name = 'gray_circle'
+        else:
+            stim_name = 'grating_gray'
+
+        if self.speed == float(0):
+            stim = {
+                'stim_name': stim_name,
                 'angle': int(self.angle),
-                'velocity': self.velocity,
-                'stationary_time': self.stat_t,
-                'duration': self.total_stim_time, 
-                'hold_after': float(stim_t-self.hold_after),
+                'velocity': self.speed,
+                'stationary_time': 0, #1 self.stat_t,
+                'duration': 1, #self.total_stim_time, 
+                'hold_after': float(1), #float(stim_t-self.hold_after),
+                'note': tag
                     }
+            
+        else:
+            stim = {
+                    'stim_name': stim_name,
+                    'angle': int(self.angle),
+                    'velocity': self.speed,
+                    'stationary_time': self.stat_t,
+                    'duration': self.total_stim_time, 
+                    'hold_after': float(stim_t-self.hold_after),
+                    'note': tag
+                        }
 
         self.timer = time.time()
         return stim 

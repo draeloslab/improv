@@ -1,4 +1,3 @@
-# TODO: make a BayesOpt actor (take optimizer class from Stimulus actor)
 import time
 import numpy as np
 import random
@@ -11,30 +10,30 @@ from itertools import product
 import yaml
 from datetime import datetime as dt
 
-from BayesOpt.model.improv_config import Config 
-from BayesOpt.model.optimizer import Optimizer
+from BayesOptim.model.improv_config import Config 
+from BayesOptim.model.optimizer import Optimizer
 
 from experiments.savier.gen_stim import StimulusSpace
-# from gen_stim_calibrate import StimulusSpace
 
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
 class BayesOptimizer(Actor):
-    def __init__(self, *args, stimuli=None, param_file=None, **kwargs):
+    def __init__(self, *args, stimuli=None, param_file=None, calibration=False, **kwargs):
         super().__init__(*args, **kwargs)
+
+        ''' BayesOptimizer displays a calibration stimuli set, an initial stimuli set, and then proceeds to begin the optimization processes'''
 
         # Stimulus Space information (loading from stimulus class)
         self.stimuli_space = StimulusSpace()
         self.stim_space = self.stimuli_space.stim_space
-        # logger.info("what is stimuli_space {}; what is stim_space {}".format(self.stimuli_space, self.stim_space))
         self.stimuli = self.stim_space['stimuli']
-        # self.stimuli = np.array([np.sort(stim) for stim in self.stim_space['stimuli']], dtype=object)
-        # logger.info('reading in stim: {}'.format(self.stimuli))
+        self.stimuli_optim = self.stim_space['stimuli_optim']
         self.total_stim_time = self.stim_space['total_stim_time']
-        self.d = self.stimuli.shape[0]
+        self.d = self.stimuli_optim.shape[0]
         self.initial_length = self.stimuli_space.initial_stim_count
+
         logger.info('Stimuli info: Num of Stimuli Parameters: {}, Num of Initial Stim: {}'.format(self.d, self.initial_length))
         logger.info("Stim space specification: {}".format(self.stim_space))
 
@@ -56,18 +55,18 @@ class BayesOptimizer(Actor):
         self.optim = Optimizer(self.config, kernels) #gamma[:self.d], var, nu, eta, self.config.x_star)
         logger.info(f"Optimizer is using {kernels} with {self.stopping_crit} as the stopping criterion")
 
-        # List of all stimuli combinations
-        xs = np.meshgrid(*self.stimuli, indexing='ij') #,x3,x4])
+        # List of all stimuli combinations (FIXME: replace this section with flattened smaller param space)
+        xs = np.meshgrid(*self.stimuli_optim, indexing='ij') #,x3,x4])
         x_star = np.empty(xs[0].shape + (self.d,))
         for i in range(self.d):
             x_star[...,i] = xs[i]
 
         self.stim_star = x_star.reshape(-1, self.d)
-        logger.info('stim_star: {}'.format(self.stim_star))
+        logger.info('stim_star: {}'.format(self.stim_star)) 
 
         # before proceeding, check if dimensions (in gen_stim & bayesopt.yaml) matched
-        stimuli_length = [len(i) for i in self.stimuli]
-        if len(self.stimuli) != len(self.stim_choice) or stimuli_length != self.stim_choice:
+        stimuli_length = [len(i) for i in self.stimuli_optim]
+        if len(self.stimuli_optim) != len(self.stim_choice) or stimuli_length != self.stim_choice:
             # logger.error("MISMATCH DIMENSION!!! STIM LENGTH FROM YAML {}; VS FROM StimulusSpace {}".format(self.stim_choice, stimuli_length))
             raise ValueError(f"MISMATCH DIMENSION!!! Expect {stimuli_length} from StimulusSpace, got {self.stim_choice} from yaml")
 
@@ -88,12 +87,21 @@ class BayesOptimizer(Actor):
         self.saved_GP_est = []
         self.saved_GP_unc = []
         self.start_stimulus = []
+        self.opt_q_in_ts = []
+        self.opt_stim_ind_out_ts = []
+
+        self.calibration = calibration
+        logger.info('calibration is {}'.format(self.stim_space['calibration_stim']))
+        self.tag_to_go = "calibration"
 
 
     def setup(self):
     
         self.stop_sending = False
-        self.initial = True
+        if self.calibration is True:
+            self.initial = False
+        else:
+            self.initial = True
         self.newN = False
         self.counter = 0
         self.timer = time.time()
@@ -108,41 +116,52 @@ class BayesOptimizer(Actor):
         np.save('output/stopping_list.npy', np.array(self.stopping_list))
         np.save('output/peak_list.npy', np.array(self.peak_list))
         np.save('output/optim_f_list.npy', np.array(self.optim_f_list))
+        np.save('output/X_optimizer.npy', np.array(self.X))
         # np.save('output/optimizer_start_stimulus.npy', np.array(self.start_stimulus))
 
         try:
-            np.savetxt('output/timing/optimizer_time.txt', np.array(self.total_times))
             np.savetxt('output/timing/optimizer_time_udpates.txt', self.total_times_update, fmt="%s")
+            np.savetxt('output/timing/optimizer_time.txt', np.array(self.total_times))
+            np.savetxt('output/timing/optimizer_q_in_ts.txt', np.array(self.opt_q_in_ts))
+            np.savetxt('output/timing/optimizer_stim_ind_out_ts.txt', np.array(self.opt_stim_ind_out_ts))
         except Exception as e:
             logger.error("Trouble saving optimizer timings: {}".format(e))
             pass
         logger.info('Optimizer complete, avg time per frame: {}'.format(np.mean(self.total_times)))
 
     def runStep(self):
-        t = time.time()
         try:
+            t = time.time()
             ids = self.q_in.get(timeout=0.0001)
+            
             X = self.client.get(ids[0])
             Y = self.client.get(ids[1])
-
+            self.calibration_not_moving_dots = self.client.get(ids[-2])
+            stim_count = self.client.get(ids[-1]) # -1 to account for initial stim
+            frame_num = self.client.get(ids[2])
+            self.opt_q_in_ts.append([frame_num, time.time()])
             # logger.info('X, Y: {}, {}'.format(X, Y))
+
+            # logger.info('X: {}'.format(X))
 
             tmpX = np.squeeze(np.array(X)).T
             # logger.info(f'{tmpX.shape}, {len(Y)}----------------------------------------------------')
             sh = len(tmpX.shape)
             if sh > 1:
-                self.X = tmpX.copy()
+                self.X_all = tmpX.copy()
                 if tmpX.shape[1] > 4:
-                    self.X = tmpX[:, -tmpX.shape[1]:]
+                    self.X_all = tmpX[:, -tmpX.shape[1]:]
 
             try:
-                # b = np.zeros([len(Y),len(max(Y,key = lambda x: len(x)))])
-                b = np.full([len(Y),len(max(Y,key = lambda x: len(x)))], np.nan)  # FIXME: change to nan instead of 0
+                b = np.full([len(Y),len(max(Y,key = lambda x: len(x)))], np.nan)  
                 for i,j in enumerate(Y):
                     b[i][:len(j)] = j
                 self.y0 = b.T
+                # logger.info('self.y0 has shape {}'.format(self.y0.shape))
                 is_nan_2d = np.isnan(self.y0)
                 self.start_stimulus = np.argmax(~is_nan_2d, axis=1)
+                self.stim_count = stim_count #-1
+                self.frame_num = frame_num
                 # logger.info(f"this is self.start_stimulus: {self.start_stimulus}")
             except:
                 pass
@@ -155,6 +174,39 @@ class BayesOptimizer(Actor):
         if self.stop_sending:
             pass
 
+        elif self.calibration:
+            flag = False
+            if self.stim_ind is None:
+                
+                logger.info('Calibration counter is {}/{}'.format(self.counter+1, len(self.stim_space['calibration_stim'])))
+                self.stim_ind = self.stim_space['calibration_stim'][self.counter]
+                logger.info('calibration_stim set: {}'.format(self.stim_ind))
+                # logger.info(f"what is this?? {self.stimuli_space.map_full_to_r1[self.stim_ind]}")
+                if self.stimuli_space.map_full_to_r1[self.stim_ind] >= 0:
+                    self.tag_to_go = "calibration_initial"
+                    # logger.info(f"HEYYYY optimizer is remapping the tags yooo, now it's {self.tag_to_go}")
+                else:
+                    # logger.info(f"calibration calibration, this is the index {self.stimuli_space.param_index_space[self.stim_ind]}")
+                    self.tag_to_go = "calibration"
+            
+            if (time.time() - self.timer) >= self.total_stim_time:
+                self.links['stim_ind_out'].put([self.stim_ind, self.tag_to_go])
+                self.opt_stim_ind_out_ts.append([self.stim_ind, time.time()])
+                # stim_flag = 'calibration'
+                # self.links['stim_flag_out'].put(stim_flag)
+                self.stim_ind = None
+                self.counter += 1
+                self.timer = time.time()
+            
+            if self.counter >= self.stimuli_space.calibration_stim_count:
+                flag = True
+            
+            if flag:
+                logger.info('Done with calibrations set, moving on to initial stimuli set...')
+                self.calibration = False
+                self.initial = True
+                self.counter = 0
+
         elif self.initial: 
             # displays initial stimulus 
             # internally counts to make sure that we only send correct number of initial stim
@@ -162,23 +214,23 @@ class BayesOptimizer(Actor):
             if self.stim_ind is None:
                 # logger.info("what is the current counter: {}".format(self.counter))
                 if self.counter - 1 < self.stimuli_space.initial_stim_count:
+                    # logger.info('Initial counter is {}/{}'.format(self.counter+1, len(self.stim_space['initial_stim'])))
                     self.stim_ind = self.stim_space['initial_stim'][self.counter-1] ## FIXME: counter started with 1 (somehow)
-                elif self.counter -1 == self.stimuli_space.initial_stim_count:
+                elif self.counter - 1 == self.stimuli_space.initial_stim_count:
                     # self.stim_ind = self.stim_space['initial_stim'][-1]
                     np.random.seed(self.seed)
-                    self.stim_ind = [np.random.choice(np.arange(0, stim)) for stim in self.stim_choice]
-                    # logger.info(f"randomly selected stim_ind is {self.stim_ind}")
-                # self.stim_ind, flag = self.stimuli_space.initial_stim(self.stimuli, self.counter)
+                    self.stim_ind = np.random.randint(0, self.stim_star.shape[0])  # choose from 2880 stimuli
+                    logger.info(f"randomly selected stim_ind is {self.stim_ind}")
 
             if (time.time() - self.timer) >= self.total_stim_time:
-                self.links['stim_ind_out'].put(self.stim_ind)
+                self.links['stim_ind_out'].put([self.stim_ind, 'initial'])
                 self.stim_ind = None
                 self.counter += 1  # FIXME: counter started with 1 (somehow)
                 # logger.info("self.counter just added by 1!")
                 self.timer = time.time()
             
             # make initialization 9 stim long so optimizer can init on first 8
-            if self.counter-1 >= self.stimuli_space.initial_stim_count + 1:  # FIXME: counter started with 1 (somehow)
+            if self.counter - 1 >= self.stimuli_space.initial_stim_count + 1:
                 flag = True
             
             if flag:
@@ -188,19 +240,30 @@ class BayesOptimizer(Actor):
             
     
         elif self.newN:
+            logger.info("Reducing X from 8D to 5D for optimization - init")
+            # logger.info(f"here is x_all yo: {self.X_all}")
+            if self.calibration_not_moving_dots > 0:
+                logger.info(f"Have calibration stimuli, need to ignore the first {self.calibration_not_moving_dots} non-moving dots stimuli as well as related responses")
+                self.X_all = self.X_all[:, self.calibration_not_moving_dots:]  # TODO: this is hard-coded; need to change later?
+                self.y0 = self.y0[:, self.calibration_not_moving_dots:]
+                self.stim_count = self.stim_count - self.calibration_not_moving_dots
+                # logger.info(f"after trimming this is shape of self.x_all {self.X_all.shape} the sahpe of y0 {self.y0.shape}")
+            self.X = self.stimuli_space.param_space_shrinking(self.X_all) 
+            logger.info('Initialization check: stim_count: {}, Y length: {}, same len? {}'.format(self.stim_count, self.y0.shape[1], self.y0.shape[1] == self.stim_count))
+            # logger.info('self.X in INITIALIZATION is {} and has shape {} - init'.format(self.X, self.X.shape))
 
             nonopt = np.array(list(set(np.arange(self.y0.shape[0]))-set(self.optimized_n)))
-            logger.info('nonopt is {}, number of neurons '.format(nonopt,self.y0.shape[0]))
+            logger.info('nonopt is {}, number of neurons {}'.format(nonopt,self.y0.shape[0]))
             # ready = [i for i in nonopt if self._obs_count(i) >= 8]  #self.min_init_obs = 8
             if len(nonopt) >= 1 or len(self.goback_neurons)>=1:
                 if len(nonopt) >= 1:
                     obs_counts = np.count_nonzero(~np.isnan(self.y0[nonopt, :]), axis=1)
-                    ready_mask = obs_counts >= 8 #self.min_init_obs = 8
+                    ready_mask = obs_counts >= 8
+                    # logger.info(f"obs_counts for nonopt neurons: {obs_counts}")
                     if np.any(ready_mask):
                         ready = nonopt[ready_mask]
                         # logger.info(f"out of those nonopt, these are ready: {ready}")
                         self.nID = nonopt[np.argmax(np.nanmean(self.y0[ready,:], axis=1))]
-                        # self.nID = nonopt[np.argmax(np.nanmean(self.y0[nonopt,:], axis=1))]  # FIXME: should change to nanmean
                         logger.info('selecting most responsive neuron: {}'.format(self.nID))
                         self.optimized_n.append(self.nID)
                         self.saved_GP_est = []
@@ -212,28 +275,29 @@ class BayesOptimizer(Actor):
                     logger.info('Trying again with neuron {}'.format(self.nID))
                     self.optimized_n.append(self.nID)
                 
-                print(self.y0.shape, self.X.shape, self.X0.shape)
+                
                 # logger.info(f'y0 shape {self.y0.shape}; X shape {self.X.shape}; X0 shape {self.X0.shape}')
-                if self.X.shape[1] < self.y0.shape[1]:
-                    self.optim.initialize_GP(self.X[:, :].T, self.y0[self.nID, -self.X.shape[1]:].T)
+                if self.X.shape[1] < self.y0.shape[1]: 
                     logger.info(f"condition 1. initialize with {self.X.shape} stim")  # not run in general
-                    # logger.info(f"X is {self.X[:, :].T}, y is {self.y0[self.nID, -self.X.shape[1]:].T}")
+                    logger.info(f"X has shape {self.X[:, :].T.shape}, y has shape {self.y0[self.nID, -self.X.shape[1]:].T.shape}")
+                    self.optim.initialize_GP(self.X[:, :].T, self.y0[self.nID, -self.X.shape[1]:].T)
                 elif self.y0.shape[1] < self.maxT:
                     # get number of leading zeros/nans
                     y0_with_nan = self.y0[self.nID, -self.y0.shape[1]:].T
                     leading_zeros = np.argmax(~np.isnan(y0_with_nan))
                     logger.info(f"leading zeros for neuron {self.nID} is {leading_zeros}")
-                    self.optim.initialize_GP(self.X[:, -(self.y0.shape[1]-leading_zeros):].T, self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T)
                     logger.info(f"condition 2. initialize with {self.y0.shape[1]-leading_zeros} stim")
-                    # logger.info(f"X is {self.X[:, -(self.y0.shape[1]-leading_zeros):].T}, y is {self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T}")
+                    logger.info(f"X has shape {self.X[:, -(self.y0.shape[1]-leading_zeros):].T.shape}, y has shape {self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T.shape}")
+                    self.optim.initialize_GP(self.X[:, -(self.y0.shape[1]-leading_zeros):].T, self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T)
                 else:
                     # get number of leading zeros/nans
                     y0_with_nan = self.y0[self.nID, :].T
                     leading_zeros = np.argmax(~np.isnan(y0_with_nan))
                     logger.info(f"leading zeros for neuron {self.nID} is {leading_zeros}")
-                    self.optim.initialize_GP(self.X[:, leading_zeros:].T, self.y0[self.nID, leading_zeros:].T)
                     logger.info(f"condition 3. initialize with all {self.X[:, leading_zeros:].T.shape[0]} stim")
-                    # logger.info(f"X is {self.X[:, leading_zeros:].T}, y is {self.y0[self.nID, leading_zeros:].T}")
+                    logger.info(f"X has shape {self.X[:, leading_zeros:].T.shape}, y has shape {self.y0[self.nID, leading_zeros:].T.shape}")
+                    self.optim.initialize_GP(self.X[:, leading_zeros:].T, self.y0[self.nID, leading_zeros:].T)
+                    
                 self.test_count = 0
                 self.newN = False
                 self.stopping = np.zeros(self.maxT)
@@ -250,23 +314,24 @@ class BayesOptimizer(Actor):
                 self.q_out.put(ids)
 
                 # immediately calculates suggested next stim
-                ind, xt_1 = self.optim.max_acq()
-                logger.info('INITIALIZATION - suggest next stim: {}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
-                next_ind = []
-                for i in range(self.d):
-                    next_ind.append(np.where(self.stimuli[i] == self.stim_star[ind][i])[0][0])
-                self.stim_ind = next_ind  # prevents duplicate update on X[:,-1], y[-1]
+                ind, xt_1 = self.optim.max_acq() #isn't the ind, technically going to be the row index? 
+                logger.info('optim.max_acq: {}'.format(ind))
+                self.stim_ind = ind
         
         else:
-            # need to update the GP
+            # logger.info("Reducing X from 8D to 5D for optimization - update")
+            self.X = self.stimuli_space.param_space_shrinking(self.X_all) 
+
             t_update = time.time()
             if self.stim_ind is None: 
-                X = np.zeros(self.d) 
-                for i in range(self.d):
-                    X[i] = self.GP_stimuli[i][int(self.X[i,-1])]
-
-                logger.info('optim {} (test: {}), update GP with {}, {}'.format(self.nID, self.test_count, X, self.y0[self.nID, -1]))
-                self.optim.update_GP(np.squeeze(X), self.y0[self.nID,-1])
+                # X = np.zeros(self.d) 
+                # for i in range(self.d):
+                #     X[i] = self.GP_stimuli[i][int(self.X[i,-1])] #NOTE: this is bascially matching the stimulus with teh stim set, so we don't need this anymore 
+                logger.info('Update check: stim_count: {}, Y length: {}, same len? {}'.format(self.stim_count, self.y0.shape[1], self.y0.shape[1] == self.stim_count))
+                logger.info(f"from optimizer update, the frame num is {self.frame_num}")
+                # logger.info('looking at self.X: {}, {}, {}'.format(self.X[:,-1], self.X[:,-2], self.X[:,-3])) 
+                logger.info('optim {} (test: {}), update GP with {}, {}'.format(self.nID, self.test_count, self.X[:,-1], self.y0[self.nID, -1]))
+                self.optim.update_GP(np.squeeze(self.X[:, -1]), self.y0[self.nID,-1])
 
                 curr_unc = np.diagonal(self.optim.sigma).reshape((self.stim_choice))
                 curr_est = self.optim.f.reshape((self.stim_choice))
@@ -278,7 +343,7 @@ class BayesOptimizer(Actor):
                 ids.append(self.client.put(curr_est)) #, 'est'))
                 ids.append(self.client.put(curr_unc)) #, 'unc'))
                 self.q_out.put(ids)
-
+                logger.info(f"anything weird/ nan in curr_est? {np.isnan(curr_est).any()} what about curr_unc {np.isnan(curr_unc).any()}")
                 stopCrit, PI = self.optim.stopping()
                 logger.info('----------- stopCrit: {}'.format(stopCrit))
                 self.stopping[self.test_count] = stopCrit
@@ -287,7 +352,9 @@ class BayesOptimizer(Actor):
                 self.total_times_update.append([dt.now(), time.time() - t_update])
 
                 if stopCrit < self.stopping_crit: 
-                    peak = self.stim_star[np.argmax(self.optim.f)]
+                    logger.info('optim.f: {}'.format(self.optim.f))
+                    logger.info('np.argmax(self.optim.f): {}'.format(np.argmax(self.optim.f)))
+                    peak = self.stim_star[np.argmax(self.optim.f)] #TODO: need to check what np.argmax returns here (is it just the row index? so i don't need stim_star?)
                     logger.info('Satisfied with this neuron, moving to next. Est peak: {}'.format(peak))
                     # self.nID += 1
                     self.newN = True
@@ -311,15 +378,13 @@ class BayesOptimizer(Actor):
 
                 else:
                     ind, xt_1 = self.optim.max_acq()
-                    logger.info('suggest next stim: {}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
-                    next_ind = []
-                    for i in range(self.d):
-                        next_ind.append(np.where(self.stimuli[i] == self.stim_star[ind][i])[0][0])
-                    self.stim_ind = next_ind
+                    logger.info('optim.max_acq: {}'.format(ind))
+                    self.stim_ind = ind
 
-            # Need to send ind to stimulus actor to create this stim request ??
+            # Need to send ind to stimulus actor to create this stim request
             if (time.time() - self.timer) >= self.total_stim_time:
-                self.links['stim_ind_out'].put(self.stim_ind)
+                self.links['stim_ind_out'].put([self.stim_ind, 'optim'])
+                # self.links['stim_flag_out'].put(stim_flag)
                 self.stim_ind = None
                 self.timer = time.time()
                 
@@ -329,7 +394,7 @@ class BayesOptimizer(Actor):
         return int(np.count_nonzero(~np.isnan(self.y0[n_idx, :])))
 
 class RandomSampler(Actor):
-    def __init__(self, *args, stimuli=None, param_file=None, **kwargs):
+    def __init__(self, *args, stimuli=None, param_file=None, calibration=False, **kwargs):
         super().__init__(*args, **kwargs)
 
         ''' RandomSampler displays a initial stimuli set, and then proceeds to send random stimuli requests. '''
@@ -338,8 +403,9 @@ class RandomSampler(Actor):
         self.stimuli_space = StimulusSpace()
         self.stim_space = self.stimuli_space.stim_space
         self.stimuli = self.stim_space['stimuli']
+        self.stimuli_optim = self.stim_space['stimuli_optim']
         self.total_stim_time = self.stim_space['total_stim_time']
-        self.d = self.stimuli.shape[0]
+        self.d = self.stimuli_optim.shape[0]
         self.initial_length = self.stimuli_space.initial_stim_count
         logger.info('Stimuli info: Num of Stimuli Parameters: {}, Num of Initial Stim: {}'.format(self.d, self.initial_length))
         logger.info("Stim space specification: {}".format(self.stim_space))
@@ -354,11 +420,10 @@ class RandomSampler(Actor):
 
         # ----------------------------------------------------------------------------
         # List of all stimuli combinations
-        xs = np.meshgrid(*self.stimuli, indexing='ij') #,x3,x4])
+        xs = np.meshgrid(*self.stimuli_optim, indexing='ij') #,x3,x4])
         x_star = np.empty(xs[0].shape + (self.d,))
         for i in range(self.d):
             x_star[...,i] = xs[i]
-
         self.stim_star = x_star.reshape(-1, self.d)
         logger.info('stim_star: {} - shape: {}'.format(self.stim_star, self.stim_star.shape))
 
@@ -369,11 +434,20 @@ class RandomSampler(Actor):
         logger.info('shuffling a copy of stim_star {} with shape {}'.format(self.stim_star_shuffle, self.stim_star_shuffle.shape))
         logger.info(f"now this is self.stim_star {self.stim_star}")
         self.total_times = []
+        
+        self.calibration = calibration
+        if self.calibration:
+            logger.info('calibration is {}'.format(self.stim_space['calibration_stim']))
+
+
 
     def setup(self):
     
         self.stop_sending = False
-        self.initial = True
+        if self.calibration:
+            self.initial = False
+        else:
+            self.initial = True
         self.newN = False
         self.counter = 0
         self.timer = time.time()
@@ -386,7 +460,36 @@ class RandomSampler(Actor):
     def runStep(self):
         t = time.time()
 
-        if self.initial: 
+        if self.calibration:
+            flag = False
+            if self.stim_ind is None:
+                
+                logger.info('Calibration counter is {}/{}'.format(self.counter+1, len(self.stim_space['calibration_stim'])))
+                self.stim_ind = self.stim_space['calibration_stim'][self.counter]
+                logger.info('calibration_stim set: {}'.format(self.stim_ind))
+                if self.stimuli_space.map_full_to_r1[self.stim_ind] >= 0:
+                    self.tag_to_go = "calibration_initial"
+                    # logger.info(f"HEYYYY optimizer is remapping the tags yooo, now it's {self.tag_to_go}")
+                else:
+                    # logger.info(f"calibration calibration, this is the index {self.stimuli_space.param_index_space[self.stim_ind]}")
+                    self.tag_to_go = "calibration"
+            
+            if (time.time() - self.timer) >= self.total_stim_time:
+                self.links['stim_ind_out'].put([self.stim_ind, self.tag_to_go])
+                self.stim_ind = None
+                self.counter += 1
+                self.timer = time.time()
+            
+            if self.counter >= self.stimuli_space.calibration_stim_count:
+                flag = True
+            
+            if flag:
+                logger.info('Done with calibrations set, moving on to initial stimuli set...')
+                self.calibration = False
+                self.initial = True
+                self.counter = 0
+
+        elif self.initial: 
             # displays initial stimulus 
             # internally counts to make sure that we only send correct number of initial stim
             flag = False
@@ -396,7 +499,7 @@ class RandomSampler(Actor):
 
             if (time.time() - self.timer) >= self.total_stim_time:
                 logger.info('Displaying initial stimuli....')
-                self.links['stim_ind_out'].put(self.stim_ind)
+                self.links['stim_ind_out'].put([self.stim_ind, 'initial'])
                 self.stim_ind = None
                 self.counter += 1
                 self.timer = time.time()
@@ -417,20 +520,12 @@ class RandomSampler(Actor):
             if self.stim_ind is None:
                 logger.info('random')
                 random_stim = self.stim_star_shuffle[self.counter]
+                self.stim_ind = self.stimuli_space.param_to_ridx(random_stim, tag = "random")
 
-                #FIXME: make checkpoints here and read all possible dimensions
-                #FIXME: This is a manual method (need to fix to make it more flexible)
-                param0 = np.argwhere(int(random_stim[0]) == self.stimuli[0])[0][0]
-                param1 = np.argwhere(random_stim[1] == self.stimuli[1])[0][0]
-                param2 = np.argwhere(int(random_stim[2]) == self.stimuli[2])[0][0]
-                param3 = np.argwhere(int(random_stim[3]) == self.stimuli[3])[0][0]
-                param4 = np.argwhere(int(random_stim[4]) == self.stimuli[4])[0][0]
-
-                self.stim_ind = [param0, param1, param2, param3, param4]
                 logger.info('random stimulus indices chosen: {}'.format(self.stim_ind))
 
             if (time.time() - self.timer) >= self.total_stim_time:
-                self.links['stim_ind_out'].put(self.stim_ind)
+                self.links['stim_ind_out'].put([self.stim_ind, 'random'])
                 self.stim_ind = None
                 self.counter += 1
                 self.newN = True
@@ -439,7 +534,7 @@ class RandomSampler(Actor):
         self.total_times.append(time.time() -t)
 
 class GridSampler(Actor):
-    def __init__(self, *args, stimuli=None, param_file=None, **kwargs):
+    def __init__(self, *args, stimuli=None, param_file=None, calibration=False, **kwargs):
         super().__init__(*args, **kwargs)
 
         ''' GridSampler displays a initial stimuli set, and then proceeds to a grid search of reduced stimuli requests. '''
@@ -448,23 +543,24 @@ class GridSampler(Actor):
         self.stimuli_space = StimulusSpace()
         self.stim_space = self.stimuli_space.stim_space
         self.stimuli = self.stim_space['stimuli']
-        logger.info(f"self.stimuli is {self.stimuli}")
+        self.stimuli_optim = self.stim_space['stimuli_optim']
+        logger.info(f"self.stimuli_optim is {self.stimuli_optim}")
         self.stimuli_reduced = [
-            self.stimuli[0][[0, 2, 4, 6]],   # orientation -> [0, 90, 180, 270]
-            self.stimuli[1][[0, 2, 5]],      # speed -> [0.02, 0.06, 0.12]
-            self.stimuli[2][[0, 2, 4]],      # size -> [50, 225, 400]
-            self.stimuli[3][[1, 3]],         # frequency -> [3, 20]
-            self.stimuli[4][[0, 1, 2]]       # contrast -> [0, 50, 100]
+            self.stimuli_optim[0][[0, 2, 4, 6]],   # orientation -> [0, 90, 180, 270]
+            self.stimuli_optim[1][[0, 2, 5]],      # speed -> [0.02, 0.06, 0.12]
+            self.stimuli_optim[2][[0, 2, 4]],      # size -> [50, 225, 400]
+            self.stimuli_optim[3][[1, 3]],         # frequency -> [3, 20]
+            self.stimuli_optim[4][[0, 2]] #[[0, 1, 2]]       # contrast -> [0, 50, 100]
         ]
         logger.info(f"self.stimuli_reduced is {self.stimuli_reduced}")
         self.total_stim_time = self.stim_space['total_stim_time']
-        self.d = self.stimuli.shape[0]
+        self.d = self.stimuli_optim.shape[0]
         self.initial_length = self.stimuli_space.initial_stim_count
         logger.info('Stimuli info: Num of Stimuli Parameters: {}, Num of Initial Stim: {}'.format(self.d, self.initial_length))
         logger.info("Stim space specification: {}".format(self.stim_space))
         # ----------------------------------------------------------------------------
         # List of all stimuli combinations
-        xs = np.meshgrid(*self.stimuli, indexing='ij') #,x3,x4])
+        xs = np.meshgrid(*self.stimuli_optim, indexing='ij') #,x3,x4])
         x_star = np.empty(xs[0].shape + (self.d,))
         for i in range(self.d):
             x_star[...,i] = xs[i]
@@ -482,12 +578,19 @@ class GridSampler(Actor):
         logger.info('stim_star_reduced: {} - shape: {}'.format(self.stim_star_reduced, self.stim_star_reduced.shape))
         # logger.info(f'stim_star_head is {x_star_reduced[:20]}')
 
+        self.calibration = calibration
+        if self.calibration:
+            logger.info('calibration is {}'.format(self.stim_space['calibration_stim']))
+
         self.total_times = []
 
     def setup(self):
     
         self.stop_sending = False
-        self.initial = True
+        if self.calibration:
+            self.initial = False
+        else:
+            self.initial = True
         self.newN = False
         self.counter = 0
         self.timer = time.time()
@@ -500,7 +603,36 @@ class GridSampler(Actor):
     def runStep(self):
         t = time.time()
 
-        if self.initial: 
+        if self.calibration:
+            flag = False
+            if self.stim_ind is None:
+                
+                logger.info('Calibration counter is {}/{}'.format(self.counter+1, len(self.stim_space['calibration_stim'])))
+                self.stim_ind = self.stim_space['calibration_stim'][self.counter]
+                logger.info('calibration_stim set: {}'.format(self.stim_ind))
+                if self.stimuli_space.map_full_to_r1[self.stim_ind] >= 0:
+                    self.tag_to_go = "calibration_initial"
+                    # logger.info(f"HEYYYY optimizer is remapping the tags yooo, now it's {self.tag_to_go}")
+                else:
+                    # logger.info(f"calibration calibration, this is the index {self.stimuli_space.param_index_space[self.stim_ind]}")
+                    self.tag_to_go = "calibration"
+            
+            if (time.time() - self.timer) >= self.total_stim_time:
+                self.links['stim_ind_out'].put([self.stim_ind, self.tag_to_go])
+                self.stim_ind = None
+                self.counter += 1
+                self.timer = time.time()
+            
+            if self.counter >= self.stimuli_space.calibration_stim_count:
+                flag = True
+            
+            if flag:
+                logger.info('Done with calibrations set, moving on to initial stimuli set...')
+                self.calibration = False
+                self.initial = True
+                self.counter = 0
+
+        elif self.initial: 
             # displays initial stimulus 
             # internally counts to make sure that we only send correct number of initial stim
             flag = False
@@ -510,7 +642,7 @@ class GridSampler(Actor):
 
             if (time.time() - self.timer) >= self.total_stim_time:
                 logger.info('Displaying initial stimuli....')
-                self.links['stim_ind_out'].put(self.stim_ind)
+                self.links['stim_ind_out'].put([self.stim_ind, 'initial'])
                 self.stim_ind = None
                 self.counter += 1
                 self.timer = time.time()
@@ -535,20 +667,12 @@ class GridSampler(Actor):
                 else:
                     logger.info(f"!!!!!!!SELF.COUNTER {self.counter} EXCEED THE GRID LENGTH, STOP NOW!!!!!!!")
                     grid = self.stim_star[self.counter]
-
-                #FIXME: make checkpoints here and read all possible dimensions
-                #FIXME: This is a manual method (need to fix to make it more flexible)
-                param0 = np.argwhere(int(grid[0]) == self.stimuli[0])[0][0]
-                param1 = np.argwhere(grid[1] == self.stimuli[1])[0][0]
-                param2 = np.argwhere(int(grid[2]) == self.stimuli[2])[0][0]
-                param3 = np.argwhere(int(grid[3]) == self.stimuli[3])[0][0]
-                param4 = np.argwhere(int(grid[4]) == self.stimuli[4])[0][0]
-
-                self.stim_ind = [param0, param1, param2, param3, param4]
-                logger.info('grid stimulus indices chosen: {}'.format(self.stim_ind))
+                # grid = self.stim_star_reduced[self.counter]  # FIXME: this is grid not random
+                self.stim_ind = self.stimuli_space.param_to_ridx(grid, tag='grid')
+                logger.info('grid stimulus indices chosen: {} with counter {} and grid {}'.format(self.stim_ind, self.counter, grid))
 
             if (time.time() - self.timer) >= self.total_stim_time:
-                self.links['stim_ind_out'].put(self.stim_ind)
+                self.links['stim_ind_out'].put([self.stim_ind, 'grid'])
                 self.stim_ind = None
                 self.counter += 1
                 self.newN = True
@@ -557,7 +681,7 @@ class GridSampler(Actor):
         self.total_times.append(time.time() -t)
 
 class RandomSamplerWithReplace(Actor):
-    def __init__(self, *args, stimuli=None, param_file=None, **kwargs):
+    def __init__(self, *args, stimuli=None, param_file=None, calibration=False, **kwargs):
         super().__init__(*args, **kwargs)
 
         ''' RandomSamplerWithReplace displays a initial stimuli set, and then proceeds to send random stimuli requests, sample with replacement. '''
@@ -565,9 +689,9 @@ class RandomSamplerWithReplace(Actor):
         # Stimulus Space information (loading from stimulus class)
         self.stimuli_space = StimulusSpace()
         self.stim_space = self.stimuli_space.stim_space
-        self.stimuli = self.stim_space['stimuli']
+        self.stimuli_optim = self.stim_space['stimuli_optim']
         self.total_stim_time = self.stim_space['total_stim_time']
-        self.d = self.stimuli.shape[0]
+        self.d = self.stimuli_optim.shape[0]
         self.initial_length = self.stimuli_space.initial_stim_count
         logger.info('Stimuli info: Num of Stimuli Parameters: {}, Num of Initial Stim: {}'.format(self.d, self.initial_length))
         logger.info("Stim space specification: {}".format(self.stim_space))
@@ -582,7 +706,7 @@ class RandomSamplerWithReplace(Actor):
 
         # ----------------------------------------------------------------------------
         # List of all stimuli combinations
-        xs = np.meshgrid(*self.stimuli, indexing='ij') #,x3,x4])
+        xs = np.meshgrid(*self.stimuli_optim, indexing='ij') #,x3,x4])
         x_star = np.empty(xs[0].shape + (self.d,))
         for i in range(self.d):
             x_star[...,i] = xs[i]
@@ -594,12 +718,18 @@ class RandomSamplerWithReplace(Actor):
         # self.stim_star_flat = self.stim_star.flatten()
         # self.stim_star_shuffle = self.stim_star.copy()
         self.total_times = []
-       
+
+        self.calibration = calibration
+        if self.calibration:
+            logger.info('calibration set is: {}'.format(self.stim_space['calibration_stim']))
 
     def setup(self):
     
         self.stop_sending = False
-        self.initial = True
+        if self.calibration:
+            self.initial = False
+        else:
+            self.initial = True
         self.newN = False
         self.counter = 0
         self.timer = time.time()
@@ -612,7 +742,36 @@ class RandomSamplerWithReplace(Actor):
     def runStep(self):
         t = time.time()
 
-        if self.initial: 
+        if self.calibration:
+            flag = False
+            if self.stim_ind is None:
+                
+                logger.info('Calibration counter is {}/{}'.format(self.counter+1, len(self.stim_space['calibration_stim'])))
+                self.stim_ind = self.stim_space['calibration_stim'][self.counter]
+                logger.info('calibration_stim set: {}'.format(self.stim_ind))
+                if self.stimuli_space.map_full_to_r1[self.stim_ind] >= 0:
+                    self.tag_to_go = "calibration_initial"
+                    # logger.info(f"HEYYYY optimizer is remapping the tags yooo, now it's {self.tag_to_go}")
+                else:
+                    # logger.info(f"calibration calibration, this is the index {self.stimuli_space.param_index_space[self.stim_ind]}")
+                    self.tag_to_go = "calibration"
+            
+            if (time.time() - self.timer) >= self.total_stim_time:
+                self.links['stim_ind_out'].put([self.stim_ind, self.tag_to_go])
+                self.stim_ind = None
+                self.counter += 1
+                self.timer = time.time()
+            
+            if self.counter >= self.stimuli_space.calibration_stim_count:
+                flag = True
+            
+            if flag:
+                logger.info('Done with calibrations set, moving on to initial stimuli set...')
+                self.calibration = False
+                self.initial = True
+                self.counter = 0
+
+        elif self.initial: 
             # displays initial stimulus 
             # internally counts to make sure that we only send correct number of initial stim
             flag = False
@@ -622,7 +781,7 @@ class RandomSamplerWithReplace(Actor):
 
             if (time.time() - self.timer) >= self.total_stim_time:
                 logger.info('Displaying initial stimuli....')
-                self.links['stim_ind_out'].put(self.stim_ind)
+                self.links['stim_ind_out'].put([self.stim_ind, 'initial'])
                 self.stim_ind = None
                 self.counter += 1
                 self.timer = time.time()
@@ -642,30 +801,18 @@ class RandomSamplerWithReplace(Actor):
         elif self.newN:
             if self.stim_ind is None:
                 logger.info('random with replacement')
-                random_idx = np.random.randint(self.stim_star.shape[0])  # should be [0,2880)
-                random_stim = self.stim_star[random_idx]
-
-                #FIXME: make checkpoints here and read all possible dimensions
-                #FIXME: This is a manual method (need to fix to make it more flexible)
-                param0 = np.argwhere(int(random_stim[0]) == self.stimuli[0])[0][0]
-                param1 = np.argwhere(random_stim[1] == self.stimuli[1])[0][0]
-                param2 = np.argwhere(int(random_stim[2]) == self.stimuli[2])[0][0]
-                param3 = np.argwhere(int(random_stim[3]) == self.stimuli[3])[0][0]
-                param4 = np.argwhere(int(random_stim[4]) == self.stimuli[4])[0][0]
-
-                self.stim_ind = [param0, param1, param2, param3, param4]
-                logger.info('random stimulus indices {} chosen: {}'.format(random_idx, self.stim_ind))
+                self.stim_ind = np.random.randint(0, self.stim_star.shape[0])  # should be [0,2880)
+                logger.info('random stimulus indices chosen: {}'.format(self.stim_ind))
 
             if (time.time() - self.timer) >= self.total_stim_time:
-                self.links['stim_ind_out'].put(self.stim_ind)
+                self.links['stim_ind_out'].put([self.stim_ind, 'random'])
                 self.stim_ind = None
                 self.counter += 1
                 self.newN = True
                 self.timer = time.time()
-        
-        self.total_times.append(time.time() -t)   
 
 class RandomBayesOptimizer(Actor):
+    #TODO: Look through this properly again
     '''
     An actor that combines RandomSamplerWithReplacement and BayesOptimizer.
     
@@ -688,9 +835,9 @@ class RandomBayesOptimizer(Actor):
         # --- Common setup from both original actors ---
         self.stimuli_space = StimulusSpace()
         self.stim_space = self.stimuli_space.stim_space
-        self.stimuli = self.stim_space['stimuli']
+        self.stimuli_optim = self.stim_space['stimuli_optim']
         self.total_stim_time = self.stim_space['total_stim_time']
-        self.d = self.stimuli.shape[0]
+        self.d = self.stimuli_optim.shape[0]
         self.initial_length = self.stimuli_space.initial_stim_count
         logger.info('Stimuli info: Num of Stimuli Parameters: {}, Num of Initial Stim: {}'.format(self.d, self.initial_length))
 
@@ -699,7 +846,7 @@ class RandomBayesOptimizer(Actor):
         self.seed = self.init_params['General']['seed']
 
         # --- Setup for random sampling phase ---
-        xs = np.meshgrid(*self.stimuli, indexing='ij')
+        xs = np.meshgrid(*self.stimuli_optim, indexing='ij')
         x_star = np.empty(xs[0].shape + (self.d,))
         for i in range(self.d):
             x_star[..., i] = xs[i]
@@ -707,7 +854,7 @@ class RandomBayesOptimizer(Actor):
         np.random.seed(self.seed)
 
         # New parameter from YAML to control the switch from random to bayes
-        self.random_steps = 25 #self.init_params['General'].get('random_steps', 100) # Default to 100 steps
+        self.random_steps = 5 #self.init_params['General'].get('random_steps', 100) # Default to 100 steps
         logger.info(f"RandomBayesOptimizer will run random sampling for {self.random_steps} steps before optimization.")
 
         # --- Setup for BayesOptimizer phase ---
@@ -723,7 +870,7 @@ class RandomBayesOptimizer(Actor):
 
         stimuli_length = [len(i) for i in self.stimuli]
         if len(self.stimuli) != len(self.stim_choice) or stimuli_length != self.stim_choice:
-            raise ValueError(f"MISMATCH DIMENSION!!! Expect {stimuli_length} from StimulusSpace, got {self.stim_choice} from yaml")
+            raise ValueError(f"MISMATCH DIMENSION!!! Expect {stimuli_length} from StimulusSpace, got {self.choice} from yaml")
 
         # --- Data storage and state variables (from BayesOptimizer) ---
         self.X0 = np.zeros((self.d, init_T))
@@ -747,9 +894,8 @@ class RandomBayesOptimizer(Actor):
         self.timer = time.time()
         self.stim_ind = None
 
-        # Controls the current behavior of the actor
-        self.phase = 'initial' # Phases: 'initial', 'random', 'bayes'
-        self.bayes_newN = False # Corresponds to the 'newN' flag in the original BayesOptimizer
+        self.phase = 'initial' # 'calibration', 'initial', 'random', 'bayes'
+        self.bayes_newN = False # == 'newN' flag in the original BayesOptimizer
 
     def stop(self):
         # Same stop method as BayesOptimizer
@@ -766,17 +912,18 @@ class RandomBayesOptimizer(Actor):
 
     def runStep(self):
         t = time.time()
-        # This data acquisition block is from BayesOptimizer and is needed throughout all phases
         try:
             ids = self.q_in.get(timeout=0.0001)
             X = self.client.get(ids[0])
             Y = self.client.get(ids[1])
+            self.calibration_not_moving_dots = self.client.get(ids[-1])
+            stim_count = self.client.get(ids[-1]) # -1 to account for initial stim
             tmpX = np.squeeze(np.array(X)).T
             sh = len(tmpX.shape)
             if sh > 1:
-                self.X = tmpX.copy()
+                self.X_all = tmpX.copy()
                 if tmpX.shape[1] > 4:
-                    self.X = tmpX[:, -tmpX.shape[1]:]
+                    self.X_all = tmpX[:, -tmpX.shape[1]:]
             try:
                 b = np.full([len(Y),len(max(Y,key = lambda x: len(x)))], np.nan)
                 for i,j in enumerate(Y):
@@ -784,6 +931,7 @@ class RandomBayesOptimizer(Actor):
                 self.y0 = b.T
                 is_nan_2d = np.isnan(self.y0)
                 self.start_stimulus = np.argmax(~is_nan_2d, axis=1)
+                # self.stim_count = stim_count-1
             except:
                 pass
         except Empty:
@@ -794,8 +942,38 @@ class RandomBayesOptimizer(Actor):
         if self.stop_sending:
             return
 
+        # Phase 0: Calibration Stimuli (similar to original actors)
+        if self.phase == 'calibration':
+            flag = False
+            if self.stim_ind is None:
+                
+                logger.info('Calibration counter is {}/{}'.format(self.counter+1, len(self.stim_space['calibration_stim'])))
+                self.stim_ind = self.stim_space['calibration_stim'][self.counter]
+                logger.info('calibration_stim set: {}'.format(self.stim_ind))
+                if self.stimuli_space.map_full_to_r1[self.stim_ind] >= 0:
+                    self.tag_to_go = "calibration_initial"
+                    # logger.info(f"HEYYYY optimizer is remapping the tags yooo, now it's {self.tag_to_go}")
+                else:
+                    # logger.info(f"calibration calibration, this is the index {self.stimuli_space.param_index_space[self.stim_ind]}")
+                    self.tag_to_go = "calibration"
+            
+            if (time.time() - self.timer) >= self.total_stim_time:
+                self.links['stim_ind_out'].put([self.stim_ind, self.tag_to_go])
+                self.stim_ind = None
+                self.counter += 1
+                self.timer = time.time()
+            
+            if self.counter >= self.stimuli_space.calibration_stim_count:
+                flag = True
+            
+            if flag:
+                logger.info('Done with calibrations set, moving on to initial stimuli set...')
+                # self.calibration = False
+                self.phase = 'initial'
+                self.counter = 0
+
         # Phase 1: Initial Stimuli (similar to original actors)
-        if self.phase == 'initial':
+        elif self.phase == 'initial':
             flag = False
             if self.stim_ind is None:
                 if self.counter < self.stimuli_space.initial_stim_count:
@@ -804,7 +982,7 @@ class RandomBayesOptimizer(Actor):
                     self.stim_ind = [np.random.choice(np.arange(0, stim)) for stim in self.stim_choice]
 
             if (time.time() - self.timer) >= self.total_stim_time:
-                self.links['stim_ind_out'].put(self.stim_ind)
+                self.links['stim_ind_out'].put([self.stim_ind, 'initial'])
                 self.stim_ind = None
                 self.counter += 1
                 self.timer = time.time()
@@ -821,34 +999,38 @@ class RandomBayesOptimizer(Actor):
         # Phase 2: Random Sampling (logic from RandomSamplerWithReplace)
         elif self.phase == 'random':
             if self.stim_ind is None:
-                if self.counter < self.random_steps:
-                    logger.info(f'Random sampling step {self.counter + 1}/{self.random_steps}')
-                    random_idx = np.random.randint(self.stim_star.shape[0])
-                    random_stim = self.stim_star[random_idx]
+                # if self.counter < self.random_steps:
+                logger.info(f'Random sampling step {self.counter + 1}/{self.random_steps}')
+                random_idx = np.random.randint(self.stim_star.shape[0])
 
-                    # Convert the selected stimulus values back to indices for the stimulus actor
-                    next_ind = []
-                    for i in range(self.d):
-                        next_ind.append(np.where(self.stimuli[i] == random_stim[i])[0][0])
-                    self.stim_ind = next_ind
-                else:
-                    logger.info('Finished random sampling phase. Switching to Bayesian Optimization.')
-                    self.phase = 'bayes'
-                    self.bayes_newN = True # Trigger neuron selection in the next phase
-                    return # Exit this step to start fresh in 'bayes' phase
+                self.stim_ind = random_idx  
+                logger.info(f"random_idx is {random_idx}, random_stim is {next_ind}")
 
             if (time.time() - self.timer) >= self.total_stim_time:
-                self.links['stim_ind_out'].put(self.stim_ind)
+                logger.info(f"sending {self.stim_ind} to stimulus actor ")
+                self.links['stim_ind_out'].put([self.stim_ind, 'random'])
                 self.stim_ind = None
                 self.counter += 1
                 self.timer = time.time()
+            
+            if self.counter >= self.random_steps:
+                logger.info('Finished random sampling phase. Switching to Bayesian Optimization.')
+                self.phase = 'bayes'
+                self.bayes_newN = True
         
         # Phase 3: Bayesian Optimization (logic from BayesOptimizer)
         elif self.phase == 'bayes':
             # This block corresponds to 'elif self.newN:' from the original BayesOptimizer
             if self.bayes_newN:
+                logger.info("Reducing X from 8D to 5D for optimization - init")
+                if self.calibration_not_moving_dots > 0:
+                    logger.info(f"Have calibration stimuli, need to ignore the first {self.calibration_not_moving_dots} non-moving dots/ dots with different indexing stimuli which is {self.X_all[:, :13]}")
+                    self.X_all = self.X_all[:, self.calibration_not_moving_dots:]  # TODO: this is hard-coded; need to change later?
+                    self.y0 = self.y0[:, self.calibration_not_moving_dots:]
+                self.X = self.stimuli_space.param_space_shrinking(self.X_all) 
                 nonopt = np.array(list(set(np.arange(self.y0.shape[0]))-set(self.optimized_n)))
                 logger.info('nonopt is {}, number of neurons '.format(nonopt,self.y0.shape[0]))
+                # logger.info('Initialization check: stim_count: {}, Y length: {}, same len? {}'.format(self.stim_count, self.y0.shape[1], self.y0.shape[1] == self.stim_count))
                 # ready = [i for i in nonopt if self._obs_count(i) >= 8]  #self.min_init_obs = 8
                 if len(nonopt) >= 1 or len(self.goback_neurons)>=1:
                     if len(nonopt) >= 1:
@@ -858,7 +1040,6 @@ class RandomBayesOptimizer(Actor):
                             ready = nonopt[ready_mask]
                             # logger.info(f"out of those nonopt, these are ready: {ready}")
                             self.nID = nonopt[np.argmax(np.nanmean(self.y0[ready,:], axis=1))]
-                            # self.nID = nonopt[np.argmax(np.nanmean(self.y0[nonopt,:], axis=1))]  # FIXME: should change to nanmean
                             logger.info('selecting most responsive neuron: {}'.format(self.nID))
                             self.bayes_newN = False
                             self.optimized_n.append(self.nID)
@@ -871,12 +1052,13 @@ class RandomBayesOptimizer(Actor):
                         logger.info('Trying again with neuron {}'.format(self.nID))
                         self.optimized_n.append(self.nID)
                     
-                    print(self.y0.shape, self.X.shape, self.X0.shape)
+                    # print(self.y0.shape, self.X.shape, self.X0.shape)
                     # logger.info(f'y0 shape {self.y0.shape}; X shape {self.X.shape}; X0 shape {self.X0.shape}')
                     if self.X.shape[1] < self.y0.shape[1]:
                         self.optim.initialize_GP(self.X[:, :].T, self.y0[self.nID, -self.X.shape[1]:].T)
                         logger.info(f"condition 1. initialize with {self.X.shape} stim")  # not run in general
-                        # logger.info(f"X is {self.X[:, :].T}, y is {self.y0[self.nID, -self.X.shape[1]:].T}")
+                        logger.info(f"X is {self.X[:, :].T} with shape {self.X[:, :].T.shape}, \
+                                    y is {self.y0[self.nID, -self.X.shape[1]:].T} with shape {self.y0[self.nID, -self.X.shape[1]:].T.shape}")
                     elif self.y0.shape[1] < self.maxT:
                         # get number of leading zeros/nans
                         y0_with_nan = self.y0[self.nID, -self.y0.shape[1]:].T
@@ -884,7 +1066,8 @@ class RandomBayesOptimizer(Actor):
                         logger.info(f"leading zeros for neuron {self.nID} is {leading_zeros}")
                         self.optim.initialize_GP(self.X[:, -(self.y0.shape[1]-leading_zeros):].T, self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T)
                         logger.info(f"condition 2. initialize with {self.y0.shape[1]-leading_zeros} stim")
-                        # logger.info(f"X is {self.X[:, -(self.y0.shape[1]-leading_zeros):].T}, y is {self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T}")
+                        logger.info(f"X is {self.X[:, -(self.y0.shape[1]-leading_zeros):].T} with shape {self.X[:, -(self.y0.shape[1]-leading_zeros):].T.shape},\
+                                     y is {self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T} with shape {self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T.shape}")
                     else:
                         # get number of leading zeros/nans
                         y0_with_nan = self.y0[self.nID, :].T
@@ -892,7 +1075,8 @@ class RandomBayesOptimizer(Actor):
                         logger.info(f"leading zeros for neuron {self.nID} is {leading_zeros}")
                         self.optim.initialize_GP(self.X[:, leading_zeros:].T, self.y0[self.nID, leading_zeros:].T)
                         logger.info(f"condition 3. initialize with all {self.X[:, leading_zeros:].T.shape[0]} stim")
-                        # logger.info(f"X is {self.X[:, leading_zeros:].T}, y is {self.y0[self.nID, leading_zeros:].T}")
+                        logger.info(f"X is {self.X[:, leading_zeros:].T} with shape {self.X[:, leading_zeros:].T},\
+                                     y is {self.y0[self.nID, leading_zeros:].T} with shape {self.y0[self.nID, leading_zeros:].T.shape}")
                     self.test_count = 0
                     self.newN = False
                     self.stopping = np.zeros(self.maxT)
@@ -911,19 +1095,14 @@ class RandomBayesOptimizer(Actor):
                     # immediately calculates suggested next stim
                     ind, xt_1 = self.optim.max_acq()
                     logger.info('INITIALIZATION - suggest next stim: {}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
-                    next_ind = []
-                    for i in range(self.d):
-                        next_ind.append(np.where(self.stimuli[i] == self.stim_star[ind][i])[0][0])
-                    self.stim_ind = next_ind  # prevents duplicate update on X[:,-1], y[-1]
+                    self.stim_ind = ind  # prevents duplicate update on X[:,-1], y[-1]
         
             # This block corresponds to the 'else:' (main optimization loop) from BayesOptimizer
             else:
                 # need to update the GP
                 t_update = time.time()
                 if self.stim_ind is None: 
-                    X = np.zeros(self.d) 
-                    for i in range(self.d):
-                        X[i] = self.GP_stimuli[i][int(self.X[i,-1])]
+                    self.X = self.stimuli_space.param_space_shrinking(self.X_all) 
 
                     logger.info('optim {} (test: {}), update GP with {}, {}'.format(self.nID, self.test_count, X, self.y0[self.nID, -1]))
                     self.optim.update_GP(np.squeeze(X), self.y0[self.nID,-1])
@@ -973,15 +1152,12 @@ class RandomBayesOptimizer(Actor):
 
                     else:
                         ind, xt_1 = self.optim.max_acq()
-                        logger.info('suggest next stim: {}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
-                        next_ind = []
-                        for i in range(self.d):
-                            next_ind.append(np.where(self.stimuli[i] == self.stim_star[ind][i])[0][0])
-                        self.stim_ind = next_ind
+                        logger.info('suggest next stim: {}'.format(ind)) #{}, {}, {}'.format(ind, xt_1, xt_1.T[...,None].shape))
+                        self.stim_ind = ind
 
                 # Need to send ind to stimulus actor to create this stim request ??
                 if (time.time() - self.timer) >= self.total_stim_time:
-                    self.links['stim_ind_out'].put(self.stim_ind)
+                    self.links['stim_ind_out'].put([self.stim_ind, 'optim'])
                     self.stim_ind = None
                     self.timer = time.time()
                     
