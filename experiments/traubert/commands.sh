@@ -1,6 +1,9 @@
+# start at bottom
 echo -n '' > global.log
 improv cleanup
 improv run traubert_simulate.yaml
+setup
+run
 stop
 quit
 grep jdg global.log 
@@ -18,7 +21,7 @@ python -m ipdb $(which improv) server -c 0 -o 0 -l 0 -f global.log traubert_simu
 
 coverage run --save-signal=USR1 $(which improv) run traubert_simulate.yaml
 
-# python convert_owens_data.py
+python convert_owens_data.py
 
 mamba activate improv
 export PYTHONPATH=$HOME/Documents/naumann_collab/improv/:$PYTHONPATH
