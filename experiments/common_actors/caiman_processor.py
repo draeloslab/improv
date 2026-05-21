@@ -72,6 +72,7 @@ class LiveTwoP(CaimanProcessor):
         self.counter = 0
         self.proc_q_in_ts = []
         self.proc_q_out_ts = []
+        self.proc_q_in_qsize = []
 
     def stop(self):
         try:
