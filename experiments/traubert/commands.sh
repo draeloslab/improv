@@ -6,7 +6,8 @@ setup
 run
 stop
 quit
-grep jdg global.log 
+grep "jdg" global.log 
+grep -m 10 -A 10 "error" global.log
 ls
 # pkill -USR1 improv
 pkill -9 improv

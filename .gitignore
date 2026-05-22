@@ -143,3 +143,6 @@ output_*
 *.ipynb_checkpoints
 
 /output_figs
+
+# vim swap files
+*.swp
