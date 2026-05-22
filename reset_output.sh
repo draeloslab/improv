@@ -25,6 +25,11 @@ echo "Moved global.log to output_${DATE}_ds$i"
 cp "${path}/bayesopt_parameters.yaml" "${path}/output_${DATE}_ds$i"
 echo "Archived parameters to output_${DATE}_ds$i"
 
+# add pandastim txt log to the folder as well
+mv "${path}/pstim_msg.txt" "${path}/output_${DATE}_ds$i"
+echo "Archived pstim_msg to output_${DATE}_ds$i"
+touch "${path}/pstim_msg.txt"
+
 if [ -f "${path}/output_${DATE}_ds$i/sample_stream0.h5" ]; then
     cp "${path}/output_${DATE}_ds$i/sample_stream0.h5" ${path}/output/initialization.h5
     echo "Copied sample_stream0 as new initialization file"

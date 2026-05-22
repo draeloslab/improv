@@ -62,15 +62,17 @@ class ZMQAcquirer(Actor):
         self.timestamp_pstim = []
         self.stimmed = []
         self.frametimes = []
-        self.framesendtimes = []
-        self.stimsendtimes = []
-        self.tailsendtimes = []
+        # self.framesendtimes = []
+        # self.stimsendtimes = []
+        # self.tailsendtimes = []
         self.tails = []
         self.photostims = []
-        self.receive_time = []
+        # self.receive_time = []
         # self.pickle_load_time = []
         # self.unpacking_time = []
         self.acq_stim_queue_ts = []
+        self.improv_recv_img_ts = []
+        self.improv_recv_pstim_ts = []
 
         self.tailF = False
         self.stimF = False
@@ -108,20 +110,22 @@ class ZMQAcquirer(Actor):
         logger.info('Trying to save 4')
 
         np.save('output/stimmed.npy', np.array(self.stimmed))
-        np.savetxt('output/photostimmed_msgs.txt', np.array(self.photostims))
+        # np.savetxt('output/photostimmed_msgs.txt', np.array(self.photostims))
         np.save('output/tails.npy', np.array(self.tails))
         np.savetxt('output/timing/frametimes.txt', np.array(self.frametimes))
-        np.savetxt('output/timing/framesendtimes.txt', np.array(self.framesendtimes), fmt="%s")
-        np.savetxt('output/timing/stimsendtimes.txt', np.array(self.stimsendtimes), fmt="%s")
-        np.savetxt('output/timing/tailsendtimes.txt', np.array(self.tailsendtimes), fmt="%s")
-        np.savetxt('output/timing/acquire_frame_time.txt', self.total_times_frame, fmt="%s")
-        np.savetxt('output/timing/acquire_pstim_time.txt', self.total_times_pstim, fmt="%s")
+        # np.savetxt('output/timing/framesendtimes.txt', np.array(self.framesendtimes), fmt="%s")
+        # np.savetxt('output/timing/stimsendtimes.txt', np.array(self.stimsendtimes), fmt="%s")
+        # np.savetxt('output/timing/tailsendtimes.txt', np.array(self.tailsendtimes), fmt="%s")
+        # np.savetxt('output/timing/acquire_frame_time.txt', self.total_times_frame, fmt="%s")
+        # np.savetxt('output/timing/acquire_pstim_time.txt', self.total_times_pstim, fmt="%s")
         np.savetxt('output/timing/acquire_frame_timestamp.txt', self.timestamp_frame, fmt="%s")
         np.savetxt('output/timing/acquire_pstim_timestamp.txt', self.timestamp_pstim, fmt="%s")
-        np.savetxt('output/timing/acquire_receive_time.txt', self.receive_time, fmt="%s")
+        # np.savetxt('output/timing/acquire_receive_time.txt', self.receive_time, fmt="%s")
         # np.savetxt('output/timing/acquire_pickle_load_time.txt', self.pickle_load_time, fmt="%s")
         # np.savetxt('output/timing/acquire_unpacking_time.txt', self.unpacking_time, fmt="%s")
         np.savetxt('output/timing/acquire_stim_queue_time.txt', self.acq_stim_queue_ts)
+        np.savetxt("output/timing/improv_recv_img_ts.txt", self.improv_recv_img_ts) 
+        np.savetxt("output/timing/improv_recv_pstim_ts.txt", self.improv_recv_pstim_ts)
         np.save('output/fullstim.npy', self.fullStimmsg)
 
         logger.info('Acquisition complete, avg time per frame: {}'.format(np.mean(self.total_times_frame)))
@@ -141,9 +145,8 @@ class ZMQAcquirer(Actor):
         try:
             # BUG: 031925, recv_pyobj may not work
             # msg = self.socket.recv_pyobj(flags=0)
-            time_recv = time.time()
             msg_obj = self.socket.recv()
-            self.receive_time.append(time.time() - time_recv)
+            
         except Exception as e:
             logger.info('error from receiving: {}'.format(e))
    
@@ -153,6 +156,7 @@ class ZMQAcquirer(Actor):
             # self.pickle_load_time.append(time.time() - pickle_load_time)
             # unpacker_time = time.time()
             if isinstance(msg, dict):
+                self.improv_recv_img_ts.append([msg['counter'], self.frame_num, time.time(), msg['ts']])  # only get the micrscopic msg
                 # logger.info("dictionary raw msg: {}".format(msg))
                 msg_dict = msg
                 message_data = msg_dict['data']
@@ -178,20 +182,20 @@ class ZMQAcquirer(Actor):
             if not self.stimF:
                 logger.info('Receiving stimulus information')
                 self.stimF = True
-            t0 = time.time()
+            # t0 = time.time()
             self.fullStimmsg.append(msg)
             self._collect_stimulus(msg_dict, category)
-            self.total_times_pstim.append(time.time() - t0)
+            # self.total_times_pstim.append(time.time() - t0)
             self.timestamp_pstim.append([dt.now(), self.frame_num])
 
         # elif 'frame' in tag: 
         else:
-            t0 = time.time()
+            # t0 = time.time()
             # if self.track %2 == 0:
             self._collect_frame(finalthing)
             self.frame_num += 1
-            self.total_times_frame.append(time.time() - t0)
-            self.timestamp_frame.append([dt.now(), self.frame_num])
+            # self.total_times_frame.append(time.time() - t0)
+            self.timestamp_frame.append([dt.now(), self.frame_num])  #should we use dt.now() or time.time() here?
             # self.track += 1
 
 
@@ -257,7 +261,7 @@ class ZMQAcquirer(Actor):
         sendtime = msg_dict['timestamp']
         tails = np.array(msg_dict['tail_points']) 
         self.tails.append(tails) 
-        self.tailsendtimes.append([sendtime])
+        # self.tailsendtimes.append([sendtime])
 
     def _msg_unpacker(self, msg):
 
@@ -277,6 +281,14 @@ class ZMQAcquirer(Actor):
             msg_dict = {}
             logger.info('No stim change')
         else:
+            try:
+                if category == "motionOn":
+                    _, ts_str, content = msg_unpacked.split('|', 2)
+                    dt_obj = dt.strptime(ts_str.strip(), '%Y-%m-%d %H:%M:%S.%f')
+                    sent_time = dt_obj.timestamp()
+                    self.improv_recv_pstim_ts.append([sent_time, time.time()])
+            except Exception as e:
+                logger.info(f"whaat acquirer zmq error: {e}")
             start_idx = msg_unpacked.find("{")
             end_idx = msg_unpacked.find("}}")+2
             msg_str= msg_unpacked[start_idx:end_idx]
@@ -323,14 +335,9 @@ class ZMQAcquirer(Actor):
             contrast = int(msg_dict['texture']['fg_intensity'])
             shape = 0
                         
-            # logger.info('Is speed = float(0): {}'.format(speed == float(0)))
             if speed == float(0):
                 logger.info('Stimulus: Flashing spot at ({},{}) at frame {}'.format(center_x, center_y, self.frame_num))
             else:
-                # if angle in [45, 135, 225, 315]:
-                #     # Adjust angle to match stimulus space, remapping to the "center" of the stimulus screen
-                #     center_x = 850
-                #     center_y = 1000
                 logger.info('Stimulus: {} Moving dots with size {} at angle {} and speed {} with contrast {} at frame {}'.format(freq, size, angle, speed, contrast, self.frame_num))
 
 
@@ -347,7 +354,7 @@ class ZMQAcquirer(Actor):
             except Exception as e:
                 logger.info('acquirer receiving msg error: {}'.format(e))
             logger.info('Stimulus: Sin Drift Gratings at angle {} and speed {} at frame {}'.format(angle, speed, self.frame_num))
-            
+
 
         stim_set_tag = msg_dict['stimulus']['note']
         indices = self.stimuli_space.param_to_ridx([angle, speed, size, freq, center_x, center_y, contrast, shape], tag=stim_set_tag)

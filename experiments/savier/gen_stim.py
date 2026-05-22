@@ -5,6 +5,15 @@ import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 class StimulusSpace():
+    '''
+    StimulusSpace is a class designed to create parameter spaces of visual stimuli.
+    It defines the parameter space based on each dimension (x_):
+       - param_space: Full parameter space, shape (C, d) where C is the total number of unique combinations of stim and d is the number of dimensions
+       - param_index_space: Full parameter space in index space, shape (C, d)
+
+    The class also defines different translation functions to translate between index and parameter spaces, and also between the full parameter space and subspace sets. 
+    '''
+    
     def __init__(self): 
 
         x1 = np.array([0, 45, 90, 135, 180, 225, 270, 315]) 
@@ -41,19 +50,6 @@ class StimulusSpace():
         self.param_space_size = self.param_space.shape[0]
         self.param_index_space = param_index_space_full[idx]  # this is the full index space
 
-        # # param_space_optim (this will not include drift gratings or flashing spots, only moving dots)
-        # mask_dg = np.any(param_space == -99, axis=1)
-        # mask_fs = param_space[:, 1] == float(0)
-        # mask1 = mask_dg | mask_fs
-
-        # param_space_optim = self.param_space[~mask1]
-        # mask_center_x = param_space_optim[:,4] == 850
-        # mask_center_y = param_space_optim[:,5] == 1000
-        # mask_shape = param_space_optim[:,7] == 0
-        # mask2 = mask_center_x & mask_center_y & mask_shape
-        # self.param_space_optim = param_space_optim[mask2]
-        # logger.info(f"param_space_optim shape {self.param_space_optim.shape}: {self.param_space_optim}")
-
         self.translation()
 
         # logger.info(f"param_space and r2_param same? {np.array_equal(self.param_space_optim, self.r2_params)}")
@@ -61,7 +57,6 @@ class StimulusSpace():
         calibration_stim, self.calibration_stim_count = self.calibration_stim(self.stim)
 
         self.initial_stim_count = 8
-        # initial_stim = self.initial_stim(self.stim)
         initial_stim = self.initial_stim(self.stim_optim_space)
 
         total_stim_time = 10 # duration of stimuli (in sec)
@@ -79,9 +74,11 @@ class StimulusSpace():
             'hold_after': hold_after,
             'stat_t': stationary_t, 
         }
+        logger.info(f"stim_space: {self.stim_space}")
 
-    #FIXME: need to put these functions into index space 
     def calibration_stim(self, stim):
+        ''' Creates a set of calibration stim (drift gratings (8), flashing spots (5), and moving dots (3))
+            The set is in index space'''
         
         calibration_stim = []
         drift_grating = self.param_space[(self.param_space[:,7] == 1) & (self.param_space[:,1] == 0.02) & (self.param_space[:,3] == 3) & (self.param_space[:,6] == 50)]
@@ -97,11 +94,17 @@ class StimulusSpace():
             param = self.idx_to_param(params, tag = 'calibration')
             row_index = self.param_to_ridx(param, tag='calibration')
             calibration_stim.append(row_index)
-
+            # logger.info(f"{self.map_full_to_r1[row_index]}")
+            # if self.map_full_to_r1[row_index] >= 0:
+            #     logger.info(f"params is {params}, row_idx is {row_index}, remapped? is {self.map_full_to_r1[row_index]}, {self.r1_params[self.map_full_to_r1[row_index]]}")
+            
         return calibration_stim, len(calibration_stim)
 
     
     def initial_stim(self, stim):
+        ''' Creates a set of initial stimuli (moving dots (8))
+            The set is in index space'''
+
         initial_stim = []
         np.random.seed(42)
         scramle_dim1_param = stim[0].copy()
@@ -131,7 +134,6 @@ class StimulusSpace():
                 indices.append(np.nan)
             else:
                 indices.append(int(matches[0]))
-            # indices.append(np.argwhere(stim == self.stim[d])[0][0])
         
         return indices
 
@@ -168,7 +170,10 @@ class StimulusSpace():
             # logger.info(f"remapping HAPPENING the new row_index is {self.r1_params[row_index]} and index of {self.r1_coords[row_index]}")
         else:  # calibration
             row_index = np.argwhere((stimuli == self.param_space).all(axis=1))[0][0]
-
+            # if self.map_full_to_r1[row_index] >= 0:
+            #     # row_index = np.argwhere((stimuli == self.r1_params).all(axis=1))[0][0]
+            #     logger.info(f"remapping IMAGING the new row_index is {self.r1_params[self.map_full_to_r1[row_index]]} and index of {self.map_full_to_r1[row_index]}")
+                
         return row_index
 
     def ridx_to_param(self, row_index, tag):
@@ -180,7 +185,9 @@ class StimulusSpace():
             stimuli = self.r1_params[row_index]
             # stimuli = self.param_space_optim[row_index] # TODO: translation happens here
         elif tag == 'calibration_initial':
+            # logger.info("blurrrrrr")
             stimuli = self.r1_params[self.map_full_to_r1[row_index]]
+            # stimuli = self.r1_params[row_index]
         else:
             stimuli = self.param_space[row_index]
 
