@@ -16,7 +16,7 @@ logging.getLogger("jax").setLevel(logging.ERROR)
 class ImprovStimDesigner(Actor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.C = None
+        self.frame_number = None
         self.coords = None
 
         self.centerer = CenteringEstimator(log_level=0)
@@ -43,41 +43,51 @@ class ImprovStimDesigner(Actor):
             )
         )
 
-        if 'we need to update':
+        if 'we need to update' and False:
             updated_delivery_time = ...
             self.stim_regressor.ignore_data_events[-1].difference_interval = (updated_delivery_time-dt, updated_delivery_time)
 
     def runStep(self):
+        # from pudb.remote import set_trace; set_trace(host='127.0.0.1', port=6899)
+
         start_time = time.time()
         try:
-            ids = self.links['q_in'].get(timeout=.001)
+            ids = self.q_in.get(timeout=.001)
         except Empty:
             return
 
-        C = self.client.get(ids[0])
-        self.coords = self.client.get(ids[1])
-
-        columns_seen = self.C.shape[1] if self.C is not None else 0
-        data = C[:,columns_seen:].T
+        C = self.client.get(ids[2])
+        self.coords = self.client.get(ids[0])
+        frame_number = ids[3]
 
 
-        data = self.centerer.partial_fit_transform(data)
-        # data = self.smoother.partial_fit_transform(data)
-        if self.pro.Q is not None and data.shape[1] > self.pro.Q.shape[0]:
-            self.pro.add_new_input_channels(data.shape[1] - self.pro.Q.shape[0])
-            logger.info(f'jdg: new C shape: {C.shape}')
-        data = self.pro.step(data)
+        try:
+            logger.info(f'jdg: {C.shape = }')
+            logger.info(f'jdg: {frame_number = }')
 
-        if self.pro.is_initialized:
-            v = np.zeros([10,1])
-            v[0] = 1
-            R_U, _ ,_  = np.linalg.svd(self.pro.R) # this is fast, R is small
-            stim = self.stim_designer.design_stim(v=R_U@v, u_dimension=self.pro.Q.shape[0], u_to_s_function= lambda u: self.pro.Q.T @ u)
-            # logger.info(stim)
+            if self.frame_number is not None:
+                data = C[:, -(self.frame_number - frame_number):].T
+            else:
+                data = C.T
 
-        self.C = C
-        elapsed_time = time.time() - start_time
-        logger.info(f'jdg: runStep time: {elapsed_time:.4f} s')
+
+            # data = self.centerer.step(data)
+            # data = self.smoother.partial_fit_transform(data)
+            if self.pro.Q is not None and data.shape[1] > self.pro.Q.shape[0]:
+                self.pro.add_new_input_channels(data.shape[1] - self.pro.Q.shape[0])
+                logger.info(f'jdg: new C shape: {C.shape}')
+            data = self.pro.step(data)
+
+            if self.pro.is_initialized:
+                v = np.zeros([10,1])
+                v[0] = 1
+                R_U, _ ,_  = np.linalg.svd(self.pro.R) # this is fast, R is small
+                stim = self.stim_designer.design_stim(v=R_U@v, u_dimension=self.pro.Q.shape[0], u_to_s_function= lambda u: self.pro.Q.T @ u)
+                logger.info(stim)
+        finally:
+            self.frame_number = frame_number
+            elapsed_time = time.time() - start_time
+            logger.info(f'jdg: runStep time: {elapsed_time*1000:.1f} ms')
 
     def stop(self):
         pass
