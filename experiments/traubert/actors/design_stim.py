@@ -48,7 +48,8 @@ class ImprovStimDesigner(Actor):
             self.stim_regressor.ignore_data_events[-1].difference_interval = (updated_delivery_time-dt, updated_delivery_time)
 
     def runStep(self):
-        # from pudb.remote import set_trace; set_trace(host='127.0.0.1', port=6899)
+        # if not hasattr(self, 'debugpy'): import debugpy; debugpy.listen(5678); debugpy.wait_for_client(); debugpy.breakpoint(); self.debugpy = debugpy
+        # self.debugpy.breakpoint()
 
         start_time = time.time()
         try:
