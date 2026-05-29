@@ -52,7 +52,7 @@ connections:
   Acquirer.q_out: [Processor.q_in, Visual.raw_frame_queue]
   Processor.q_out: [Analysis.q_in, StimDesign.q_in]
   Analysis.q_out: [Visual.q_in]
-  Analysis.stim_out: [StimDesign.stim_q_in] # here to prevent an error
+  Analysis.stim_out: [StimDesign.stim_q_in] # here to prevent an error; TODO: remove
   Acquirer.stim_queue: [Analysis.input_stim_queue, Visual.stim_in]
 
 redis_config:

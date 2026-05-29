@@ -48,7 +48,7 @@ class ImprovStimDesigner(Actor):
             self.stim_regressor.ignore_data_events[-1].difference_interval = (updated_delivery_time-dt, updated_delivery_time)
 
     def runStep(self):
-        # if not hasattr(self, 'debugpy'): import debugpy; debugpy.listen(5678); debugpy.wait_for_client(); debugpy.breakpoint(); self.debugpy = debugpy
+        # if not hasattr(self, 'debugpy'): import debugpy; debugpy.listen(5678); debugpy.debug_this_thread(); debugpy.wait_for_client(); self.debugpy = debugpy
         # self.debugpy.breakpoint()
 
         start_time = time.time()
