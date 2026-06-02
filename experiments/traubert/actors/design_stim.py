@@ -63,9 +63,6 @@ class ImprovStimDesigner(Actor):
 
 
         try:
-            logger.info(f'jdg: {C.shape = }')
-            logger.info(f'jdg: {frame_number = }')
-
             if self.frame_number is not None:
                 data = C[:, -(self.frame_number - frame_number):].T
             else:
@@ -84,11 +81,10 @@ class ImprovStimDesigner(Actor):
                 v[0] = 1
                 R_U, _ ,_  = np.linalg.svd(self.pro.R) # this is fast, R is small
                 stim = self.stim_designer.design_stim(v=R_U@v, u_dimension=self.pro.Q.shape[0], u_to_s_function= lambda u: self.pro.Q.T @ u)
-                logger.info(stim)
         finally:
             self.frame_number = frame_number
             elapsed_time = time.time() - start_time
-            logger.info(f'jdg: runStep time: {elapsed_time*1000:.1f} ms')
+            # logger.info(f'jdg: runStep time: {elapsed_time*1000:.1f} ms')
 
     def stop(self):
         pass

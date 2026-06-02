@@ -1,5 +1,5 @@
 # start at bottom
-echo -n '' > global.log
+refresh_global
 improv cleanup
 improv run traubert_simulate.yaml
 setup
@@ -30,3 +30,5 @@ export PYTHONPATH=$HOME/Documents/naumann_collab/CaImAn/:$PYTHONPATH
 export MKL_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
 export VECLIB_MAXIMUM_THREADS=1
+
+refresh_global() { cp global.log "/tmp/global.log.$(date +%Y%m%d_%H%M%S)"; > global.log; }
