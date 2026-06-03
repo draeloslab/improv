@@ -1,6 +1,5 @@
-# start at bottom
 refresh_global
-improv cleanup
+yes | improv cleanup
 improv run traubert_simulate.yaml
 setup
 run
@@ -9,7 +8,9 @@ quit
 grep "jdg" global.log 
 grep -m 10 -A 10 "error" global.log
 ls
-# pkill -USR1 improv
+
+
+pkill -USR1 improv
 pkill -9 improv
 sudo /etc/init.d/redis-server stop
 
