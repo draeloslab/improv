@@ -125,8 +125,15 @@ class FrontEnd(QtWidgets.QMainWindow, video_2p.Ui_MainWindow):
         if color is not None:
             color = color.T
             self.rawplot_2.setImage(color)
-        # if self.visual.selected_neuron is not None:
-        #     self._updateRedCirc(self.visual.selected_neuron[1], self.visual.selected_neuron[2])
+
+        if self.visual.last_stim_vector is not None:
+            # if not hasattr(self, 'debugpy'): import debugpy; debugpy.listen(5678); debugpy.debug_this_thread(); debugpy.wait_for_client(); self.debugpy = debugpy
+            # self.debugpy.breakpoint()
+
+            for i in np.nonzero(self.visual.last_stim_vector)[0]:
+                # logger.info(f'jdg: coords len: {len(self.visual.coords)} stim len: {len(self.visual.last_stim_vector)}')
+                if i < len(self.visual.coords):
+                    self._updateRedCirc(self.visual.coords[i]['CoM'][1], self.visual.coords[i]['CoM'][0])
 
     def updateLines(self):
         ''' Helper function to plot the line traces

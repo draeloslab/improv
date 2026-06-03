@@ -63,6 +63,8 @@ class CaimanVisualStim(Actor):
         self.total_times = []
         self.timestamp = []
 
+        self.last_stim_vector = None
+
         self.window=150
 
         try:
@@ -85,6 +87,13 @@ class CaimanVisualStim(Actor):
             pass
         except Exception as e:
             logger.error('Visual: Exception in get data: {}'.format(e))
+
+        try:
+            id = self.links['stim_vector_in'].get(timeout=0.0001)
+            self.last_stim_vector = self.client.get(id)
+        except Empty as e:
+            pass
+
         try: #NOTE: try removing try block 
             ids = self.q_in.get(timeout=0.0001)
             if ids is not None and ids[0]==1:
