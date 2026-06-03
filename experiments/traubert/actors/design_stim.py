@@ -51,6 +51,9 @@ class ImprovStimDesigner(Actor):
         # if not hasattr(self, 'debugpy'): import debugpy; debugpy.listen(5678); debugpy.debug_this_thread(); debugpy.wait_for_client(); self.debugpy = debugpy
         # self.debugpy.breakpoint()
 
+        # if not hasattr(self, 'pudb_remote'): from pudb import remote as pudb_remote; self.pudb_remote = pudb_remote;
+        # self.pudb_remote.set_trace(host='127.0.0.1', port=6899)  # connect with `telnet 127.0.0.1 6899`
+
         start_time = time.time()
         try:
             ids = self.q_in.get(timeout=.001)
