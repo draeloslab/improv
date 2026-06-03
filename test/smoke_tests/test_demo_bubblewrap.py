@@ -2,6 +2,7 @@ from subprocess import Popen, PIPE, run
 import time
 import re
 from pathlib import Path
+import os
 
 def show_output_for_time(p, max_seconds=5., continue_regex=None, error_on_timeout=True, expect_exit=False):
     start_t = time.time()
@@ -13,7 +14,10 @@ def show_output_for_time(p, max_seconds=5., continue_regex=None, error_on_timeou
                 raise Exception('Process exited unexpectedly.')
         line = p.stdout.readline()
         if not line:
-            raise Exception('Process exited unexpectedly.') # todo: this is an edge case I haven't run into yet; check poll here? expect_exit?
+            if expect_exit:
+                return
+            else:
+                raise Exception('Process exited unexpectedly.')
         print(line, end='')
         if continue_regex is not None and re.search(continue_regex, line) is not None:
             return
@@ -37,6 +41,11 @@ def test_bubblewrap():
 
 
     open('global.log', 'w').close()
+
+    env = os.environ.copy()
+    size = os.get_terminal_size()
+    env['COLUMNS'] = str(size.columns)
+    env['LINES'] = str(size.lines)
     p = Popen(
         [
             'improv',
@@ -45,7 +54,8 @@ def test_bubblewrap():
         ],
         stdout=PIPE,
         stdin=PIPE,
-        text=True
+        text=True,
+        env=env
     )
 
     show_output_for_time(p, 15, r'improv console', error_on_timeout=False)
