@@ -44,9 +44,7 @@ class FrontEnd(QtWidgets.QMainWindow, video_2p.Ui_MainWindow):
         self.customizePlots()
 
         self.pushButton_3.clicked.connect(_call(self._runProcess)) #Tell Nexus to start
-        self.pushButton_3.clicked.connect(_call(self.update)) #Update front-end graphics
         self.pushButton_2.clicked.connect(_call(self._setup))
-        self.checkBox.stateChanged.connect(self.update) #Show live front-end updates
 
         topLeftPoint = QApplication.desktop().availableGeometry().topLeft()
         self.move(topLeftPoint)

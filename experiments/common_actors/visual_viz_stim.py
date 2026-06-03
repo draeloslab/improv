@@ -27,6 +27,7 @@ class DisplayVisual(Actor):
         logger.info('GUI ready')
         self.q_comm.put([Signal.ready()])
         self.visual.q_comm.put([Signal.ready()])
+        self.rasp.update()
         self.app.exec_()
         logger.info('Done running GUI')
 
