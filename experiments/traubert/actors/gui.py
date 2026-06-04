@@ -7,7 +7,7 @@ from PyQt5 import QtWidgets
 
 from improv.actor import Actor, Signal
 from improv.store import ObjectNotFoundError
-from .GUI import FrontEnd
+from .front_end import FrontEnd
 
 import logging; logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO,
                     handlers=[logging.FileHandler("example1.log"),
                               logging.StreamHandler()])
 
-class DisplayVisual(Actor):
+class GUIWrapperActor(Actor):
     ''' Class used to run a GUI + Visual as a single Actor 
     '''
     def run(self):
@@ -36,7 +36,7 @@ class DisplayVisual(Actor):
         self.visual = visual
         self.visual.setup()
 
-class CaimanVisualStim(Actor):
+class GUIDataManager(Actor):
     ''' Class for displaying data from caiman processor
     '''
     def __init__(self, *args, stimuli=None, labels=None,  **kwargs):

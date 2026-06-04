@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import QMessageBox, QApplication
 from matplotlib.colors import ListedColormap
 
 from improv.actor import Signal
-from . import video_2p
+from experiments.common_actors import video_2p
 
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)

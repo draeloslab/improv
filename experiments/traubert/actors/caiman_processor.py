@@ -10,7 +10,7 @@ from caiman.source_extraction.cnmf.online_cnmf import OnACID
 from caiman.source_extraction.cnmf.params import CNMFParams
 from caiman.motion_correction import motion_correct_iteration_fast, tile_and_correct
 
-from demos.sample_actors.process import CaimanProcessor
+from demos.sample_actors.process import CaimanProcessor, get_contours
 import traceback
 import logging
 
@@ -212,6 +212,21 @@ class LiveTwoP(CaimanProcessor):
             frame_cor = frame_cor / self.onAc.img_norm
         self.procFrame_time.append([time.time() - t])
         return frame_cor
+
+    def _updateCoords(self, A, dims):
+        """See if we need to recalculate the coords
+        Also see if we need to add components
+        """
+        if self.coords is None:  # initial calculation
+            self.A = A
+            self.coords = get_contours(A, dims)
+
+        elif np.shape(A)[1] > np.shape(self.A)[1] + 5:
+            # Only recalc if we have new components
+            # TODO: maybe only recalc coords that are new?
+            self.A = A
+            self.coords = get_contours(A, dims)
+            self.counter += 1
 
 class NaNFrameException(Exception):
     pass
