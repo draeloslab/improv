@@ -33,7 +33,6 @@ class BayesOptimizer(Actor):
         self.total_stim_time = self.stim_space['total_stim_time']
         self.d = self.stimuli_optim.shape[0]
         self.initial_length = self.stimuli_space.initial_stim_count
-
         logger.info('Stimuli info: Num of Stimuli Parameters: {}, Num of Initial Stim: {}'.format(self.d, self.initial_length))
         logger.info("Stim space specification: {}".format(self.stim_space))
 
@@ -89,6 +88,7 @@ class BayesOptimizer(Actor):
         self.start_stimulus = []
         self.opt_q_in_ts = []
         self.opt_stim_ind_out_ts = []
+        self.opt_q_in_qsize = []
 
         self.calibration = calibration
         logger.info('calibration is {}'.format(self.stim_space['calibration_stim']))
@@ -124,21 +124,28 @@ class BayesOptimizer(Actor):
             np.savetxt('output/timing/optimizer_time.txt', np.array(self.total_times))
             np.savetxt('output/timing/optimizer_q_in_ts.txt', np.array(self.opt_q_in_ts))
             np.savetxt('output/timing/optimizer_stim_ind_out_ts.txt', np.array(self.opt_stim_ind_out_ts))
+            np.savetxt('output/timing/optimizer_q_in_qsize.txt', np.array(self.opt_q_in_qsize))
         except Exception as e:
             logger.error("Trouble saving optimizer timings: {}".format(e))
             pass
         logger.info('Optimizer complete, avg time per frame: {}'.format(np.mean(self.total_times)))
 
     def runStep(self):
+        got_new_data = False
+        t = None
+        frame_num_for_timing = None
         try:
-            t = time.time()
             ids = self.q_in.get(timeout=0.0001)
-            
+            # logger.info(f"from optimizer do we have a queue item? {self.q_in.qsize()}")
+            self.opt_q_in_qsize.append([self.q_in.qsize()])
+            t = time.time()
             X = self.client.get(ids[0])
             Y = self.client.get(ids[1])
             self.calibration_not_moving_dots = self.client.get(ids[-2])
             stim_count = self.client.get(ids[-1]) # -1 to account for initial stim
             frame_num = self.client.get(ids[2])
+            got_new_data = True
+            frame_num_for_timing = frame_num
             self.opt_q_in_ts.append([frame_num, time.time()])
             # logger.info('X, Y: {}, {}'.format(X, Y))
 
@@ -381,14 +388,16 @@ class BayesOptimizer(Actor):
                     logger.info('optim.max_acq: {}'.format(ind))
                     self.stim_ind = ind
 
-            # Need to send ind to stimulus actor to create this stim request
+            # Need to send ind to stimulus actor to create this stim request ??
             if (time.time() - self.timer) >= self.total_stim_time:
                 self.links['stim_ind_out'].put([self.stim_ind, 'optim'])
                 # self.links['stim_flag_out'].put(stim_flag)
                 self.stim_ind = None
                 self.timer = time.time()
                 
-        self.total_times.append(time.time() - t)
+        # self.total_times.append(time.time() - t)
+        if got_new_data and t is not None:
+            self.total_times.append([frame_num_for_timing, time.time() - t])
     def _obs_count(self, n_idx: int) -> int:
         # robust count of observed values even if the row is all-NaN
         return int(np.count_nonzero(~np.isnan(self.y0[n_idx, :])))

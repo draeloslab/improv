@@ -86,7 +86,7 @@ class VizStimAnalysis(Actor):
 
         self.total_times = []
         self.puttime = []
-        self.colortime = []
+        # self.colortime = []
         self.stimtime = []
         self.putstimtime = []
         self.getCtime = []
@@ -96,12 +96,14 @@ class VizStimAnalysis(Actor):
         self.ana_q_in_ts = []
         self.ana_input_stim_queue_ts = []
         self.ana_stim_out_ts = []
+        self.ana_q_in_qsize = []
+        self.ana_input_stim_queue_qsize = []
 
     def stop(self):
         print('Analysis broke, avg time per frame: ', np.mean(self.total_times, axis=0))
         print('Analysis broke, avg time per put analysis: ', np.mean(self.puttime))
         print('Analysis broke, avg time per put analysis: ', np.mean(self.fit_times))
-        print('Analysis broke, avg time per color frame: ', np.mean(self.colortime))
+        # print('Analysis broke, avg time per color frame: ', np.mean(self.colortime))
         print('Analysis broke, avg time per stim avg: ', np.mean(self.stimtime))
         print('Analysis got through ', self.frame, ' frames')
 
@@ -110,13 +112,15 @@ class VizStimAnalysis(Actor):
         np.savetxt('output/analysis_estsAvg.txt', np.array(self.estsAvg))
         np.savetxt('output/analysis_proc_S.txt', np.array(self.S))
         np.savetxt('output/timing/analysis_puttime.txt', np.array(self.puttime))
-        np.savetxt('output/timing/analysis_colortime.txt', np.array(self.colortime))
+        # np.savetxt('output/timing/analysis_colortime.txt', np.array(self.colortime))
         np.savetxt('output/timing/analysis_stimtime.txt', np.array(self.stimtime))
-        np.savetxt('output/timing/analysis_putstimtime.txt', np.array(self.putstimtime))
+        # np.savetxt('output/timing/analysis_putstimtime.txt', np.array(self.putstimtime))
         np.savetxt('output/timing/analysis_getCtime.txt', np.array(self.getCtime))
         np.savetxt('output/timing/analysis_q_in_ts.txt', np.array(self.ana_q_in_ts))
         np.savetxt('output/timing/analysis_input_stim_queue_ts.txt', np.array(self.ana_input_stim_queue_ts))
         np.savetxt('output/timing/analysis_stim_out_ts.txt', np.array(self.ana_stim_out_ts))
+        np.savetxt('output/timing/analysis_q_in_qsize.txt', np.array(self.ana_q_in_qsize))
+        np.savetxt('output/timing/analysis_input_stim_queue_qsize.txt', np.array(self.ana_input_stim_queue_qsize))
 
         with open("output/analysis_stimY.pkl", 'wb') as f:
             pickle.dump(self.stimY, f)
@@ -140,6 +144,7 @@ class VizStimAnalysis(Actor):
         
         try:
             ids = self.q_in.get(timeout=0.0001)
+            self.ana_q_in_qsize.append([self.frame, self.q_in.qsize()])
             if ids is not None and ids[0]==1:
                 logger.info('analysis: missing frame')
                 self.total_times.append(time.time()-t)
@@ -149,6 +154,12 @@ class VizStimAnalysis(Actor):
             self.ana_q_in_ts.append([self.frame, time.time()])
             t_get = time.time()
             self.coordDict = self.client.get(ids[0])
+            # if self.calc_color:
+            #     self.coordDict = self.client.get(ids[0])
+            #     self.coords = [o['coordinates'] for o in self.coordDict]
+            # else:
+            #     self.coordDict = None
+            #     self.coords = None
             self.image = self.client.get(ids[1])
             self.S = self.client.get(ids[2])
             self.getCtime.append(time.time()-t_get)
@@ -162,6 +173,7 @@ class VizStimAnalysis(Actor):
             # Just do overall average activity for now
             try: 
                 sig = self.links['input_stim_queue'].get(timeout=0.0001) # sig: index pointing to a specific stimulus 
+                self.ana_input_stim_queue_qsize.append([self.frame, self.links['input_stim_queue'].qsize()])
                 self.ana_input_stim_queue_ts.append([self.frame, time.time()])
                 self.updateStim_start(sig) #NOTE: do we even need a function for this? 
                 logger.info('we called updatedStim_start')
@@ -219,7 +231,10 @@ class VizStimAnalysis(Actor):
     
 
     def updateStim_start(self, stim):
-        ''' updateStim_start takes in the pandastim message from acquirer, translates to index space, and tags it as the current stimulus'''
+
+        # frame = list(stim.keys())[0]
+        # whichStim = int(stim[frame])
+        
 
         frame = stim["frame"]
         whichStim = stim["indices"]
@@ -283,7 +298,7 @@ class VizStimAnalysis(Actor):
     def putStimulus(self):
         ''' Throw things to DS and put IDS in queue for Optimizer
         '''
-        t = time.time()
+        # t = time.time()
         ids = []
         ids.append(self.client.put(self.stimX))   #, 'stimX'+str(self.frame)))
         ids.append(self.client.put(self.stimY))   #, 'stimY'+str(self.frame)))
@@ -294,10 +309,9 @@ class VizStimAnalysis(Actor):
         ids.append(self.client.put(self.total_stim_counts))
         self.links['stim_out'].put(ids)
         self.ana_stim_out_ts.append([self.frame, time.time()])
-        self.putstimtime.append(time.time()-t)
+        # self.putstimtime.append(time.time()-t)
 
     def stimAvg_start(self): #TODO: need to rewrite this section (since ys will no longer be a dict)
-        ''' stimAvg_start calculates the average response to the current stimulus'''
         t = time.time()
 
         ests = self.C
@@ -373,7 +387,7 @@ class VizStimAnalysis(Actor):
     def plotColorFrame(self):
         ''' Computes colored nicer background+components frame
         '''
-        t = time.time()
+        # t = time.time()
         image = self.image
         
         tc_list = []
@@ -407,7 +421,7 @@ class VizStimAnalysis(Actor):
         else:
             color = image
 
-        self.colortime.append(time.time()-t)
+        # self.colortime.append(time.time()-t)
         # TODO: not sure if this is ok
         if not tc_list: # tc_list is empty
             tc_list = None
