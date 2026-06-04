@@ -112,6 +112,12 @@ def parse_cli_args(args):
     run_parser.add_argument(
         "configfile", type=file_exists, help="YAML file specifying improv pipeline"
     )
+    run_parser.add_argument(
+        "--tui-client-timeout",
+        default=2,
+        type=float,
+        help="time to wait for the TUI to start up before killing the whole process (in seconds)."
+    )
     run_parser.set_defaults(func=run)
 
     client_parser = subparsers.add_parser(
@@ -339,7 +345,7 @@ def run(args, timeout=10):
         run_client(args)
 
     try:
-        server.wait(timeout=2)
+        server.wait(timeout=args.tui_client_timeout)
     except subprocess.TimeoutExpired:
         print("Cleaning up the hard way. May have exited dirty.")
         server.terminate()
