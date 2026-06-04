@@ -1,8 +1,8 @@
 actors:
   GUI:
-    package: experiments.common_actors.visual_viz_stim
-    class: DisplayVisual
-    visual: Visual
+    package: actors.gui
+    class: GUIWrapperActor
+    visual: GuiDataManager
 
   Microscope:
     package: experiments.common_actors.load_disc
@@ -25,18 +25,18 @@ actors:
 
     init_frame: 400 # todo: check what this actually means
     
-  Processor:
-    package: experiments.common_actors.caiman_processor
+  CaImAnProcessor:
+    package: actors.caiman_processor
     class: LiveTwoP
     init_filename: /mnt/data/owen/owen_26_01_20/example_fish_caiman_baseline.tif
     config_file: live_caiman_params.yaml
 
-  Visual:
-    package: experiments.common_actors.visual_viz_stim
-    class: CaimanVisualStim
-    
+  GuiDataManager:  # GUI is reserved
+    package: actors.gui
+    class: GUIDataManager
+
   Analysis:
-    package: experiments.common_actors.analysis
+    package: actors.analysis
     class: VizStimAnalysis
     stimuli: stimuli.npy
     before_amount: 5
@@ -49,12 +49,12 @@ actors:
 
 
 connections:
-  Acquirer.q_out: [Processor.q_in, Visual.raw_frame_queue]
-  Processor.q_out: [Analysis.q_in, StimDesign.q_in]
-  Analysis.q_out: [Visual.q_in]
+  Acquirer.q_out: [CaImAnProcessor.q_in, GuiDataManager.raw_frame_queue]
+  CaImAnProcessor.q_out: [Analysis.q_in, StimDesign.q_in]
+  Analysis.q_out: [GuiDataManager.q_in]
   Analysis.stim_out: [StimDesign.stim_q_in] # here to prevent an error; TODO: remove
-  Acquirer.stim_queue: [Analysis.input_stim_queue, Visual.stim_in]
-  StimDesign.stim_vector_out: [Visual.stim_vector_in]
+  Acquirer.stim_queue: [Analysis.input_stim_queue, GuiDataManager.stim_in]
+  StimDesign.stim_vector_out: [GuiDataManager.stim_vector_in]
 
 redis_config:
   port: 6379

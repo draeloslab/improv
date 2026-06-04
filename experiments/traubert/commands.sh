@@ -1,6 +1,6 @@
 refresh_global
 yes | improv cleanup
-improv run traubert_simulate.yaml
+improv run traubert_simulate.yaml --tui-client-timeout 3600
 setup
 run
 stop

@@ -7,7 +7,7 @@ from PyQt5 import QtWidgets
 
 from improv.actor import Actor, Signal
 from improv.store import ObjectNotFoundError
-from .GUI import FrontEnd
+from .front_end import FrontEnd
 
 import logging; logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO,
                     handlers=[logging.FileHandler("example1.log"),
                               logging.StreamHandler()])
 
-class DisplayVisual(Actor):
+class GUIWrapperActor(Actor):
     ''' Class used to run a GUI + Visual as a single Actor 
     '''
     def run(self):
@@ -36,7 +36,7 @@ class DisplayVisual(Actor):
         self.visual = visual
         self.visual.setup()
 
-class CaimanVisualStim(Actor):
+class GUIDataManager(Actor):
     ''' Class for displaying data from caiman processor
     '''
     def __init__(self, *args, stimuli=None, labels=None,  **kwargs):
@@ -63,6 +63,8 @@ class CaimanVisualStim(Actor):
         self.total_times = []
         self.timestamp = []
 
+        self.last_stim_vector = None
+
         self.window=150
 
         try:
@@ -85,6 +87,13 @@ class CaimanVisualStim(Actor):
             pass
         except Exception as e:
             logger.error('Visual: Exception in get data: {}'.format(e))
+
+        try:
+            id = self.links['stim_vector_in'].get(timeout=0.0001)
+            self.last_stim_vector = self.client.get(id)
+        except Empty as e:
+            pass
+
         try: #NOTE: try removing try block 
             ids = self.q_in.get(timeout=0.0001)
             if ids is not None and ids[0]==1:
