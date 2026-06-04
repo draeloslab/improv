@@ -54,6 +54,7 @@ connections:
   Analysis.q_out: [Visual.q_in]
   Analysis.stim_out: [StimDesign.stim_q_in] # here to prevent an error; TODO: remove
   Acquirer.stim_queue: [Analysis.input_stim_queue, Visual.stim_in]
+  StimDesign.stim_vector_out: [Visual.stim_vector_in]
 
 redis_config:
   port: 6379

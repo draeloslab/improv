@@ -84,6 +84,9 @@ class ImprovStimDesigner(Actor):
                 v[0] = 1
                 R_U, _ ,_  = np.linalg.svd(self.pro.R) # this is fast, R is small
                 stim = self.stim_designer.design_stim(v=R_U@v, u_dimension=self.pro.Q.shape[0], u_to_s_function= lambda u: self.pro.Q.T @ u)
+
+                id = self.client.put(stim)
+                self.links['stim_vector_out'].put(id)
         finally:
             self.frame_number = frame_number
             elapsed_time = time.time() - start_time
