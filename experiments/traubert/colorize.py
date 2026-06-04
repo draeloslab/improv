@@ -39,6 +39,7 @@ def main(old_log_path=Path('global.old.log'), filter_uninteresting=False):
                     break
             else:
                 if not filter_uninteresting:
+                    # sys.stdout.write(colorama.Fore.BLACK + line + colorama.Style.RESET_ALL)
                     sys.stdout.write(line)
         else:
             sys.stdout.write(colorama.Fore.RED + line + colorama.Style.RESET_ALL)
