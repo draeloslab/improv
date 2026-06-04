@@ -48,6 +48,7 @@ class FrontEnd(QtWidgets.QMainWindow, video_2p.Ui_MainWindow):
 
         topLeftPoint = QApplication.desktop().availableGeometry().topLeft()
         self.move(topLeftPoint)
+        self.red_circles = None
 
     def update(self):
         ''' Update visualization while running
@@ -127,13 +128,12 @@ class FrontEnd(QtWidgets.QMainWindow, video_2p.Ui_MainWindow):
             self.rawplot_2.setImage(color)
 
         if self.visual.last_stim_vector is not None:
-            # if not hasattr(self, 'debugpy'): import debugpy; debugpy.listen(5678); debugpy.debug_this_thread(); debugpy.wait_for_client(); self.debugpy = debugpy
-            # self.debugpy.breakpoint()
+            currently_avialable_coords = len(self.visual.coords)
 
-            for i in np.nonzero(self.visual.last_stim_vector)[0]:
-                # logger.info(f'jdg: coords len: {len(self.visual.coords)} stim len: {len(self.visual.last_stim_vector)}')
-                if i < len(self.visual.coords):
-                    self._updateRedCirc(self.visual.coords[i]['CoM'][1], self.visual.coords[i]['CoM'][0])
+            hit_neurons = np.nonzero(self.visual.last_stim_vector)[0]
+            xs = [self.visual.coords[i]['CoM'][1] for i in hit_neurons if i < currently_avialable_coords]
+            ys = [self.visual.coords[i]['CoM'][0] for i in hit_neurons if i < currently_avialable_coords]
+            self.draw_red_circles(xs, ys)
 
     def updateLines(self):
         ''' Helper function to plot the line traces
@@ -220,6 +220,27 @@ class FrontEnd(QtWidgets.QMainWindow, video_2p.Ui_MainWindow):
             self.rawplot_2.getView().addItem(self.red_circ)
             self.red_circ2 = CircleROI(pos = np.array([x, y])-5, size=10, movable=False, pen=ROIpen1)
             self.rawplot.getView().addItem(self.red_circ2)
+
+    def _draw_red_circle(self, x, y, pen, plots):
+        circles = []
+        for plot in plots:
+            c = CircleROI(pos=np.array([x, y]) - 5, size=10, movable=False, pen=pen)
+            plot.getView().addItem(c)
+            circles.append(c)
+        return circles
+
+    def draw_red_circles(self, xs, ys):
+        plots = [self.rawplot, self.rawplot_2]
+        pen=pyqtgraph.mkPen(width=1, color='r')
+
+        if self.red_circles is not None:
+            for row in self.red_circles:
+                for plot, c in zip(plots, row):
+                    plot.getView().removeItem(c)
+        self.red_circles = []
+
+        for x, y in zip(xs, ys):
+            self.red_circles.append(self._draw_red_circle(x, y, pen, plots))
 
     def closeEvent(self, event):
         '''Clicked x/close on window
