@@ -153,73 +153,25 @@ class FrontEnd(QtWidgets.QMainWindow, video_2p.Ui_MainWindow):
 
         if (C is not None and Cx is not None):
             self.c1.setData(Cx, Cpop, pen=penW)
-
-            for i, plot in enumerate(self.c1_stim):
-                try:
-                    if len(self.visual.allStims[i]) > 0:
-                        d = []
-                        for s in self.visual.allStims[i]:
-                            d.extend(np.arange(s,s+10).tolist())
-                        display = np.clip(d, np.min(Cx), np.max(Cx))
-                        try:
-                            plot.setData(display, [int(np.max(Cpop))+1] * len(display),
-                                    symbol='s', symbolSize=6, antialias=False,
-                                    pen=None, symbolPen=self.COLOR[i], symbolBrush=self.COLOR[i])
-                        except:
-                            print(display)
-                    if i==8 and len(self.visual.stimTimes) > 0:
-                        d = []
-                        for s in self.visual.stimTimes:
-                            d.extend(np.arange(s,s+10).tolist())
-                        display = np.clip(d, np.min(Cx), np.max(Cx))
-                        try:
-                            plot.setData(display, [int(np.max(Cpop))+1] * len(display),
-                                    symbol='s', symbolSize=6, antialias=False,
-                                    pen=None, symbolPen=self.COLOR[8], symbolBrush=self.COLOR[8])
-                        except:
-                            print(display)
-                except KeyError:
-                    pass
-
             self.c2.setData(Cx, C, pen=penR)
         
-    def mouseClick(self, event):
-        '''Clicked on processed image to select neurons
-        '''
-        event.accept()
-        mousePoint = event.pos()
-        self.selected = self.visual.selectNeurons(int(mousePoint.x()), int(mousePoint.y()))
-        selectedraw = np.zeros(2)
-        selectedraw[0] = int(mousePoint.x())
-        selectedraw[1] = int(mousePoint.y())
-        self._updateRedCirc()
-
-        # if self.last_n is None:
-        #     self.last_n = self.visual.selectedNeuron
-        # elif self.last_n == self.visual.selectedNeuron:
-        #     for i in range(18):
-        #         self.rawplot_2.getView().removeItem(self.lines[i])
-        #     self.flagW = True
-
-    def _updateRedCirc(self, x, y):
-        ''' Circle neuron whose activity is in top (red) graph
-            Default is neuron #0 from initialize
-            #TODO: add arg instead of self.selected
-        '''
-        ROIpen1=pyqtgraph.mkPen(width=1, color='r')
-        if self.flag:
-            self.red_circ = CircleROI(pos = np.array([x, y])-5, size=10, movable=False, pen=ROIpen1)
-            self.rawplot_2.getView().addItem(self.red_circ)
-            self.red_circ2 = CircleROI(pos = np.array([x, y])-5, size=10, movable=False, pen=ROIpen1)
-            self.rawplot.getView().addItem(self.red_circ2)
-            self.flag = False
-        else:
-            self.rawplot_2.getView().removeItem(self.red_circ)
-            self.rawplot.getView().removeItem(self.red_circ2)
-            self.red_circ = CircleROI(pos = np.array([x, y])-5, size=10, movable=False, pen=ROIpen1)
-            self.rawplot_2.getView().addItem(self.red_circ)
-            self.red_circ2 = CircleROI(pos = np.array([x, y])-5, size=10, movable=False, pen=ROIpen1)
-            self.rawplot.getView().addItem(self.red_circ2)
+    # def mouseClick(self, event):
+    #     '''Clicked on processed image to select neurons
+    #     '''
+    #     event.accept()
+    #     mousePoint = event.pos()
+    #     self.selected = self.visual.selectNeurons(int(mousePoint.x()), int(mousePoint.y()))
+    #     selectedraw = np.zeros(2)
+    #     selectedraw[0] = int(mousePoint.x())
+    #     selectedraw[1] = int(mousePoint.y())
+    #     self._updateRedCirc()
+    #
+    #     # if self.last_n is None:
+    #     #     self.last_n = self.visual.selectedNeuron
+    #     # elif self.last_n == self.visual.selectedNeuron:
+    #     #     for i in range(18):
+    #     #         self.rawplot_2.getView().removeItem(self.lines[i])
+    #     #     self.flagW = True
 
     def _draw_red_circle(self, x, y, pen, plots):
         circles = []
@@ -269,18 +221,6 @@ class CircleROI(EllipseROI):
         pyqtgraph.ROI.__init__(self, pos, size, **args)
         self.aspectLocked = True
 
-class PolyROI(PolyLineROI):
-    def __init__(self, positions, pos, **args):
-        closed = True
-        print('got positions ', positions)
-        pyqtgraph.ROI.__init__(self, positions, closed, pos, **args)
-
-def cmapToColormap(cmap: ListedColormap) -> ColorMap:
-    """ Converts matplotlib cmap to pyqtgraph ColorMap. """
-
-    colordata = (np.array(cmap.colors) * 255).astype(np.uint8)
-    indices = np.linspace(0., 1., len(colordata))
-    return ColorMap(indices, colordata)
 
 
 if __name__=="__main__":
