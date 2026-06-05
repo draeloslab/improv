@@ -1,9 +1,4 @@
 actors:
-  GUI:
-    package: actors.video_window.gui_actors
-    class: VideoGUIWrapperActor
-    visual: VideoGuiDataManager
-
   Microscope:
     package: experiments.common_actors.load_disc
     class: FileAcquirer
@@ -31,10 +26,6 @@ actors:
     init_filename: /mnt/data/owen/owen_26_01_20/example_fish_caiman_baseline.tif
     config_file: live_caiman_params.yaml
 
-  VideoGuiDataManager:  # GUI is reserved
-    package: actors.video_window.gui_actors
-    class: VideoGUIDataManager
-
   Analysis:
     package: actors.analysis
     class: VizStimAnalysis
@@ -46,6 +37,25 @@ actors:
   StimDesign:
     package: actors.design_stim
     class: ImprovStimDesigner
+
+  GUI:
+    package: actors.qt_app_wrapper
+    class: GUI_QTAppWrapper
+    visual: VideoGuiDataManager
+
+  VideoGuiDataManager:  # GUI is reserved
+    package: actors.video_window.data_manager
+    class: VideoGUIDataManager
+
+#  LiveTraceGUI:
+#    package: actors.live_trace_window.gui_actors
+#    class: LiveTraceGUIWrapperActor
+#    visual: LiveTraceGuiDataManager
+#
+#  LiveTraceGuiDataManager:  # GUI is reserved
+#    package: actors.live_trace_window.gui_actors
+#    class: LiveTraceGUIDataManager
+
 
 
 connections:

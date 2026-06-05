@@ -1,0 +1,44 @@
+import time
+import numpy as np
+from scipy.spatial.distance import cdist
+from queue import Empty
+from collections import deque
+import logging
+from PyQt5 import QtWidgets
+
+from improv.actor import Actor, Signal
+from improv.store import ObjectNotFoundError
+from .video_window.front_end import FrontEnd as VideoWindowFrontEnd
+from .live_trace_window.front_end import FrontEnd as LiveTraceWindowFrontEnd
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(message)s',
+    handlers=[logging.StreamHandler()]
+)
+logger = logging.getLogger(__name__)
+
+
+class GUI_QTAppWrapper(Actor):
+    ''' Class used to run a GUI + Visual as a single Actor 
+    '''
+    def run(self):
+        logger.info('Loading FrontEnd')
+        self.app = QtWidgets.QApplication([])
+        self.video_window = VideoWindowFrontEnd(self.visual, self.q_comm)
+        self.live_trace_window = LiveTraceWindowFrontEnd(self.visual, self.q_comm)
+        self.video_window.show()
+        self.live_trace_window.show()
+        logger.info('GUI ready')
+        self.q_comm.put([Signal.ready()])
+        self.visual.q_comm.put([Signal.ready()])
+        self.video_window.update()
+        self.live_trace_window.update()
+        self.app.exec_()
+        logger.info('Done running GUI')
+
+    def setup(self, visual=None):
+        logger.info('Running setup for '+self.name)
+        self.visual = visual
+        self.visual.setup()

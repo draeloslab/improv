@@ -6,6 +6,7 @@ import logging
 from adaptive_latents import proSVD, CenteringEstimator, KernelSmoother
 from adaptive_latents.stim_designer import StimDesigner, OptimizationMethod
 from adaptive_latents.stim_regressor import StimRegressor, StimEvent
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 

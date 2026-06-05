@@ -7,39 +7,23 @@ from PyQt5 import QtWidgets
 
 from improv.actor import Actor, Signal
 from improv.store import ObjectNotFoundError
-from .front_end import FrontEnd
 
-import logging; logger = logging.getLogger(__name__)
+import logging
 
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s %(message)s',
-                    handlers=[logging.FileHandler("example1.log"),
-                              logging.StreamHandler()])
 
-class VideoGUIWrapperActor(Actor):
-    ''' Class used to run a GUI + Visual as a single Actor 
-    '''
-    def run(self):
-        logger.info('Loading FrontEnd')
-        self.app = QtWidgets.QApplication([])
-        self.rasp = FrontEnd(self.visual, self.q_comm)
-        self.rasp.show()
-        logger.info('GUI ready')
-        self.q_comm.put([Signal.ready()])
-        self.visual.q_comm.put([Signal.ready()])
-        self.rasp.update()
-        self.app.exec_()
-        logger.info('Done running GUI')
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(message)s',
+    handlers=[logging.StreamHandler()]
+)
+logger = logging.getLogger(__name__)
 
-    def setup(self, visual=None):
-        logger.info('Running setup for '+self.name)
-        self.visual = visual
-        self.visual.setup()
 
 class VideoGUIDataManager(Actor):
     ''' Class for displaying data from caiman processor
     '''
-    def __init__(self, *args, stimuli=None, labels=None,  **kwargs):
+
+    def __init__(self, *args, stimuli=None, labels=None, **kwargs):
         super().__init__(*args)
 
         self.com1 = np.zeros(2)
@@ -65,7 +49,7 @@ class VideoGUIDataManager(Actor):
 
         self.last_stim_vector = None
 
-        self.window=150
+        self.window = 150
 
         try:
             self.red_chan = np.load(self.red_chan_image, allow_pickle=True)
@@ -73,7 +57,7 @@ class VideoGUIDataManager(Actor):
             pass
 
     def run(self):
-        pass #NOTE: Special case here, tied to GUI
+        pass  # NOTE: Special case here, tied to GUI
 
     def getData(self):
         t = time.time()
@@ -94,12 +78,12 @@ class VideoGUIDataManager(Actor):
         except Empty as e:
             pass
 
-        try: #NOTE: try removing try block 
+        try:  # NOTE: try removing try block
             ids = self.q_in.get(timeout=0.0001)
-            if ids is not None and ids[0]==1:
+            if ids is not None and ids[0] == 1:
                 print('visual: missing frame')
                 self.frame_num += 1
-                self.total_times.append([time.time(), time.time()-t])
+                self.total_times.append([time.time(), time.time() - t])
                 raise Empty
             self.frame_num = ids[-1]
             if self.draw:
@@ -112,7 +96,7 @@ class VideoGUIDataManager(Actor):
                 self.coords = self.client.get(ids[5])
                 self.allStims = self.client.get(ids[6])
                 self.tc_list = self.client.get(ids[7])
-                self.total_times.append([time.time(), time.time()-t])
+                self.total_times.append([time.time(), time.time() - t])
             self.timestamp.append([time.time(), self.frame_num])
         except Empty as e:
             pass
@@ -147,8 +131,8 @@ class VideoGUIDataManager(Actor):
         if self.frame_num > self.window:
             self.C = self.C[:, -len(self.Cx):]
             self.Cpop = self.Cpop[-len(self.Cx):]
-        
-        return self.Cx, self.C[self.selectedNeuron,:], self.Cpop
+
+        return self.Cx, self.C[self.selectedNeuron, :], self.Cpop
 
     def getFrames(self):
         ''' Return the raw and colored frames for display

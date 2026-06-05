@@ -6,12 +6,20 @@ from PyQt5 import QtGui,QtCore,QtWidgets
 from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import QMessageBox, QApplication
 from matplotlib.colors import ListedColormap
+from .data_manager import VideoGUIDataManager
 
 from improv.actor import Signal
 from experiments.common_actors import video_2p
 
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(message)s',
+    handlers=[logging.StreamHandler()]
+)
+logger = logging.getLogger(__name__)
 
 class FrontEnd(QtWidgets.QMainWindow, video_2p.Ui_MainWindow):
 
@@ -25,7 +33,7 @@ class FrontEnd(QtWidgets.QMainWindow, video_2p.Ui_MainWindow):
              7: ( 240, 5, 64),
              8: ( 240, 240, 240)}
 
-    def __init__(self, visual, comm, parent=None):
+    def __init__(self, visual: VideoGUIDataManager, comm, parent=None):
         ''' Setup GUI
             Setup and start Nexus controls
         '''
