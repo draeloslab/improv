@@ -219,6 +219,7 @@ def _call(fnc, *args, **kwargs):
 class CircleROI(EllipseROI):
     def __init__(self, pos, size, **args):
         pyqtgraph.ROI.__init__(self, pos, size, **args)
+        self.path = None
         self.aspectLocked = True
 
 
