@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO,
                     handlers=[logging.FileHandler("example1.log"),
                               logging.StreamHandler()])
 
-class GUIWrapperActor(Actor):
+class VideoGUIWrapperActor(Actor):
     ''' Class used to run a GUI + Visual as a single Actor 
     '''
     def run(self):
@@ -36,7 +36,7 @@ class GUIWrapperActor(Actor):
         self.visual = visual
         self.visual.setup()
 
-class GUIDataManager(Actor):
+class VideoGUIDataManager(Actor):
     ''' Class for displaying data from caiman processor
     '''
     def __init__(self, *args, stimuli=None, labels=None,  **kwargs):

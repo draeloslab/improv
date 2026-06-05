@@ -76,7 +76,7 @@ class ImprovStimDesigner(Actor):
             # data = self.smoother.partial_fit_transform(data)
             if self.pro.Q is not None and data.shape[1] > self.pro.Q.shape[0]:
                 self.pro.add_new_input_channels(data.shape[1] - self.pro.Q.shape[0])
-                logger.info(f'jdg: new C shape: {C.shape}')
+                logger.info(f'new C shape: {C.shape}')
             data = self.pro.step(data)
 
             if self.pro.is_initialized:

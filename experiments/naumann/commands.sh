@@ -15,8 +15,8 @@ pkill -9 improv
 sudo /etc/init.d/redis-server stop
 
 
-coverage run --save-signal=USR1 $(which improv) run naumann_simulate.yaml --tui-client-timeout 30 --port-read-timeout 10
-coverage combine
+coverage run --save-signal=USR1 $(which improv) run naumann_simulate.yaml --tui-client-timeout 30 --port-read-timeout 30
+coverage combine --keep
 coverage html && firefox htmlcov/index.html 1>/dev/null 2>/dev/null
 
 python convert_owens_data.py

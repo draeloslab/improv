@@ -1,8 +1,8 @@
 actors:
   GUI:
-    package: actors.gui_actors
-    class: GUIWrapperActor
-    visual: GuiDataManager
+    package: actors.video_window.gui_actors
+    class: VideoGUIWrapperActor
+    visual: VideoGuiDataManager
 
   Microscope:
     package: experiments.common_actors.load_disc
@@ -31,9 +31,9 @@ actors:
     init_filename: /mnt/data/owen/owen_26_01_20/example_fish_caiman_baseline.tif
     config_file: live_caiman_params.yaml
 
-  GuiDataManager:  # GUI is reserved
-    package: actors.gui_actors
-    class: GUIDataManager
+  VideoGuiDataManager:  # GUI is reserved
+    package: actors.video_window.gui_actors
+    class: VideoGUIDataManager
 
   Analysis:
     package: actors.analysis
@@ -49,12 +49,12 @@ actors:
 
 
 connections:
-  Acquirer.q_out: [CaImAnProcessor.q_in, GuiDataManager.raw_frame_queue]
+  Acquirer.q_out: [CaImAnProcessor.q_in, VideoGuiDataManager.raw_frame_queue]
   CaImAnProcessor.q_out: [Analysis.q_in, StimDesign.q_in]
-  Analysis.q_out: [GuiDataManager.q_in]
+  Analysis.q_out: [VideoGuiDataManager.q_in]
   Analysis.stim_out: [StimDesign.stim_q_in] # here to prevent an error; TODO: remove
-  Acquirer.stim_queue: [Analysis.input_stim_queue, GuiDataManager.stim_in]
-  StimDesign.stim_vector_out: [GuiDataManager.stim_vector_in]
+  Acquirer.stim_queue: [Analysis.input_stim_queue, VideoGuiDataManager.stim_in]
+  StimDesign.stim_vector_out: [VideoGuiDataManager.stim_vector_in]
 
 redis_config:
   port: 6379
