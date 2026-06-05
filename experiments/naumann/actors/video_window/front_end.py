@@ -209,7 +209,6 @@ class FrontEnd(QtWidgets.QMainWindow, video_2p.Ui_MainWindow):
         confirm = QMessageBox.question(self, 'Message', 'Stop the experiment?',
                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if confirm == QMessageBox.Yes:
-            self.comm.put(['stop'])
             print('Visual got through ', self.visual.frame_num, ' frames')
             np.savetxt('output/timing/visual_frame_time.txt', np.array(self.visual.total_times))
             np.savetxt('output/timing/gui_frame_time.txt', np.array(self.total_times))

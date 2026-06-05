@@ -334,7 +334,6 @@ class FrontEnd(QtWidgets.QMainWindow, live_trace.Ui_MainWindow):
             QMessageBox.No,
             )
         if confirm == QMessageBox.Yes:
-            self.comm.put([Signal.quit()])
             # print('Visual broke, avg time per frame: ', np.mean(self.visual.total_times, axis=0))
             print("Visual got through ", self.visual.frame_num, " frames")
             # print('GUI avg time ', np.mean(self.total_times))
