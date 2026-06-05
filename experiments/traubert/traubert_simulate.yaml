@@ -1,6 +1,6 @@
 actors:
   GUI:
-    package: actors.gui
+    package: actors.gui_actors
     class: GUIWrapperActor
     visual: GuiDataManager
 
@@ -32,7 +32,7 @@ actors:
     config_file: live_caiman_params.yaml
 
   GuiDataManager:  # GUI is reserved
-    package: actors.gui
+    package: actors.gui_actors
     class: GUIDataManager
 
   Analysis:

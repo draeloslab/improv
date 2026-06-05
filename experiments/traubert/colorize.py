@@ -13,6 +13,7 @@ DIGIT_RE = re.compile(r'\d')
 green_line_patterns = [
     re.compile(r'jdg', flags=re.IGNORECASE),
     re.compile(r'improv.nexus Allowing start'),
+    re.compile(r'error', flags=re.IGNORECASE),
 ]
 
 def normalize(line):
