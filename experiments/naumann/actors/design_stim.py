@@ -37,8 +37,8 @@ class ImprovStimDesigner(Actor):
             StimEvent(
                 u=u,
                 delivery_time=delivery_time,
-                no_fit_interval = (delivery_time, delivery_time),
-                difference_interval = (delivery_time-dt, None),
+                no_fit_interval=(delivery_time, delivery_time),
+                difference_interval=(delivery_time - dt, None),
                 no_observe_interval=None,
                 eps=0
             )
@@ -46,7 +46,8 @@ class ImprovStimDesigner(Actor):
 
         if 'we need to update' and False:
             updated_delivery_time = ...
-            self.stim_regressor.ignore_data_events[-1].difference_interval = (updated_delivery_time-dt, updated_delivery_time)
+            self.stim_regressor.ignore_data_events[-1].difference_interval = (updated_delivery_time - dt,
+                                                                              updated_delivery_time)
 
     def runStep(self):
         # if not hasattr(self, 'debugpy'): import debugpy; debugpy.listen(5678); debugpy.debug_this_thread(); debugpy.wait_for_client(); self.debugpy = debugpy
@@ -65,13 +66,11 @@ class ImprovStimDesigner(Actor):
         self.coords = self.client.get(ids[0])
         frame_number = ids[3]
 
-
         try:
             if self.frame_number is not None:
                 data = C[:, -(self.frame_number - frame_number):].T
             else:
                 data = C.T
-
 
             # data = self.centerer.step(data)
             # data = self.smoother.partial_fit_transform(data)
@@ -81,10 +80,10 @@ class ImprovStimDesigner(Actor):
             data = self.pro.step(data)
 
             if self.pro.is_initialized:
-                v = np.zeros([10,1])
+                v = np.zeros([10, 1])
                 v[0] = 1
-                R_U, _ ,_  = np.linalg.svd(self.pro.R) # this is fast, R is small
-                stim = self.stim_designer.design_stim(v=R_U@v, u_dimension=self.pro.Q.shape[0], u_to_s_function= lambda u: self.pro.Q.T @ u)
+                R_U, _, _ = np.linalg.svd(self.pro.R)  # this is fast, R is small
+                stim = self.stim_designer.design_stim(v=R_U @ v, u_dimension=self.pro.Q.shape[0], u_to_s_function=lambda u: self.pro.Q.T @ u)
 
                 id = self.client.put(stim)
                 self.links['stim_vector_out'].put(id)

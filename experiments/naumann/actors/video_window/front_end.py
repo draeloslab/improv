@@ -2,7 +2,7 @@ import numpy as np
 import time
 import pyqtgraph
 from pyqtgraph import EllipseROI, PolyLineROI, ColorMap
-from PyQt5 import QtGui,QtCore,QtWidgets
+from PyQt5 import QtGui, QtCore, QtWidgets
 from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import QMessageBox, QApplication
 from matplotlib.colors import ListedColormap
@@ -11,34 +11,29 @@ from .data_manager import VideoGUIDataManager
 from improv.actor import Signal
 from experiments.common_actors import video_2p
 
-import logging; logger = logging.getLogger(__name__)
+import logging
+
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s %(message)s',
-    handlers=[logging.StreamHandler()]
-)
-logger = logging.getLogger(__name__)
 
 class FrontEnd(QtWidgets.QMainWindow, video_2p.Ui_MainWindow):
-
-    COLOR = {0: ( 240, 122,  5),
-             1: (181, 240,  5),
-             2: (5, 240,  5),
-             3: (5,  240,  181),
-             4: (5,  122, 240),
-             5: (64,  5, 240),
-             6: ( 240,  5, 240),
-             7: ( 240, 5, 64),
-             8: ( 240, 240, 240)}
+    COLOR = {0: (240, 122, 5),
+             1: (181, 240, 5),
+             2: (5, 240, 5),
+             3: (5, 240, 181),
+             4: (5, 122, 240),
+             5: (64, 5, 240),
+             6: (240, 5, 240),
+             7: (240, 5, 64),
+             8: (240, 240, 240)}
 
     def __init__(self, visual: VideoGUIDataManager, comm, parent=None):
         ''' Setup GUI
             Setup and start Nexus controls
         '''
-        self.visual = visual #Visual class that provides plots and images
-        self.comm = comm #Link back to Nexus for transmitting signals
+        self.visual = visual  # Visual class that provides plots and images
+        self.comm = comm  # Link back to Nexus for transmitting signals
 
         self.total_times = []
         self.first = True
@@ -51,7 +46,7 @@ class FrontEnd(QtWidgets.QMainWindow, video_2p.Ui_MainWindow):
 
         self.customizePlots()
 
-        self.pushButton_3.clicked.connect(_call(self._runProcess)) #Tell Nexus to start
+        self.pushButton_3.clicked.connect(_call(self._runProcess))  # Tell Nexus to start
         self.pushButton_2.clicked.connect(_call(self._setup))
 
         topLeftPoint = QApplication.desktop().availableGeometry().topLeft()
@@ -69,29 +64,29 @@ class FrontEnd(QtWidgets.QMainWindow, video_2p.Ui_MainWindow):
             except Exception as e:
                 logger.info('update lines error {}'.format(e))
                 import traceback
-                print('---------------------Exception in update lines: ' , traceback.format_exc())
+                print('---------------------Exception in update lines: ', traceback.format_exc())
             try:
                 self.updateVideo()
             except Exception as e:
                 logger.error('Error in FrontEnd update Video:  {}'.format(e))
                 import traceback
-                print('---------------------Exception in update video: ' , traceback.format_exc())
+                print('---------------------Exception in update video: ', traceback.format_exc())
 
         if self.checkBox.isChecked():
             self.draw = True
         else:
-            self.draw = False    
+            self.draw = False
         self.visual.draw = self.draw
-            
+
         QtCore.QTimer.singleShot(10, self.update)
-        
-        self.total_times.append([self.visual.frame_num, time.time()-t])
+
+        self.total_times.append([self.visual.frame_num, time.time() - t])
 
     def customizePlots(self):
         self.checkBox.setChecked(True)
         self.draw = True
 
-        #init line plot
+        # init line plot
         self.flag = True
         self.flagW = True
         self.flagL = True
@@ -109,8 +104,8 @@ class FrontEnd(QtWidgets.QMainWindow, video_2p.Ui_MainWindow):
         self.updateLines()
         self.activePlot = 'r'
 
-        #videos
-        self.rawplot.ui.histogram.vb.setLimits(yMin=-0.1, yMax=200) #0-255 needed, saturated here for easy viewing
+        # videos
+        self.rawplot.ui.histogram.vb.setLimits(yMin=-0.1, yMax=200)  # 0-255 needed, saturated here for easy viewing
 
     def _runProcess(self):
         '''Run ImageProcessor in separate thread
@@ -121,15 +116,15 @@ class FrontEnd(QtWidgets.QMainWindow, video_2p.Ui_MainWindow):
     def _setup(self):
         self.comm.put([Signal.setup()])
         self.visual.setup()
-    
+
     def updateVideo(self):
         ''' TODO: Bug on clicking ROI --> trace and report to pyqtgraph
         '''
         raw, color = self.visual.getFrames()
         if raw is not None:
-            raw = raw.T         ## necessary for plotting only, visuals same as on microscope computer
+            raw = raw.T  ## necessary for plotting only, visuals same as on microscope computer
             if np.unique(raw).size > 1:
-                self.rawplot.setImage(raw) #, autoHistogramRange=False)
+                self.rawplot.setImage(raw)  # , autoHistogramRange=False)
                 self.rawplot.ui.histogram.vb.setLimits(yMin=80, yMax=200)
         if color is not None:
             color = color.T
@@ -147,8 +142,8 @@ class FrontEnd(QtWidgets.QMainWindow, video_2p.Ui_MainWindow):
         ''' Helper function to plot the line traces
             of the activity of the selected neurons.
         '''
-        penW=pyqtgraph.mkPen(width=2, color='w')
-        penR=pyqtgraph.mkPen(width=2, color='r')
+        penW = pyqtgraph.mkPen(width=2, color='w')
+        penR = pyqtgraph.mkPen(width=2, color='r')
 
         C = None
         Cx = None
@@ -162,7 +157,7 @@ class FrontEnd(QtWidgets.QMainWindow, video_2p.Ui_MainWindow):
         if (C is not None and Cx is not None):
             self.c1.setData(Cx, Cpop, pen=penW)
             self.c2.setData(Cx, C, pen=penR)
-        
+
     # def mouseClick(self, event):
     #     '''Clicked on processed image to select neurons
     #     '''
@@ -191,7 +186,7 @@ class FrontEnd(QtWidgets.QMainWindow, video_2p.Ui_MainWindow):
 
     def draw_red_circles(self, xs, ys):
         plots = [self.rawplot, self.rawplot_2]
-        pen=pyqtgraph.mkPen(width=1, color='r')
+        pen = pyqtgraph.mkPen(width=1, color='r')
 
         if self.red_circles is not None:
             for row in self.red_circles:
@@ -207,21 +202,26 @@ class FrontEnd(QtWidgets.QMainWindow, video_2p.Ui_MainWindow):
             Add confirmation for closing without saving
         '''
         confirm = QMessageBox.question(self, 'Message', 'Stop the experiment?',
-                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                                       QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if confirm == QMessageBox.Yes:
             print('Visual got through ', self.visual.frame_num, ' frames')
             np.savetxt('output/timing/visual_frame_time.txt', np.array(self.visual.total_times))
             np.savetxt('output/timing/gui_frame_time.txt', np.array(self.total_times))
             np.savetxt('output/timing/visual_timestamp.txt', np.array(self.visual.timestamp))
             event.accept()
-        else: event.ignore()
+        else:
+            event.ignore()
+
 
 def _call(fnc, *args, **kwargs):
     ''' Call handler for (external) events
     '''
+
     def _callback():
         return fnc(*args, **kwargs)
+
     return _callback
+
 
 class CircleROI(EllipseROI):
     def __init__(self, pos, size, **args):
@@ -230,10 +230,10 @@ class CircleROI(EllipseROI):
         self.aspectLocked = True
 
 
-
-if __name__=="__main__":
+if __name__ == "__main__":
     import sys
+
     app = QtGui.QApplication(sys.argv)
-    rasp = FrontEnd(None,None)
+    rasp = FrontEnd(None, None)
     rasp.show()
     app.exec_()

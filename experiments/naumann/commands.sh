@@ -1,6 +1,6 @@
 refresh_global
 yes | improv cleanup
-improv run naumann_simulate.yaml --tui-client-timeout 3600 --port-read-timeout 3600
+improv run naumann_simulate.yaml
 setup
 run
 stop

@@ -1,29 +1,19 @@
 import time
 import numpy as np
-from scipy.spatial.distance import cdist
 from queue import Empty
-from collections import deque
-from PyQt5 import QtWidgets
 
-from improv.actor import Actor, Signal
+from improv.actor import Actor
 from improv.store import ObjectNotFoundError
 
 import logging
 
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s %(message)s',
-    handlers=[logging.StreamHandler()]
-)
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class VideoGUIDataManager(Actor):
-    ''' Class for displaying data from caiman processor
-    '''
-
-    def __init__(self, *args, stimuli=None, labels=None, **kwargs):
+    def __init__(self, *args):
         super().__init__(*args)
 
         self.com1 = np.zeros(2)
