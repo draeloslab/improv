@@ -1,6 +1,6 @@
 refresh_global
 yes | improv cleanup
-improv run traubert_simulate.yaml
+improv run naumann_simulate.yaml
 setup
 run
 stop
@@ -15,7 +15,7 @@ pkill -9 improv
 sudo /etc/init.d/redis-server stop
 
 
-coverage run --save-signal=USR1 $(which improv) run traubert_simulate.yaml --tui-client-timeout 30 --port-read-timeout 10
+coverage run --save-signal=USR1 $(which improv) run naumann_simulate.yaml --tui-client-timeout 30 --port-read-timeout 10
 coverage combine
 coverage html && firefox htmlcov/index.html 1>/dev/null 2>/dev/null
 
