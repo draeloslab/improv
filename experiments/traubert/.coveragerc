@@ -5,6 +5,7 @@ sigterm = true
 parallel = true
 include =
     **/improv/improv/**
+    **/traubert/actors/**
 
 [report]
 ignore_errors = true

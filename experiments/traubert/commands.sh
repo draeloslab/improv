@@ -14,14 +14,10 @@ pkill -USR1 improv
 pkill -9 improv
 sudo /etc/init.d/redis-server stop
 
+
+coverage run --save-signal=USR1 $(which improv) run traubert_simulate.yaml --tui-client-timeout 30 --port-read-timeout 10
 coverage combine
-coverage html && open htmlcov/index.html 1>/dev/null 2>/dev/null
-
-
-python -m ipdb $(which improv) run traubert_simulate.yaml
-python -m ipdb $(which improv) server -c 0 -o 0 -l 0 -f global.log traubert_simulate.yaml
-
-coverage run --save-signal=USR1 $(which improv) run traubert_simulate.yaml
+coverage html && firefox htmlcov/index.html 1>/dev/null 2>/dev/null
 
 python convert_owens_data.py
 

@@ -118,6 +118,12 @@ def parse_cli_args(args):
         type=float,
         help="time to wait for the TUI to start up before killing the whole process (in seconds)."
     )
+    run_parser.add_argument(
+        "--port-read-timeout",
+        default=10,
+        type=float,
+        help="time to wait to detect ports from the log file killing the whole process (in seconds)."
+    )
     run_parser.set_defaults(func=run)
 
     client_parser = subparsers.add_parser(
@@ -310,7 +316,9 @@ def run_cleanup(args, headless=False):
             print("No running processes found.")
 
 
-def run(args, timeout=10):
+def run(args, timeout=None):
+    if timeout is None:
+        timeout = args.port_read_timeout
     apath_opts = []
     for p in args.actor_path:
         if p:
