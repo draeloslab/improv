@@ -41,20 +41,15 @@ actors:
   GUI:
     package: actors.qt_app_wrapper
     class: GUI_QTAppWrapper
-    visual: VideoGuiDataManager
+    visual: [VideoGuiDataManager, LiveTraceGuiDataManager]
 
   VideoGuiDataManager:  # GUI is reserved
     package: actors.video_window.data_manager
     class: VideoGUIDataManager
 
-#  LiveTraceGUI:
-#    package: actors.live_trace_window.gui_actors
-#    class: LiveTraceGUIWrapperActor
-#    visual: LiveTraceGuiDataManager
-#
-#  LiveTraceGuiDataManager:  # GUI is reserved
-#    package: actors.live_trace_window.gui_actors
-#    class: LiveTraceGUIDataManager
+  LiveTraceGuiDataManager:
+    package: actors.live_trace_window.data_manager
+    class: LiveTraceGUIDataManager
 
 
 

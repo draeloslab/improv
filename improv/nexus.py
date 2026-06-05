@@ -187,21 +187,30 @@ class Nexus:
             m = self.config.gui  # m is ConfigModule
             # treat GUI uniquely since user communication comes from here
             try:
-                visualClass = m.options["visual"]
-                # need to instantiate this actor
-                visualActor = self.config.actors[visualClass]
-                self.createActor(visualClass, visualActor)
-                # then add links for visual
-                for k, l in {
-                    key: self.data_queues[key]
-                    for key in self.data_queues.keys()
-                    if visualClass in key
-                }.items():
-                    self.assignLink(k, l)
+                visual = m.options["visual"]
+                if not isinstance(visual, list):
+                    visual = [visual]
 
-                # then give it to our GUI
-                self.createActor(name, m)
-                self.actors[name].setup(visual=self.actors[visualClass])
+                for actor_name in visual:
+                    visualClass = actor_name # TODO: visualClass is a misnomer, I think, the variable holds the actor name
+                    # need to instantiate this actor
+                    visualActor = self.config.actors[visualClass]
+                    self.createActor(visualClass, visualActor)
+                    # then add links for visual
+                    for k, l in {
+                        key: self.data_queues[key]
+                        for key in self.data_queues.keys()
+                        if visualClass in key
+                    }.items():
+                        self.assignLink(k, l)
+
+                    # then give it to our GUI
+                    self.createActor(name, m)
+
+                if len(visual) == 1: # for backwards compatibility
+                    self.actors[name].setup(visual=self.actors[visualClass])
+                else:
+                    self.actors[name].setup(visual=[self.actors[actor_name] for actor_name in visual])
 
                 self.p_GUI = Process(target=self.actors[name].run, name=name)
                 self.p_GUI.daemon = True
