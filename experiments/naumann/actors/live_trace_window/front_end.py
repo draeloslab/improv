@@ -34,6 +34,8 @@ class FrontEnd(QtWidgets.QMainWindow, live_trace.Ui_MainWindow):
             brush=pyqtgraph.mkBrush(177, 177, 177),
             pen=pyqtgraph.mkPen(None),
         )
+        self.plt.addItem(self.scatter)
+        self.plt.addItem(self.tail)
 
         # Setup button
         self.pushButton.clicked.connect(self._setup)
@@ -52,15 +54,9 @@ class FrontEnd(QtWidgets.QMainWindow, live_trace.Ui_MainWindow):
         QtCore.QTimer.singleShot(10, self.update)
 
     def plot(self):
-        """Function for plotting dim reduced trajectories and bubbles"""
-        self.plt.clear()
-        # Dim reduced data plotting
-        data_red = np.array(self.visual.data).reshape((-1, 2))
+        data_red = np.asarray(self.visual.data).reshape((-1, 2))
         self.scatter.setData(pos=data_red)
         self.tail.setData(data_red[-5:])
-
-        self.plt.addItem(self.scatter)
-        self.plt.addItem(self.tail)
 
     def _runProcess(self):
         logger.info("-------------------------   put run in comm")
