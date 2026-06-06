@@ -39,7 +39,7 @@ class ImprovStimDesigner(Actor):
                 log_level=LOG_LEVEL,
                 max_history_length=1000,
             ),
-            stim_reg=BaseMultiKernelRegressor(maxlen=100),
+            stim_reg=BaseMultiKernelRegressor(maxlen=100, should_log=LOG_LEVEL),
             stim_delay=0,
             log_level=LOG_LEVEL,
             error_on_missed_stim=True,
