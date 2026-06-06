@@ -31,7 +31,7 @@ class GUI_QTAppWrapper(Actor):
         for v in self.visual:
             v.q_comm.put([Signal.ready()])
         self.video_window.update()
-        self.live_trace_window.update()
+        # self.live_trace_window.update() # uses a new timer-based update strategy
         self.app.exec_()
         logger.info('Done running GUI')
 

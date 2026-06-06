@@ -45,6 +45,10 @@ class FrontEnd(QtWidgets.QMainWindow, live_trace.Ui_MainWindow):
         # Run button
         self.pushButton_2.clicked.connect(self._runProcess)
 
+        self.timer = QtCore.QTimer(self)
+        self.timer.timeout.connect(self.update)
+        self.timer.start(50)
+
     def update(self):
         """Check if get data is successful, call plotting function and update GUI"""
         try:
