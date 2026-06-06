@@ -10,7 +10,7 @@ def download():
     """
     datadir = pathlib.Path('demos/bubblewrap/data')
     filename = 'indy_20160407_02.mat'
-    if not datadir.exists():
+    if not (datadir/filename).exists():
         print('data not found, downloading...')
         datadir.mkdir()
         os.chdir(str(datadir))
