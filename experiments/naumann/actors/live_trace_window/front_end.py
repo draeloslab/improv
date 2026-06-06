@@ -28,6 +28,8 @@ class FrontEnd(QtWidgets.QMainWindow, live_trace.Ui_MainWindow):
         pyqtgraph.setConfigOptions(leftButtonPan=True)
 
         self.plt = self.widget.getPlotItem()
+        # Keep x/y units visually equal (matplotlib axis('equal') behavior).
+        self.plt.setAspectLocked(lock=True, ratio=1)
         self.tail = pyqtgraph.PlotDataItem(pen=pyqtgraph.mkPen(color='black', width=2))
         self.scatter = pyqtgraph.ScatterPlotItem(
             size=4,
