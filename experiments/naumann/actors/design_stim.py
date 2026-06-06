@@ -45,6 +45,8 @@ class ImprovStimDesigner(Actor):
             error_on_missed_stim=True,
         )
 
+        self.last_stim_events_hash = None
+
     def runStep(self):
         # if not hasattr(self, 'debugpy'): import debugpy; debugpy.listen(5678); debugpy.debug_this_thread(); debugpy.wait_for_client(); self.debugpy = debugpy
         # self.debugpy.breakpoint()
@@ -63,15 +65,6 @@ class ImprovStimDesigner(Actor):
                 coords=self.client.get(ids[0]),
                 frame_number=ids[3],
             )
-
-        if 'necessary' and False:
-            try:
-                stim_frame = self.links['stim_happened'].get(timeout=.001)
-                pass
-            except Empty:
-                pass
-            else:
-                'retroactively place time'
 
         elapsed_time = time.time() - start_time
         # logger.info(f'runStep time: {elapsed_time*1000:.1f} ms')
@@ -105,7 +98,7 @@ class ImprovStimDesigner(Actor):
         if self.pro.Q is not None and data.shape[1] > self.pro.Q.shape[0]:
             n_new_channels = data.shape[1] - self.pro.Q.shape[0]
             self.pro.add_new_input_channels(n_new_channels)
-            logger.info(f'new C shape: ({data.shape[1]}xN)')
+            logger.info(f'new C shape: ({data.shape[1]}x{self.frame_number})')
             if self.stim_regressor.stim_reg.input_histories is not None:
                 old_u_history = self.stim_regressor.stim_reg.input_histories[1]
                 self.stim_regressor.stim_reg.input_histories[1] = np.hstack((old_u_history, np.zeros((old_u_history.shape[0], n_new_channels))))
@@ -134,10 +127,13 @@ class ImprovStimDesigner(Actor):
                     logger.info(f'number of stimulus-response pairs collected: {np.all(self.stim_regressor.stim_reg.output_history != 0, axis=1).sum()})')
             self.stim_regressor.step(data)
 
-            ignore_data_events = self.stim_regressor.ignore_data_events
-            if ignore_data_events is not None:
-                id = self.client.put(ignore_data_events)
-                self.links['stim_events_out'].put(id)
+            stim_events = self.stim_regressor.ignore_data_events
+            if stim_events is not None:
+                stim_events_hash = hash(tuple(stim_events))
+                if stim_events_hash != self.last_stim_events_hash:
+                    id = self.client.put(stim_events)
+                    self.links['stim_events_out'].put(id)
+                    self.last_stim_events_hash = stim_events_hash
 
 
 
@@ -158,10 +154,6 @@ class ImprovStimDesigner(Actor):
             )
         )
 
-        # we can figure this out if it becomes necessary
-        # if 'we need to update retroactively' and False:
-        #     updated_delivery_time = ...
-        #     self.stim_regressor.ignore_data_events[-1].difference_interval = (updated_delivery_time - dt, updated_delivery_time)
 
     def stop(self):
         with (open('output/design_stim.pickle', 'wb') as f):

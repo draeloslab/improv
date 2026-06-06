@@ -29,4 +29,4 @@ export OPENBLAS_NUM_THREADS=1
 export VECLIB_MAXIMUM_THREADS=1
 # tail -f global.log | ./colorize.py
 
-refresh_global() { cp global.old.log "/tmp/global.log.$(date +%Y%m%d_%H%M%S)"; cp global.log global.old.log; > global.log; }
+refresh_global() { cp global.log "/tmp/global.log.$(date +%Y%m%d_%H%M%S)"; > global.log; }

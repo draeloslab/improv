@@ -3,7 +3,7 @@ import pyqtgraph
 from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import QMessageBox
-import traceback
+
 from .data_manager import LiveTraceGUIDataManager
 
 from improv.actor import Signal
@@ -36,8 +36,16 @@ class FrontEnd(QtWidgets.QMainWindow, live_trace.Ui_MainWindow):
             brush=pyqtgraph.mkBrush(177, 177, 177),
             pen=pyqtgraph.mkPen(None),
         )
+
+        self.stim_start_scatter = pyqtgraph.ScatterPlotItem(
+            size=5,
+            brush=pyqtgraph.mkBrush(255, 0, 0),
+            pen=pyqtgraph.mkPen(None),
+        )
+
         self.plt.addItem(self.scatter)
         self.plt.addItem(self.tail)
+        self.plt.addItem(self.stim_start_scatter)
 
         # Setup button
         self.pushButton.clicked.connect(self._setup)
@@ -51,18 +59,20 @@ class FrontEnd(QtWidgets.QMainWindow, live_trace.Ui_MainWindow):
 
     def update(self):
         """Check if get data is successful, call plotting function and update GUI"""
-        try:
-            if self.visual.getData():
-                self.plot()
-        except Exception as e:
-            logger.error('Front End Exception: {}'.format(e))
-            logger.error(traceback.format_exc())
-        QtCore.QTimer.singleShot(10, self.update)
+        redraw_trace, redraw_stim = self.visual.getData()
+        if redraw_trace:
+            self.redraw_trace()
+        if redraw_stim:
+            self.redraw_stim()
 
-    def plot(self):
-        data_red = np.squeeze(self.visual.data)
-        self.scatter.setData(pos=data_red[:,:2])
-        self.tail.setData(data_red[-5:, :2])
+    def redraw_trace(self):
+        self.scatter.setData(pos=self.visual.data[:,:2])
+        self.tail.setData(self.visual.data[-5:, :2])
+
+    def redraw_stim(self):
+        starts = [stim.delivery_time for stim in self.visual.stim_events if stim.delivery_time <= self.visual.data.t.max()]
+        start_points = self.visual.data.slice_by_time(starts)[:,:2]
+        self.stim_start_scatter.setData(pos=start_points)
 
     def _runProcess(self):
         logger.info("-------------------------   put run in comm")
