@@ -111,15 +111,18 @@ class ImprovStimDesigner(Actor):
                 self.stim_regressor.stim_reg.input_histories[1] = np.hstack((old_u_history, np.zeros((old_u_history.shape[0], n_new_channels))))
         data = self.pro.step(data)
 
+        if not np.isnan(data).any():
+            id = self.client.put(data)
+            self.links['latents_out'].put(id)
+
         if self.pro.is_initialized:
-            v = np.zeros([10, 1])
-            v[0] = 1
-            R_U, _, _ = np.linalg.svd(self.pro.R)  # this is fast, R is small
-            stim = self.stim_designer.design_stim(v=R_U @ v, u_dimension=self.pro.Q.shape[0],
-                                                  u_to_s_function=lambda u: self.pro.Q.T @ u)
-
-
             if self.frame_number > 20 and self.frame_number % 20 == 0:
+                v = np.zeros([10, 1])
+                v[0] = 1
+                R_U, _, _ = np.linalg.svd(self.pro.R)  # this is fast, R is small
+                stim = self.stim_designer.design_stim(v=R_U @ v, u_dimension=self.pro.Q.shape[0],
+                                                      u_to_s_function=lambda u: self.pro.Q.T @ u)
+
                 id = self.client.put(stim)
                 self.links['stim_vector_out'].put(id)
 

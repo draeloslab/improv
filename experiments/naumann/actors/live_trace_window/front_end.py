@@ -28,9 +28,9 @@ class FrontEnd(QtWidgets.QMainWindow, live_trace.Ui_MainWindow):
         pyqtgraph.setConfigOptions(leftButtonPan=True)
 
         self.plt = self.widget.getPlotItem()
-        self.tail = pyqtgraph.PlotDataItem()
+        self.tail = pyqtgraph.PlotDataItem(pen=pyqtgraph.mkPen(color='black', width=2))
         self.scatter = pyqtgraph.ScatterPlotItem(
-            size=1,
+            size=4,
             brush=pyqtgraph.mkBrush(177, 177, 177),
             pen=pyqtgraph.mkPen(None),
         )
@@ -54,9 +54,9 @@ class FrontEnd(QtWidgets.QMainWindow, live_trace.Ui_MainWindow):
         QtCore.QTimer.singleShot(10, self.update)
 
     def plot(self):
-        data_red = np.asarray(self.visual.data).reshape((-1, 2))
-        self.scatter.setData(pos=data_red)
-        self.tail.setData(data_red[-5:])
+        data_red = np.squeeze(self.visual.data)
+        self.scatter.setData(pos=data_red[:,:2])
+        self.tail.setData(data_red[-5:, :2])
 
     def _runProcess(self):
         logger.info("-------------------------   put run in comm")

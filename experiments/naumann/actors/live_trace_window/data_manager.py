@@ -15,20 +15,16 @@ class LiveTraceGUIDataManager(Actor):
 
     def setup(self):
         self.data = []
-        self.rng = np.random.default_rng(42)
-        self.i = 0
 
     def run(self):
         pass  # NOTE: Special case here, tied to GUI
 
     def getData(self):
         try:
-            t = self.i * 2 * np.pi / 30
-            self.data.append(np.array([np.cos(t), np.sin(t)]) * t)
-            self.i += 1
-        except Empty as e:
+            id = self.links['latents_in'].get(timeout=.001)
+        except Empty:
             return False
-        except Exception as e:
-            logger.error(f'Visual: Exception in get data: {e}')
-            logger.error(traceback.format_exc())
-        return True
+        else:
+            data = self.client.get(id)
+            self.data.append(data)
+        return len(self.data) > 1
