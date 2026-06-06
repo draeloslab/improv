@@ -120,8 +120,7 @@ class ImprovStimDesigner(Actor):
                 v = np.zeros([10, 1])
                 v[0] = 1
                 R_U, _, _ = np.linalg.svd(self.pro.R)  # this is fast, R is small
-                stim = self.stim_designer.design_stim(v=R_U @ v, u_dimension=self.pro.Q.shape[0],
-                                                      u_to_s_function=lambda u: self.pro.Q.T @ u)
+                stim = self.stim_designer.design_stim(v=R_U @ v, u_dimension=self.pro.Q.shape[0], u_to_s_function=lambda u: self.pro.Q.T @ u)
 
                 id = self.client.put(stim)
                 self.links['stim_vector_out'].put(id)
@@ -132,8 +131,13 @@ class ImprovStimDesigner(Actor):
                 )
 
                 if self.stim_regressor.stim_reg.output_history is not None:
-                    logger.info(f'jdg: output history length: {np.all(self.stim_regressor.stim_reg.output_history != 0, axis=1).sum()})')
+                    logger.info(f'number of stimulus-response pairs collected: {np.all(self.stim_regressor.stim_reg.output_history != 0, axis=1).sum()})')
             self.stim_regressor.step(data)
+
+            ignore_data_events = self.stim_regressor.ignore_data_events
+            if ignore_data_events is not None:
+                id = self.client.put(ignore_data_events)
+                self.links['stim_events_out'].put(id)
 
 
 
