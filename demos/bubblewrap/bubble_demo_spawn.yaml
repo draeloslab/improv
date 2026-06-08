@@ -7,12 +7,14 @@ actors:
   Acquirer:
     package: actors.acquire
     class: Acquirer
-    filename: data/indy_20160407_02.mat 
+    filename: demos/bubblewrap/data/indy_20160407_02.mat
+    method: spawn
 
   DimReduction:
     package: actors.dimension_reduction
     class: DimReduction
-    
+    method: spawn
+
   Bubblewrap:
     package: actors.bubble
     class: Bubble
@@ -22,6 +24,7 @@ actors:
   Visual:
     package: actors.visual
     class: CaimanVisual
+    method: spawn
 
 connections:
   Acquirer.q_out: [DimReduction.q_in]
