@@ -8,6 +8,7 @@ import concurrent
 import subprocess
 import psutil
 import numpy as np
+import traceback
 
 from queue import Full
 from datetime import datetime
@@ -222,6 +223,7 @@ class Nexus:
 
             except Exception as e:
                 logger.error(f"Exception in setting up GUI {name}: {e}")
+                logger.error(traceback.format_exc())
 
         else:
             # have fake GUI for communications
