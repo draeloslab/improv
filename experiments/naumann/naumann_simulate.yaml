@@ -9,6 +9,7 @@ actors:
     filename: /mnt/data/owen/owen_26_01_20/example_fish_400.tif
     init_frame: 0
     framerate: 1.875
+    method: spawn
 
   Acquirer:
     package: actors.acquire_zmq
@@ -19,12 +20,14 @@ actors:
     init_filename: /mnt/data/owen/owen_26_01_20/example_fish_caiman_baseline.tif
 
     init_frame: 400 # todo: check what this actually means
+    method: spawn
     
   CaImAnProcessor:
     package: actors.caiman_processor
     class: LiveTwoP
     init_filename: /mnt/data/owen/owen_26_01_20/example_fish_caiman_baseline.tif
     config_file: live_caiman_params.yaml
+    method: spawn
 
   Analysis:
     package: actors.analysis
@@ -33,23 +36,28 @@ actors:
     before_amount: 5
     after_amount: 1
     calc_color: False
+    method: spawn
 
   StimDesign:
     package: actors.design_stim
     class: ImprovStimDesigner
+    method: spawn
 
   GUI:
     package: actors.qt_app_wrapper
     class: GUI_QTAppWrapper
     visual: [VideoGuiDataManager, LiveTraceGuiDataManager]
+    method: spawn
 
   VideoGuiDataManager:  # GUI is reserved
     package: actors.video_window.data_manager
     class: VideoGUIDataManager
+    method: spawn
 
   LiveTraceGuiDataManager:
     package: actors.live_trace_window.data_manager
     class: LiveTraceGUIDataManager
+    method: spawn
 
 
 

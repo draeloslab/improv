@@ -38,6 +38,8 @@ class ZMQAcquirer(Actor):
         pathlib.Path(output+'timing/').mkdir(exist_ok=True)
 
     def setup(self):
+        if self.client is None:
+            self._getStoreInterface()
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.SUB)
         for port in self.ports:

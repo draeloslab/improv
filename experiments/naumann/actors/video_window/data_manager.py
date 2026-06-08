@@ -13,8 +13,8 @@ logger.setLevel(logging.INFO)
 
 
 class VideoGUIDataManager(Actor):
-    def __init__(self, *args):
-        super().__init__(*args)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.com1 = np.zeros(2)
         self.selectedNeuron = 0
@@ -50,6 +50,9 @@ class VideoGUIDataManager(Actor):
         pass  # NOTE: Special case here, tied to GUI
 
     def getData(self):
+        if self.client is None:
+            self._getStoreInterface()
+
         t = time.time()
         ids = None
         try:

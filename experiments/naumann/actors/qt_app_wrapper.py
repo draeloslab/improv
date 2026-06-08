@@ -36,6 +36,8 @@ class GUI_QTAppWrapper(Actor):
         logger.info('Done running GUI')
 
     def setup(self, visual=None):
+        if self.client is None:
+            self._getStoreInterface()
         logger.info('Running setup for ' + self.name)
         self.visual: tuple[VideoGUIDataManager, LiveTraceGUIDataManager] = visual
         for v in self.visual:

@@ -22,6 +22,9 @@ class ImprovStimDesigner(Actor):
         super().__init__(*args, **kwargs)
 
     def setup(self):
+        if self.client is None:
+            self._getStoreInterface()
+
         self.frame_number = None
         self.coords = None
 

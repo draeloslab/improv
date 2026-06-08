@@ -11,8 +11,8 @@ logger.setLevel(logging.INFO)
 
 
 class LiveTraceGUIDataManager(Actor):
-    def __init__(self, *args):
-        super().__init__(*args)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def setup(self):
         self.data_list = []
@@ -23,6 +23,9 @@ class LiveTraceGUIDataManager(Actor):
         pass  # NOTE: Special case here, tied to GUI
 
     def getData(self):
+        if self.client is None:
+            self._getStoreInterface()
+
         new_trace_data = False
         new_stim_data = False
 

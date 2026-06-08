@@ -24,14 +24,16 @@ class LiveTwoP(CaimanProcessor):
     Uses code from caiman/source_extraction/cnmf/online_cnmf.py
     """
 
-    def __init__(self, *args, init_filename=None, config_file=None):
-        super().__init__(*args, init_filename=init_filename, config_file=config_file)
+    def __init__(self, *args, init_filename=None, config_file=None, **kwargs):
+        super().__init__(*args, init_filename=init_filename, config_file=config_file, **kwargs)
 
     def setup(self):
         """Create OnACID object and initialize it
         (runs initialize online)
         """
         logger.info("Running setup for " + self.name)
+        if self.client is None:
+            self._getStoreInterface()
         self.done = False
         self.dropped_frames = []
         self.coords = None

@@ -29,8 +29,8 @@ class CaimanProcessor(Actor):
     Uses code from caiman/source_extraction/cnmf/online_cnmf.py
     """
 
-    def __init__(self, *args, init_filename, config_file):
-        super().__init__(*args)
+    def __init__(self, *args, init_filename, config_file, **kwargs):
+        super().__init__(*args, **kwargs)
         logger.info("initfile {}, config file {}".format(init_filename, config_file))
         self.param_file = config_file
         self.init_filename = init_filename

@@ -46,6 +46,8 @@ class FileAcquirer(Actor):
             Open file stream
             #TODO: implement more than h5 files
         """
+        if self.client is None:
+            self._getStoreInterface()
         if os.path.exists(self.filename):
             n, ext = os.path.splitext(self.filename)[:2]
             if ext == ".h5" or ext == ".hdf5":

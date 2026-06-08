@@ -12,7 +12,7 @@ logger.setLevel(logging.INFO)
 class VizStimAnalysis(Actor):
 
     def __init__(self, *args, stimuli = None, before_amount=2, after_amount=10, calc_color = True, **kwargs):
-        super().__init__(*args)
+        super().__init__(*args, **kwargs)
 
         self.calibration_not_moving_dots = 0
         self.before_amount = before_amount
@@ -22,6 +22,10 @@ class VizStimAnalysis(Actor):
     def setup(self, param_file=None):
         '''
         '''
+
+        if self.client is None:
+            self._getStoreInterface()
+
         np.seterr(divide='ignore')
 
         # TODO: same as behaviorAcquisition, need number of stimuli here. Make adaptive later

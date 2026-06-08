@@ -10,8 +10,8 @@ grep -m 10 -A 10 "error" global.log
 ls
 
 
-pkill -USR1 improv
-pkill -9 improv
+pkill -USR1 -f improv
+pkill -9 -f improv
 sudo /etc/init.d/redis-server stop
 
 
