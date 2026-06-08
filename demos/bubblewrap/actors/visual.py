@@ -34,8 +34,8 @@ class Visual(Actor):
 class CaimanVisual(Actor):
     """Class for displaying data from caiman processor"""
 
-    def __init__(self, *args, showConnectivity=False):
-        super().__init__(*args)
+    def __init__(self, *args, showConnectivity=False, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def setup(self):
         self.data = None
