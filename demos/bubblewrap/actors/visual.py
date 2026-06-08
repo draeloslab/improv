@@ -38,6 +38,8 @@ class CaimanVisual(Actor):
         super().__init__(*args, **kwargs)
 
     def setup(self):
+        if self.client is None:
+            self._getStoreInterface()
         self.data = None
         self.bw_L = None
 

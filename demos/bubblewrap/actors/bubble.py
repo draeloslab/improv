@@ -19,6 +19,8 @@ class Bubble(Actor):
 
     def setup(self):
         """Load data from dim reduction and perform node initalization"""
+        if self.client is None:
+            self._getStoreInterface()
         shape_id = None
         while shape_id is None:
             try:

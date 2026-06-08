@@ -27,6 +27,8 @@ class Acquirer(Actor):
         Load data file, parse spike data, then send initalization data to dim reduction
         Note: A utility function that downloads the required data file can be found in utils.py
         """
+        if self.client is None:
+            self._getStoreInterface()
         # get unsorted vs sorted units
         data_dict = mat73.loadmat(self.file)
         units_unsorted = []

@@ -16,6 +16,8 @@ class DimReduction(Actor):
 
     def setup(self):
         """Load initial data from Acquirer, performs initalization and send to bubblewrap"""
+        if self.client is None:
+            self._getStoreInterface()
         init_id = None
         while init_id is None:
             try:
