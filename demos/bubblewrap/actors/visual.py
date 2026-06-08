@@ -38,8 +38,6 @@ class CaimanVisual(Actor):
         super().__init__(*args, **kwargs)
 
     def setup(self):
-        if self.client is None:
-            self._getStoreInterface()
         self.data = None
         self.bw_L = None
 
@@ -48,6 +46,9 @@ class CaimanVisual(Actor):
 
     def getData(self):
         """Load data from dim reduction and bubblewrap, returns false on timeout"""
+        if self.client is None:
+            self._getStoreInterface()
+
         try:
             bw_res = self.links['bw_in'].get(timeout=0.0005)
             res = self.q_in.get(timeout=0.0005)

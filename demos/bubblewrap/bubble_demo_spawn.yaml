@@ -3,6 +3,7 @@ actors:
     package: actors.visual
     class: Visual
     visual: Visual
+    method: spawn
 
   Acquirer:
     package: actors.acquire
@@ -18,7 +19,6 @@ actors:
   Bubblewrap:
     package: actors.bubble
     class: Bubble
-    dimension: 2
     method: spawn
   
   Visual:
@@ -28,6 +28,7 @@ actors:
 
 connections:
   Acquirer.q_out: [DimReduction.q_in]
-  DimReduction.q_out: [Visual.q_in, Bubblewrap.q_in]
+  DimReduction.q_out: [Bubblewrap.q_in]
+  DimReduction.v_out: [Visual.q_in]
   Bubblewrap.q_out: [Visual.bw_in]
 
