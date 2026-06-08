@@ -214,7 +214,11 @@ class Nexus:
 
                 self.p_GUI = Process(target=self.actors[name].run, name=name)
                 self.p_GUI.daemon = True
-                self.p_GUI.start()
+                try:
+                    self.p_GUI.start()
+                except TypeError as e:
+                    logger.error("You may want to spawn instead of fork this process, especially if you aren't on linux.")
+                    raise e
 
             except Exception as e:
                 logger.error(f"Exception in setting up GUI {name}: {e}")
