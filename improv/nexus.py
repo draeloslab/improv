@@ -208,17 +208,18 @@ class Nexus:
                     # then give it to our GUI
                     self.createActor(name, m)
 
+                visual_actors = [self.actors[actor_name] for actor_name in visual]
                 if len(visual) == 1: # for backwards compatibility
-                    self.actors[name].setup(visual=self.actors[visualClass])
-                else:
-                    self.actors[name].setup(visual=[self.actors[actor_name] for actor_name in visual])
+                    visual_actors = visual_actors[0]
+
+                self.actors[name].setup(visual=visual_actors)
 
                 self.p_GUI = Process(target=self.actors[name].run, name=name)
                 self.p_GUI.daemon = True
                 try:
                     self.p_GUI.start()
                 except TypeError as e:
-                    logger.error("You may want to spawn instead of fork this process, especially if you aren't on linux.")
+                    logger.error("You may want to spawn instead of fork this actor, especially if you aren't on linux. If you are already spawning, make sure it doesn't have any redis connections before being spawned.")
                     raise e
 
             except Exception as e:

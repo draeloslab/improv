@@ -1,6 +1,6 @@
 refresh_global
 yes | improv cleanup
-improv run naumann_simulate.yaml
+improv run naumann_simulate.yaml --tui-client-timeout 30 --port-read-timeout 30
 setup
 run
 stop
@@ -29,4 +29,4 @@ export OPENBLAS_NUM_THREADS=1
 export VECLIB_MAXIMUM_THREADS=1
 # tail -f global.log | ./colorize.py
 
-refresh_global() { cp global.log "/tmp/global.log.$(date +%Y%m%d_%H%M%S)"; > global.log; }
+refresh_global() { cp global.log "/tmp/global.log.$(date +%Y%m%d_%H%M%S)"; :> global.log; }
