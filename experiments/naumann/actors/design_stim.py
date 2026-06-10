@@ -45,7 +45,6 @@ class ImprovStimDesigner(Actor):
                 check_dt=True,
             ),
             stim_reg=BaseMultiKernelRegressor(maxlen=100, should_log=LOG_LEVEL),
-            stim_delay=4,
             log_level=LOG_LEVEL,
             error_on_missed_stim=True,
             check_dt=True,
@@ -108,6 +107,8 @@ class ImprovStimDesigner(Actor):
             if self.stim_regressor.stim_reg.input_histories is not None:
                 old_u_history = self.stim_regressor.stim_reg.input_histories[1]
                 self.stim_regressor.stim_reg.input_histories[1] = np.hstack((old_u_history, np.zeros((old_u_history.shape[0], n_new_channels))))
+            for event in self.stim_regressor.ignore_data_events:
+                event.u = np.hstack([event.u, np.zeros(n_new_channels)])
         data = self.pro.step(data)
 
         if not np.isnan(data).any():
@@ -146,15 +147,15 @@ class ImprovStimDesigner(Actor):
 
     def handle_stim(self, u, delivery_time=None):
         dt = self.stim_regressor.dt
-        stim_delay = 0
+        stim_delay = 5
 
         self.stim_regressor.add_event(
             StimEvent(
                 u=u,
                 delivery_time=delivery_time,
                 no_fit_interval=(delivery_time, delivery_time + stim_delay),
-                difference_interval=(delivery_time + stim_delay - dt, delivery_time + stim_delay),
-                no_observe_interval=None,
+                difference_interval=(delivery_time + stim_delay - dt, delivery_time + stim_delay), # only one-step prediction
+                no_observe_interval=(delivery_time, delivery_time + stim_delay),
                 eps=dt / 8,
                 error_on_missed=self.stim_regressor.error_on_missed_stim,
             )
