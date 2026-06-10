@@ -37,15 +37,10 @@ class FrontEnd(QtWidgets.QMainWindow, live_trace.Ui_MainWindow):
             pen=pyqtgraph.mkPen(None),
         )
 
-        self.stim_start_scatter = pyqtgraph.ScatterPlotItem(
-            size=5,
-            brush=pyqtgraph.mkBrush(255, 0, 0),
-            pen=pyqtgraph.mkPen(None),
-        )
-
         self.plt.addItem(self.scatter)
         self.plt.addItem(self.tail)
-        self.plt.addItem(self.stim_start_scatter)
+
+        self.stim_plot_items = []
 
         # Setup button
         self.pushButton.clicked.connect(self._setup)
@@ -67,12 +62,55 @@ class FrontEnd(QtWidgets.QMainWindow, live_trace.Ui_MainWindow):
 
     def redraw_trace(self):
         self.scatter.setData(pos=self.visual.data[:,:2])
-        self.tail.setData(self.visual.data[-5:, :2])
+        self.tail.setData(self.visual.data[-10:, :2])
 
     def redraw_stim(self):
-        starts = [stim.delivery_time for stim in self.visual.stim_events if stim.delivery_time <= self.visual.data.t.max()]
-        start_points = self.visual.data.slice_by_time(starts)[:,:2]
-        self.stim_start_scatter.setData(pos=start_points)
+        for item in self.stim_plot_items:
+            self.plt.removeItem(item)
+        self.stim_plot_items = []
+
+        for event in self.visual.stim_events:
+            if event.delivery_time >= self.visual.data.t.max():
+                continue
+
+            start_point = self.visual.data.slice_by_time(event.delivery_time)[:2]
+
+            start_scatter = pyqtgraph.ScatterPlotItem(
+                pos=np.array([start_point]),
+                size=8,
+                brush=pyqtgraph.mkBrush(255, 0, 0),
+                pen=pyqtgraph.mkPen(None),
+            )
+            self.plt.addItem(start_scatter)
+            self.stim_plot_items.append(start_scatter)
+
+            # draw a red dot at start_point
+            if not event.fufilled:
+                pass # pass for now
+            else:
+                # draw a green line from start_point to event.used_prediction
+                pred_point = event.used_prediction
+                observed_point = event.used_prediction + np.squeeze(event.residual)
+
+
+                pred_line = pyqtgraph.PlotDataItem(
+                    x=[start_point[0], pred_point[0]],
+                    y=[start_point[1], pred_point[1]],
+                    pen=pyqtgraph.mkPen(color=(0, 180, 0), width=2),
+                )
+                self.plt.addItem(pred_line)
+                self.stim_plot_items.append(pred_line)
+
+                # Blue line: used_prediction -> used_prediction + residual
+                residual_line = pyqtgraph.PlotDataItem(
+                    x=[pred_point[0], observed_point[0]],
+                    y=[pred_point[1], observed_point[1]],
+                    pen=pyqtgraph.mkPen(color=(0, 100, 255), width=2),
+                )
+                self.plt.addItem(residual_line)
+                self.stim_plot_items.append(residual_line)
+
+
 
     def _runProcess(self):
         logger.info("-------------------------   put run in comm")
