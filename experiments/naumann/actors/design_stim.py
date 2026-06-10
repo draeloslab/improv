@@ -116,11 +116,25 @@ class ImprovStimDesigner(Actor):
             self.links['latents_out'].put(id)
 
         if self.pro.is_initialized:
-            if self.frame_number in self.stim_tiff_frames:
+            if self.frame_number in self.stim_tiff_frames + [100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600]:
                 v = np.zeros([10, 1])
                 v[0] = 1
                 R_U, _, _ = np.linalg.svd(self.pro.R)  # this is fast, R is small
-                stim = self.stim_designer.design_stim(v=R_U @ v, u_dimension=self.pro.Q.shape[0], u_to_s_function=lambda u: self.pro.Q.T @ u)
+
+                if self.stim_regressor.stim_reg.n_observed > 10:
+                    f = self.stim_regressor.stim_reg.make_jax_pred_f()
+                    stim = self.stim_designer.design_stim(
+                        v=R_U @ v,
+                        u_dimension=self.pro.Q.shape[0],
+                        u_to_s_function=lambda u: f([data, u, self.frame_number]),
+                    )
+                else:
+                    stim = self.stim_designer.design_stim(
+                        v=R_U @ v,
+                        u_dimension=self.pro.Q.shape[0],
+                        u_to_s_function=lambda u: self.pro.Q.T @ u,
+                    )
+
 
                 id = self.client.put(stim)
                 self.links['stim_vector_out'].put(id)
