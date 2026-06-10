@@ -17,9 +17,10 @@ from . import live_trace
 
 
 class FrontEnd(QtWidgets.QMainWindow, live_trace.Ui_MainWindow):
-    def __init__(self, visual: LiveTraceGUIDataManager, comm, parent=None):
+    def __init__(self, visual: LiveTraceGUIDataManager, comm, parent=None, literal_stim_events=False):
         self.visual = visual
         self.comm = comm  # Link back to Nexus for transmitting signals
+        self.literal_stim_events = literal_stim_events
 
         pyqtgraph.setConfigOption("background", QColor(255, 255, 255))
 
@@ -30,7 +31,7 @@ class FrontEnd(QtWidgets.QMainWindow, live_trace.Ui_MainWindow):
         self.plt = self.widget.getPlotItem()
         # Keep x/y units visually equal (matplotlib axis('equal') behavior).
         self.plt.setAspectLocked(lock=True, ratio=1)
-        self.tail = pyqtgraph.PlotDataItem(pen=pyqtgraph.mkPen(color='black', width=2))
+        self.tail = pyqtgraph.PlotDataItem(pen=pyqtgraph.mkPen(color='black', width=4))
         self.scatter = pyqtgraph.ScatterPlotItem(
             size=4,
             brush=pyqtgraph.mkBrush(177, 177, 177),
@@ -70,13 +71,14 @@ class FrontEnd(QtWidgets.QMainWindow, live_trace.Ui_MainWindow):
         self.stim_plot_items = []
 
         for event in self.visual.stim_events:
-            if event.delivery_time >= self.visual.data.t.max():
+            if max(event.delivery_time, event.difference_interval[0]) >= self.visual.data.t.max():
                 continue
 
-            start_point = self.visual.data.slice_by_time(event.delivery_time)[:2]
+            delivery_point = self.visual.data.slice_by_time(event.delivery_time)[:2]
+            difference_interval_start_point = self.visual.data.slice_by_time(event.difference_interval[0])[:2]
 
             start_scatter = pyqtgraph.ScatterPlotItem(
-                pos=np.array([start_point]),
+                pos=np.array([delivery_point]),
                 size=8,
                 brush=pyqtgraph.mkBrush(255, 0, 0),
                 pen=pyqtgraph.mkPen(None),
@@ -84,32 +86,59 @@ class FrontEnd(QtWidgets.QMainWindow, live_trace.Ui_MainWindow):
             self.plt.addItem(start_scatter)
             self.stim_plot_items.append(start_scatter)
 
-            # draw a red dot at start_point
-            if not event.fufilled:
-                pass # pass for now
-            else:
-                # draw a green line from start_point to event.used_prediction
-                pred_point = event.used_prediction
-                observed_point = event.used_prediction + np.squeeze(event.residual)
+            prediction = None
+            if event.used_prediction is not None:
+                prediction = event.used_prediction
+            elif len(event.predictions) == 1:
+                prediction = list(event.predictions.values())[0]
 
 
+            if prediction is not None:
+                pred_point = prediction
+                if self.literal_stim_events:
+                    greenline_start = difference_interval_start_point
+                else:
+                    greenline_start = delivery_point
                 pred_line = pyqtgraph.PlotDataItem(
-                    x=[start_point[0], pred_point[0]],
-                    y=[start_point[1], pred_point[1]],
+                    x=[greenline_start[0], pred_point[0]],
+                    y=[greenline_start[1], pred_point[1]],
                     pen=pyqtgraph.mkPen(color=(0, 180, 0), width=2),
                 )
                 self.plt.addItem(pred_line)
                 self.stim_plot_items.append(pred_line)
 
-                # Blue line: used_prediction -> used_prediction + residual
-                residual_line = pyqtgraph.PlotDataItem(
-                    x=[pred_point[0], observed_point[0]],
-                    y=[pred_point[1], observed_point[1]],
-                    pen=pyqtgraph.mkPen(color=(0, 100, 255), width=2),
-                )
-                self.plt.addItem(residual_line)
-                self.stim_plot_items.append(residual_line)
 
+                pred_scatter = pyqtgraph.ScatterPlotItem(
+                    pos=np.array([pred_point]),
+                    size=8,
+                    brush=pyqtgraph.mkBrush(0, 180, 0),
+                    pen=pyqtgraph.mkPen(None),
+                )
+                self.plt.addItem(pred_scatter)
+                self.stim_plot_items.append(pred_scatter)
+
+
+                if event.used_prediction is not None:
+                    observed_point = event.used_prediction + np.squeeze(event.residual)
+
+                    # Blue line: used_prediction -> used_prediction + residual
+                    residual_line = pyqtgraph.PlotDataItem(
+                        x=[pred_point[0], observed_point[0]],
+                        y=[pred_point[1], observed_point[1]],
+                        pen=pyqtgraph.mkPen(color=(0, 100, 255), width=2),
+                    )
+                    self.plt.addItem(residual_line)
+                    self.stim_plot_items.append(residual_line)
+
+
+                    observed_scatter = pyqtgraph.ScatterPlotItem(
+                        pos=np.array([observed_point]),
+                        size=8,
+                        brush=pyqtgraph.mkBrush(0,100,255),
+                        pen=pyqtgraph.mkPen(None),
+                    )
+                    self.plt.addItem(observed_scatter)
+                    self.stim_plot_items.append(observed_scatter)
 
 
     def _runProcess(self):
