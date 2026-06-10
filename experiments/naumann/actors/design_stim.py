@@ -14,12 +14,13 @@ logger.setLevel(logging.INFO)
 
 logging.getLogger("jax").setLevel(logging.ERROR)
 
-LOG_LEVEL = 0
+LOG_LEVEL = 3
 
 
 class ImprovStimDesigner(Actor):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, stim_tiff_frames=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.stim_tiff_frames = stim_tiff_frames
 
     def setup(self):
         if self.client is None:
@@ -34,18 +35,20 @@ class ImprovStimDesigner(Actor):
 
         self.stim_designer = StimDesigner(
             should_log=LOG_LEVEL,
-            optimization_method=OptimizationMethod.HOMOGENOUS
+            optimization_method=OptimizationMethod.HOMOGENOUS,
         )
         self.stim_regressor = StimRegressor(
             autoreg=StreamingKalmanFilter(
                 steps_between_refits=5,
                 log_level=LOG_LEVEL,
                 max_history_length=1000,
+                check_dt=True,
             ),
             stim_reg=BaseMultiKernelRegressor(maxlen=100, should_log=LOG_LEVEL),
-            stim_delay=0,
+            stim_delay=4,
             log_level=LOG_LEVEL,
             error_on_missed_stim=True,
+            check_dt=True,
         )
 
         self.last_stim_events_hash = None
@@ -112,7 +115,7 @@ class ImprovStimDesigner(Actor):
             self.links['latents_out'].put(id)
 
         if self.pro.is_initialized:
-            if self.frame_number > 20 and self.frame_number % 20 == 0:
+            if self.frame_number in self.stim_tiff_frames:
                 v = np.zeros([10, 1])
                 v[0] = 1
                 R_U, _, _ = np.linalg.svd(self.pro.R)  # this is fast, R is small

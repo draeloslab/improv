@@ -8,7 +8,8 @@ actors:
     init_filename: /Users/jgould/Downloads/Fish 1 Adaptive Latents-006/CaImAn_baseline_20260608194508.tif  # unused in practice
     filename: /Users/jgould/Downloads/Fish 1 Adaptive Latents-006/Fish 1 Adaptive Latents-006_Cycle00001_Ch2_000001.ome.tif
     init_frame: 0
-    framerate: 1.875
+    # framerate: 1.875
+    framerate: 10
     method: spawn
 
   Acquirer:
@@ -41,6 +42,7 @@ actors:
     package: actors.design_stim
     class: ImprovStimDesigner
     method: spawn
+    stim_tiff_frames: [855, 913, 981, 1023, 1078, 1150, 1194, 1246, 1304, 1359, 1417, 1470, 1528, 1584, 1640, 1696, 1752, 1807, 1864, 1925, 1975, 2033, 2090, 2146, 2203, 2259, 2312, 2374, 2429, 2485, 2540]
 
   GUI:
     package: actors.qt_app_wrapper
