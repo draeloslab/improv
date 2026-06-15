@@ -113,9 +113,11 @@ class CameraStreamWidget(QWidget):
             self.setLayout(layout)
 
             # Initialize a QTimer to update frames
+            fps = getattr(self.visual, 'frame_rate_update', 30)
+            update_interval = int(1000 / fps) if fps > 0 else 33
             self.timer = QTimer()
             self.timer.timeout.connect(self.update_frames)
-            self.timer.start(33)  # Adjust the timer interval to match the frame rate [ms]
+            self.timer.start(update_interval)  # Adjust the timer interval to match the frame rate [ms]
 
             logger.info(f'Front End Setup completed')
         except Exception as e:

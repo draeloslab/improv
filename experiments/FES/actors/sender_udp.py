@@ -1,5 +1,6 @@
 import time
 import socket
+import json
 import numpy as np
 import logging
 from improv.actor import Actor
@@ -39,39 +40,57 @@ class SenderUDP(Actor):
         # Create UDP socket
         self.sock_send = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         
+        self.last_angle = 0
+        self.last_angle2 = 0
+        
         logger.info(f"UDP Sender configured to send to {self.UDP_IP_send}:{self.UDP_PORT_send}")
         logger.info("Completed setup for SenderUDP")
 
     def runStep(self):
-        """Main execution step - get data from queue and send as UDP packet."""
+        """Main execution step - get angles from processors and send as JSON over UDP."""
+        got_data = False
+
         try:
-            # Get data from input queue
-            element = self.q_in.get(timeout=0.1)
-            logger.debug(f"Received element from queue: {element}")
-            
-            # Extract angle or data from the element
-            # Assuming element format is (timestamp, data, angle) based on sender.py
-            _, _, data = element
-            logger.info(f'Received data: {data}, type: {type(data)}')
-            
-            # Convert data to bytes if it's not already
-            if isinstance(data, (int, float)):
-                # Pack as numpy array then convert to bytes
-                data_bytes = np.array([data], dtype=np.float32).tobytes()
-            elif isinstance(data, np.ndarray):
-                data_bytes = data.tobytes()
-            elif isinstance(data, bytes):
-                data_bytes = data
+            #Processor 0
+            element = self.links["preds0_in"].get(timeout=0.0001)
+            if len(element) == 4:
+                _, angle, _, _ = element
             else:
-                # Try to convert to string then encode
-                data_bytes = str(data).encode('utf-8')
-            
-            # Send the data via UDP
-            self.sock_send.sendto(data_bytes, (self.UDP_IP_send, self.UDP_PORT_send))
-            logger.debug(f"Sent {len(data_bytes)} bytes via UDP")
-            
-        except Exception as e:
-            logger.error(f"Error in runStep: {e}")
+                _, angle = element
+            self.last_angle = angle
+            got_data = True
+        except Exception:
+            pass
+
+        try:
+            #Processor 2
+            element2 = self.links["preds2_in"].get(timeout=0.0001)
+            if len(element2) == 4:
+                _, angle2, _, _ = element2
+            else:
+                _, angle2 = element2
+            self.last_angle2 = angle2
+            got_data = True
+        except Exception:
+            pass
+
+        # Drain generator q_in just in case
+        try:
+            self.q_in.get(timeout=0.0001)
+        except Exception:
+            pass
+
+        if got_data:
+            try:
+                # Pack the angles as simple JSON dictionary
+                data_dict = {"angle": float(self.last_angle), "angle2": float(self.last_angle2)}
+                data_bytes = json.dumps(data_dict).encode('utf-8')
+                
+                # Send the data via UDP
+                self.sock_send.sendto(data_bytes, (self.UDP_IP_send, self.UDP_PORT_send))
+                logger.debug(f"Sent {len(data_bytes)} bytes via UDP: {data_dict}")
+            except Exception as e:
+                logger.error(f"Error sending UDP data: {e}")
 
     def stop(self):
         logger.info("Stopping SenderUDP")

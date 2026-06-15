@@ -88,7 +88,12 @@ class VideoScreen(ManagedActor):
             self.camera_names.append(camera['camera']['name'])
             self.camera_ids.append(camera['camera']['serial_id'])
 
-        self.frame_rate_update = 60 # Update rate for the video stream
+        fps_str = str(camera_params.get('fps', 60))
+        if '/' in fps_str:
+            num, den = fps_str.split('/')
+            self.frame_rate_update = int(int(num) / int(den))
+        else:
+            self.frame_rate_update = int(fps_str)
         self.frame_i = self.frame_rate_update
         self.frame_latencies =[]
         self.videoStarts = []
