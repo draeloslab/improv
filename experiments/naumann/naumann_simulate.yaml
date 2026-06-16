@@ -5,12 +5,16 @@ actors:
     ip: '*'
     port: 5007
     output: output/
-    init_filename: /Users/jgould/Downloads/Fish 1 Adaptive Latents-006/CaImAn_baseline_20260608194508.tif  # unused in practice
-    filename: /Users/jgould/Downloads/Fish 1 Adaptive Latents-006/Fish 1 Adaptive Latents-006_Cycle00001_Ch2_000001.ome.tif
+#    note: init_filename is not used in this file in practice, but is used for other actors, including live_caiman_params.yml
+#    init_filename: &init_filename /Users/jgould/Downloads/Fish 1 Adaptive Latents-006/CaImAn_baseline_20260608194508.tif
+    init_filename: &init_filename /mnt/data/owen/owen_26_01_20/example_fish_caiman_baseline.tif
+#    filename: /Users/jgould/Downloads/Fish 1 Adaptive Latents-006/Fish 1 Adaptive Latents-006_Cycle00001_Ch2_000001.ome.tif
+    filename: /mnt/data/owen/owen_26_01_20/example_fish_400.tif
     init_frame: 0
     # framerate: 1.875
     framerate: 10
-    method: spawn
+#    method: &method spawn
+    method: &method fork
 
   Acquirer:
     package: actors.acquire_zmq
@@ -18,16 +22,16 @@ actors:
     ip: 127.0.0.1
     ports: [50154, 5000,5007,5008,5009,5010,5011,4701,4703,5865,5005,5017,5018] 
     output: output/
-    init_filename: /Users/jgould/Downloads/Fish 1 Adaptive Latents-006/CaImAn_baseline_20260608194508.tif
+    init_filename: *init_filename
     init_frame: 400 # todo: check what this actually means
-    method: spawn
+    method: *method
 
   CaImAnProcessor:
     package: actors.caiman_processor
     class: LiveTwoP
-    init_filename: /Users/jgould/Downloads/Fish 1 Adaptive Latents-006/CaImAn_baseline_20260608194508.tif
+    init_filename: *init_filename
     config_file: live_caiman_params.yaml
-    method: spawn
+    method: *method
 
   Analysis:
     package: actors.analysis
@@ -36,29 +40,29 @@ actors:
     before_amount: 5
     after_amount: 1
     calc_color: False
-    method: spawn
+    method: *method
 
   StimDesign:
     package: actors.design_stim
     class: ImprovStimDesigner
-    method: spawn
+    method: *method
     stim_tiff_frames: [855, 913, 981, 1023, 1078, 1150, 1194, 1246, 1304, 1359, 1417, 1470, 1528, 1584, 1640, 1696, 1752, 1807, 1864, 1925, 1975, 2033, 2090, 2146, 2203, 2259, 2312, 2374, 2429, 2485, 2540]
 
   GUI:
     package: actors.qt_app_wrapper
     class: GUI_QTAppWrapper
     visual: [VideoGuiDataManager, LiveTraceGuiDataManager]
-    method: spawn
+    method: *method
 
   VideoGuiDataManager:  # GUI is reserved
     package: actors.video_window.data_manager
     class: VideoGUIDataManager
-    method: spawn
+    method: *method
 
   LiveTraceGuiDataManager:
     package: actors.live_trace_window.data_manager
     class: LiveTraceGUIDataManager
-    method: spawn
+    method: *method
 
 
 

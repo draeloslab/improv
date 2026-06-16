@@ -1,7 +1,9 @@
 data:
   fr: 1.875 #15 #2.2
   decay_time: 4 #0.5
-  fnames: ['/Users/jgould/Downloads/Fish 1 Adaptive Latents-006/CaImAn_baseline_20260608194508.tif']
+#  fnames: ['/Users/jgould/Downloads/Fish 1 Adaptive Latents-006/CaImAn_baseline_20260608194508.tif']
+  fnames: ['/mnt/data/owen/owen_26_01_20/example_fish_caiman_baseline.tif']
+
 
 init: 
   K: 2 #50
