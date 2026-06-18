@@ -124,7 +124,7 @@ class ZMQAcquirer(Actor):
         # np.savetxt('output/timing/acquire_pickle_load_time.txt', self.pickle_load_time, fmt="%s")
         # np.savetxt('output/timing/acquire_unpacking_time.txt', self.unpacking_time, fmt="%s")
         np.savetxt('output/timing/acquire_stim_queue_time.txt', self.acq_stim_queue_ts)
-        np.savetxt("output/timing/improv_recv_img_ts.txt", self.improv_recv_img_ts, fmt="%s") 
+        np.savetxt("output/timing/improv_recv_img_ts.txt", self.improv_recv_img_ts) 
         np.savetxt("output/timing/improv_recv_pstim_ts.txt", self.improv_recv_pstim_ts)
         np.save('output/fullstim.npy', self.fullStimmsg)
 
@@ -179,10 +179,11 @@ class ZMQAcquirer(Actor):
             try:
                 # logger.info("before us trying pickling ahah")
                 msg_body = msg_obj[5:]  # strip the header 'image'
-                timestamp = struct.unpack('d', msg_body[:8])[0]  # double (8 bytes)
-                timestamp = dt.utcfromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-                self.improv_recv_img_ts.append([self.frame_num, time.time(), timestamp])
-                frame_bytes = msg_body[8:]
+                microscope_frame_num = struct.unpack('Q', msg_body[:8])[0]
+                timestamp = struct.unpack('d', msg_body[8:16])[0]  # double (8 bytes)
+                # timestamp = dt.utcfromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S.%f")#[:-3]
+                self.improv_recv_img_ts.append([microscope_frame_num, self.frame_num, time.time(), timestamp])
+                frame_bytes = msg_body[16:]
                 image_array = np.frombuffer(frame_bytes, dtype=np.uint8)
                 image_array =  65535 - image_array.view('<u2').reshape((750, 512))#(600, 512)) #np.frombuffer(frame_bytes, dtype=np.uint8)#.reshape((512, 796))
                 # logger.info('image_array_size: {}'.format(image_array.size))
