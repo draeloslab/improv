@@ -308,6 +308,7 @@ class VizStimAnalysis(Actor):
         ids.append(self.client.put(self.frame))
         ids.append(self.client.put(self.testNum)) #, 'stim_testNum'+str(self.frame)))
         ids.append(self.client.put(self.nID))     #, 'stim_nID'+str(self.frame)))
+        ids.append(self.client.put(self.auc_to_peak_ratio))
         ids.append(self.client.put(self.calibration_not_moving_dots))
         ids.append(self.client.put(self.total_stim_counts))
         self.links['stim_out'].put(ids)
