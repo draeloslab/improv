@@ -80,6 +80,7 @@ class VizStimAnalysis(Actor):
 
         self.stimX = []
         self.stimY = []
+        self.auc_to_peak_ratio = []
         self.testNum = 0 
         self.nID = 0
         self.stimText = None
@@ -126,6 +127,8 @@ class VizStimAnalysis(Actor):
             pickle.dump(self.stimY, f)
         with open("output/analysis_stimX.pkl", 'wb') as f:
             pickle.dump(self.stimX, f)
+        with open("output/auc_to_peak_ratio.pkl", 'wb') as f:
+            pickle.dump(self.auc_to_peak_ratio, f)
             
         stim = []
         for i in self.allStims.keys():
@@ -364,8 +367,15 @@ class VizStimAnalysis(Actor):
                 self.stimX.append(self.xs)
                 local_end = local_idx_now + 1
                 local_start = max(0, local_end - self.after_amount)
-                self.stimY.append(np.mean(ests[:, local_start:local_end], 1))
-
+                segment = ests[:, local_start:local_end]
+                stimY_val = np.mean(segment, 1)
+                self.stimY.append(stimY_val)
+                local_peak = np.nanmax(segment, 1) - np.nanmin(segment, 1) # for each neuron
+                current_ratios = np.full_like(stimY_val, np.nan)
+                valid_mask = local_peak > 1e-6
+                current_ratios[valid_mask] = stimY_val[valid_mask] / local_peak[valid_mask]
+                self.auc_to_peak_ratio.append(current_ratios)
+                # logger.info(f"local_peak: {local_peak}, local_peak shape: {local_peak.shape}, stimY_val shape: {stimY_val.shape}, auc_to_peak_ratio shape: {self.auc_to_peak_ratio[-1].shape}")
                 # self.stimY.append(np.mean(ests[:, -self.after_amount:], 1))  # relative indexing
                 logger.info(f"done appending at frame {self.frame}. before the estimated frame num {self.should_send_frame_num}? {self.frame <= self.should_send_frame_num}")
                 logger.info('at frame {} we have {} neurons right now'.format(self.frame, ests.shape[0]))
