@@ -30,6 +30,8 @@ class BayesOptimizer(Actor):
         self.stim_space = self.stimuli_space.stim_space
         self.stimuli = self.stim_space['stimuli']
         self.stimuli_optim = self.stim_space['stimuli_optim']
+        # self.stimuli = np.array([np.sort(stim) for stim in self.stim_space['stimuli']], dtype=object)
+        # logger.info('reading in stim: {}'.format(self.stimuli))
         self.total_stim_time = self.stim_space['total_stim_time']
         self.d = self.stimuli_optim.shape[0]
         self.initial_length = self.stimuli_space.initial_stim_count
@@ -144,6 +146,7 @@ class BayesOptimizer(Actor):
             self.calibration_not_moving_dots = self.client.get(ids[-2])
             stim_count = self.client.get(ids[-1]) # -1 to account for initial stim
             frame_num = self.client.get(ids[2])
+            auc_to_peak_ratio = self.client.get(ids[-3])
             got_new_data = True
             frame_num_for_timing = frame_num
             self.opt_q_in_ts.append([frame_num, time.time()])
@@ -169,6 +172,7 @@ class BayesOptimizer(Actor):
                 self.start_stimulus = np.argmax(~is_nan_2d, axis=1)
                 self.stim_count = stim_count #-1
                 self.frame_num = frame_num
+                self.auc_to_peak_ratio = auc_to_peak_ratio
                 # logger.info(f"this is self.start_stimulus: {self.start_stimulus}")
             except:
                 pass
@@ -263,11 +267,44 @@ class BayesOptimizer(Actor):
                 if len(nonopt) >= 1:
                     obs_counts = np.count_nonzero(~np.isnan(self.y0[nonopt, :]), axis=1)
                     ready_mask = obs_counts >= 8
+                    max_neurons = len(self.auc_to_peak_ratio[-1])
+                    padded_ratios = []
+                    for trial_array in self.auc_to_peak_ratio:
+                        pad_length = max_neurons - len(trial_array)
+                        if pad_length > 0:
+                            # Add NaNs to the end of the array to fill the missing neuron slots
+                            padded = np.pad(trial_array, (0, pad_length), constant_values=np.nan)
+                            padded_ratios.append(padded)
+                        else:
+                            padded_ratios.append(trial_array)
+                    stacked_matrix = np.vstack(padded_ratios)
+                    median_equivalent_width = np.nanmedian(stacked_matrix, axis=0)
+                    logger.info(f"mean_equivalent_width has shape: {median_equivalent_width.shape}")
                     # logger.info(f"obs_counts for nonopt neurons: {obs_counts}")
                     if np.any(ready_mask):
                         ready = nonopt[ready_mask]
+                        pop_median_width = np.nanmedian(median_equivalent_width)
+                        # # select the ones that are below the IQR? 
+                        # pop_median_width = np.nanpercentile(median_equivalent_width, 25) 
+                        below_median_mask = median_equivalent_width < pop_median_width
+                        sharp_and_ready = ready[below_median_mask[ready]]
+                        logger.info(f"these neurons are sharp and ready {sharp_and_ready}")
+                        if len(sharp_and_ready) > 0:
+                            candidates = sharp_and_ready
+                            # logger.info(f"Out of nonopt, found {len(candidates)} ready & sharp candidates.")
+                        else:
+                            candidates = ready
+                        candidate_responses = np.nanmean(self.y0[candidates, :], axis=1)
+
+                        # argmax gives the local index (e.g., 0, 1, 2) within the candidates array
+                        best_local_idx = np.argmax(candidate_responses)
+
+                        # Map the local index back to the absolute global Neuron ID
+                        self.nID = candidates[best_local_idx]
+
+
                         # logger.info(f"out of those nonopt, these are ready: {ready}")
-                        self.nID = nonopt[np.argmax(np.nanmean(self.y0[ready,:], axis=1))]
+                        # self.nID = nonopt[np.argmax(np.nanmean(self.y0[ready,:], axis=1))]
                         logger.info('selecting most responsive neuron: {}'.format(self.nID))
                         self.optimized_n.append(self.nID)
                         self.saved_GP_est = []
@@ -347,7 +384,7 @@ class BayesOptimizer(Actor):
                 ids.append(self.client.put(curr_est)) #, 'est'))
                 ids.append(self.client.put(curr_unc)) #, 'unc'))
                 self.q_out.put(ids)
-
+                logger.info(f"anything weird/ nan in curr_est? {np.isnan(curr_est).any()} what about curr_unc {np.isnan(curr_unc).any()}")
                 stopCrit, PI = self.optim.stopping()
                 logger.info('----------- stopCrit: {}'.format(stopCrit))
                 self.stopping[self.test_count] = stopCrit
