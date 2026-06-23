@@ -128,7 +128,8 @@ class VizStimAnalysis(Actor):
             pickle.dump(self.stimY, f)
         with open("output/analysis_stimX.pkl", 'wb') as f:
             pickle.dump(self.stimX, f)
-        # with open("outp")
+        with open("output/auc_to_peak_ratio.pkl", 'wb') as f:
+            pickle.dump(self.auc_to_peak_ratio, f)
             
         stim = []
         for i in self.allStims.keys():

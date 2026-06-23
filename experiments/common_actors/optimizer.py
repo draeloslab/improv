@@ -289,6 +289,8 @@ class BayesOptimizer(Actor):
                     if np.any(ready_mask):
                         ready = nonopt[ready_mask]
                         pop_median_width = np.nanmedian(median_equivalent_width)
+                        # # select the ones that are below the IQR? 
+                        # pop_median_width = np.nanpercentile(median_equivalent_width, 25) 
                         below_median_mask = median_equivalent_width < pop_median_width
                         sharp_and_ready = ready[below_median_mask[ready]]
                         logger.info(f"these neurons are sharp and ready {sharp_and_ready}")
