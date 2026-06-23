@@ -4,22 +4,22 @@ actors:
     class: DisplayVisual
     visual: Visual
 
-  # Microscope actor should be commented out when running a live experiment
-  Microscope:
-    package: experiments.common_actors.load_disc
-    class: FileAcquirer
-    ip: '*'
-    port: 5007
-    output: output/
-    init_filename: output/initialization.h5
-    filename: data/output_090525_ds2.h5 #sample_stream0.h5 #data_032525_ds3.h5
-    init_frame: 0
-    framerate: 7.5
+  # # Microscope actor should be commented out when running a live experiment
+  # Microscope:
+  #   package: experiments.common_actors.load_disc
+  #   class: FileAcquirer
+  #   ip: '*'
+  #   port: 5007
+  #   output: output/
+  #   init_filename: output/initialization.h5
+  #   filename: data/sample_stream0.h5 #data_032525_ds3.h5
+  #   init_frame: 0
+  #   framerate: 15
 
   Acquirer:
     package: actors.acquire_zmq
     class: ZMQAcquirer
-    ip: 127.0.0.1 #192.168.1.1 #127.0.0.1 IP address is for running a pseudo-online run
+    ip: 192.168.1.1 #127.0.0.1 #192.168.1.1 #127.0.0.1 IP address is for running a pseudo-online run
     ports: [50154, 5000,5007,5008,5009,5010,5011,4701,4703,5865,5005,5017,5018] 
     output: output/
     red_chan_image: output/red_channel_image.npy
@@ -32,6 +32,7 @@ actors:
     ip: '*'
     port: 6006
     stimuli: stimuli.npy
+    grid_pattern: 'rectangular'
 
   Processor:
     package: experiments.common_actors.caiman_processor
@@ -53,7 +54,7 @@ actors:
 
   Optimizer:
     package: experiments.common_actors.optimizer
-    class: BayesOptimizer #RandomSampler 
+    class: BayesOptimizer #BayesOptimizer #RandomSampler 
     param_file: bayesopt_parameters.yaml
     calibration: True
 

@@ -13,7 +13,7 @@ from datetime import datetime as dt
 from BayesOptim.model.improv_config import Config 
 from BayesOptim.model.optimizer import Optimizer
 
-from experiments.savier.gen_stim import StimulusSpace
+from experiments.burgess.gen_stim import StimulusSpace
 
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -658,9 +658,7 @@ class GridSampler(Actor):
                 logger.info('calibration_stim set: {}'.format(self.stim_ind))
                 if self.stimuli_space.map_full_to_r1[self.stim_ind] >= 0:
                     self.tag_to_go = "calibration_initial"
-                    # logger.info(f"HEYYYY optimizer is remapping the tags yooo, now it's {self.tag_to_go}")
                 else:
-                    # logger.info(f"calibration calibration, this is the index {self.stimuli_space.param_index_space[self.stim_ind]}")
                     self.tag_to_go = "calibration"
             
             if (time.time() - self.timer) >= self.total_stim_time:
@@ -797,9 +795,7 @@ class RandomSamplerWithReplace(Actor):
                 logger.info('calibration_stim set: {}'.format(self.stim_ind))
                 if self.stimuli_space.map_full_to_r1[self.stim_ind] >= 0:
                     self.tag_to_go = "calibration_initial"
-                    # logger.info(f"HEYYYY optimizer is remapping the tags yooo, now it's {self.tag_to_go}")
                 else:
-                    # logger.info(f"calibration calibration, this is the index {self.stimuli_space.param_index_space[self.stim_ind]}")
                     self.tag_to_go = "calibration"
             
             if (time.time() - self.timer) >= self.total_stim_time:
@@ -998,9 +994,7 @@ class RandomBayesOptimizer(Actor):
                 logger.info('calibration_stim set: {}'.format(self.stim_ind))
                 if self.stimuli_space.map_full_to_r1[self.stim_ind] >= 0:
                     self.tag_to_go = "calibration_initial"
-                    # logger.info(f"HEYYYY optimizer is remapping the tags yooo, now it's {self.tag_to_go}")
                 else:
-                    # logger.info(f"calibration calibration, this is the index {self.stimuli_space.param_index_space[self.stim_ind]}")
                     self.tag_to_go = "calibration"
             
             if (time.time() - self.timer) >= self.total_stim_time:
