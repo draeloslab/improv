@@ -28,7 +28,6 @@ class VizStimAnalysis(Actor):
         self.param_space_size = self.stimuli_space.param_space_size 
         self.param_index_space = self.stimuli_space.param_index_space
         self.param_space_optim = self.stimuli_space.r1_params #param_space_optim
-        # logger.info('reading in stim: {}'.format(self.stimuli))
 
         self.calibration_not_moving_dots = 0
         self.before_amount = before_amount
@@ -256,10 +255,6 @@ class VizStimAnalysis(Actor):
 
         else:
             multi_idx = self.param_index_space[whichStim]
-            # multi_idx_copy = multi_idx.copy()
-            # if self.stimuli_space.map_full_to_r1[whichStim] >= 0:
-            #     # multi_idx = self.stimuli_space.r1_coords[self.stimuli_space.map_full_to_r1[whichStim]]
-            #     logger.info(f"AHAHAHAHAH multi_idx remapping this was multi_idx {multi_idx_copy}, and this is multi_idx {multi_idx}")
         multi_idx = np.asarray(multi_idx, dtype=int)
         logger.info('multi_idx: {}'.format(multi_idx))
 
@@ -355,12 +350,6 @@ class VizStimAnalysis(Actor):
                 else:
                     logger.warning(f"Frame {target_frame} missing from 500-frame buffer.")
 
-                # # val = ests[:, self.frame-1]
-                # val = ests[:, -2]  # dont use relative indexing (caiman need to send an array of frame num)
-
-                # self.ests[:, self.currentStim, 1] = (self.counter[self.currentStim, 1] * self.ests[:, self.currentStim, 1] + val) / (self.counter[self.currentStim, 1] +1)
-                # self.counter[self.currentStim, 1] += 1
-
             elif self.frame in range(self.stimStart+2, self.stimStart+self.after_amount):
                 target_frame = self.frame - 1
                 local_idx = target_frame - buffer_start_idx
@@ -372,11 +361,6 @@ class VizStimAnalysis(Actor):
                 else:
                     logger.warning(f"Frame {target_frame} missing from 500-frame buffer.")
 
-                # # val = ests[:, self.frame-1]
-                # val = ests[:, -2]  # same, dont use relative indexing
-
-                # self.ests[:, self.currentStim, 0] = (self.counter[self.currentStim, 0] * self.ests[:, self.currentStim, 0] + val) / (self.counter[self.currentStim, 0] +1)
-                # self.counter[self.currentStim, 0] += 1
 
             if self.frame == self.stimStart + self.after_amount:
                 logger.info('appending to X: {}'.format(self.xs))

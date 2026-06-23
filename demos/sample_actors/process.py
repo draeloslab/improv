@@ -224,7 +224,6 @@ class CaimanProcessor(Actor):
         """Check to see if we have frames for processing"""
         try:
             res = self.q_in.get(timeout=0.0005)
-            # logger.info(f"from processor do we have a queue item? {self.q_in.qsize()}")
             self.proc_q_in_qsize.append([self.frame_number, self.q_in.qsize()])
             self.proc_q_in_ts.append([self.frame_number, time.time()])
             return res

@@ -82,7 +82,6 @@ class VisualStimulus(Actor):
             t = time.time()
             row_index, tag = self.links['stim_ind_in'].get(timeout=0.0001) #TODO: need to confirm if this row_index makes sense
             self.stim_ind_in_qsize.append([row_index, self.links['stim_ind_in'].qsize()])
-            # logger.info(f"from stimulus do we have a queue item? {self.links['stim_ind_in'].qsize()}")
             self.stim_stim_ind_in_ts.append([row_index, time.time()])
             logger.info('stim index: {}'.format(row_index))
             if tag == 'optim' or tag == 'initial' or tag == 'calibration_initial' or tag == 'random' or tag == "grid":
@@ -105,6 +104,7 @@ class VisualStimulus(Actor):
 
 
     def send_frame(self, stim):
+        ''' send_frame takes the stim object and adds the texture parameters before sending the request to pandastim'''
 
         # logger.info('PARMS INSIDE SEND FRAME {}'.format(params))
 
@@ -149,6 +149,8 @@ class VisualStimulus(Actor):
             logger.error('Tried to send a None frame')
 
     def create_frame(self, parameters, tag):
+        ''' create_frame creates the stim object based on the request from the Optimizer actor'''
+
         stim_t = self. stat_t + self.total_stim_time 
 
         # NOTE: this is creating self.<param> based on the labels defined in gen_stim
