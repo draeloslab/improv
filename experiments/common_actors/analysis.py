@@ -68,8 +68,7 @@ class VizStimAnalysis(Actor):
         self.currStim = -10
         self.allStims = {}
         self.estsAvg = None
-
-
+        
         self.xs = np.empty((0, self.d), dtype=int) #np.zeros((self.stim_space_dim))
         self.ys = np.zeros((1, self.stim_space_dim, 2))
         

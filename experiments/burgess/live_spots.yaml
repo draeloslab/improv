@@ -23,8 +23,13 @@ actors:
     ports: [50154, 5000,5007,5008,5009,5010,5011,4701,4703,5865,5005,5017,5018] 
     output: output/
     red_chan_image: output/red_channel_image.npy
-    init_filename: output/initialization.h5
+  
+  VideoSaver:
+    package: experiments.common_actors.video_saver
+    class: VideoSaver
+    output: output/
     init_frame: 60
+    init_filename: output/initialization.h5
     
   Stimulus:
     package: actors.stimulus
@@ -59,7 +64,7 @@ actors:
     calibration: True
 
 connections:
-  Acquirer.q_out: [Processor.q_in, Visual.raw_frame_queue]
+  Acquirer.q_out: [Processor.q_in, Visual.raw_frame_queue, VideoSaver.q_in]
   Processor.q_out: [Analysis.q_in]
   Analysis.q_out: [Visual.q_in]
   Acquirer.stim_queue: [Analysis.input_stim_queue, Visual.stim_in]

@@ -23,15 +23,13 @@ from experiments.burgess.gen_stim import StimulusSpace
 
 class ZMQAcquirer(Actor):
 
-    def __init__(self, *args, ip=None, ports=None, output=None, red_chan_image=None, init_filename=None, init_frame=60, **kwargs):
+    def __init__(self, *args, ip=None, ports=None, output=None, red_chan_image=None, **kwargs):
         super().__init__(*args, **kwargs)
         print("init")
         self.ip = ip
         self.ports = ports
         self.frame_num = 0
         self.stim_count = 0
-        self.initial_frame_num = init_frame     # Number of frames for initialization
-        self.init_filename = init_filename 
         self.red_chan_image = red_chan_image
         
         self.output_folder = str(output)
@@ -52,9 +50,7 @@ class ZMQAcquirer(Actor):
         # logger.info('Connected to '+str(self.ip)+':'+str(port))
         self.socket.setsockopt(zmq.SUBSCRIBE, b'')
 
-        self.saveArray = []
         self.saveArrayRedChan = []
-        self.save_ind = 0
         self.fullStimmsg = []
         self.total_times_frame = []
         self.total_times_pstim = []
@@ -78,19 +74,6 @@ class ZMQAcquirer(Actor):
         self.stimF = False
         self.frameF = False
         self.align_flag = True
-        self.counter_img_number = 0  # TODO: delete after use
-
-        if not os.path.exists(self.init_filename):
-
-            ## Save initial set of frames to output/initialization.h5
-            self.kill_flag = False
-            while self.frame_num < self.initial_frame_num:
-                self.runStep()
-
-            self.imgs = np.array(self.saveArray)
-            f = h5py.File(self.init_filename, 'w', libver='earliest')
-            f.create_dataset("default", data=self.imgs)
-            f.close()
 
         self.frame_num = 0
         self.track = 0
@@ -100,15 +83,6 @@ class ZMQAcquirer(Actor):
 
     def stop(self):
         logger.info('Acquire ZMQ stopping procedure --')
-        self.imgs = np.array(self.saveArray)
-        logger.info('Trying to save 1')
-        f = h5py.File('output/sample_stream_end.h5', 'w', libver='earliest')
-        logger.info('Trying to save 2')
-        f.create_dataset("default", data=self.imgs)
-        logger.info('Trying to save 3')
-        f.close()
-        logger.info('Trying to save 4')
-
         np.save('output/stimmed.npy', np.array(self.stimmed))
         # np.savetxt('output/photostimmed_msgs.txt', np.array(self.photostims))
         np.save('output/tails.npy', np.array(self.tails))
@@ -188,13 +162,11 @@ class ZMQAcquirer(Actor):
                 image_array =  65535 - image_array.view('<u2').reshape((750, 512))#(600, 512)) #np.frombuffer(frame_bytes, dtype=np.uint8)#.reshape((512, 796))
                 # logger.info('image_array_size: {}'.format(image_array.size))
                 if image_array.size == 512 * 750: #600 :#* 2:
-                    self.counter_img_number += 1
                     msg = image_array.T #image_array.view(np.uint16).reshape((512, 796))  # TODO: dim hard coded, maybe move into params. 
                     # logger.info('hey do i have correct image?')
                 if isinstance(msg, np.ndarray):  # is it ok to add this here?
                     finalthing = msg
                     tag = "scanbox_img"
-                    # logger.info('Image {} received from matlab at time {}'.format(self.counter_img_number, timestamp))
                 # else:
                 #     logger.info("yo this is np from buffer we don't know what the type is")
             except Exception as e:
@@ -231,7 +203,6 @@ class ZMQAcquirer(Actor):
             logger.info('Image frame(s) size is {}'.format(array.shape))
             if array.shape[0] == 2:
                 logger.info('Acquiring also in the red channel')
-        self.saveArray.append(array)
         if array.shape[0] == 2:
             self.saveArrayRedChan.append(array[1])
         
@@ -245,15 +216,6 @@ class ZMQAcquirer(Actor):
         self.frametimes.append([self.frame_num, time.time()])
         # self.framesendtimes.append([sendtime])
         # logger.info('sent a frame on')
-        if len(self.saveArray) >= 1000:
-            self.imgs = np.array(self.saveArray)
-            f = h5py.File(self.output_folder+'/sample_stream'+str(self.save_ind)+'.h5', 'w', libver='earliest')
-            f.create_dataset("default", data=self.imgs)
-            f.close()
-            self.save_ind += 1
-            del self.saveArray
-            self.saveArray = []
-            logger.info('after saving internal')
         
 
     def _collect_stimulus(self, msg_dict, category):

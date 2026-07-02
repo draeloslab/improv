@@ -21,6 +21,7 @@ class StimulusSpace():
         x3 = np.array([50, 137, 225, 312, 400])
         x4 = np.array([1, 3, 10, 20])
         x5 = np.array([150, 800, 1200]) #1450])
+        # x5 = np.array([200, 800, 1200]) #1450])
         x6 = np.array([500, 800, 1100])
         x7 = np.array([0, 50, 100])
         x8 = np.array([0,1])
