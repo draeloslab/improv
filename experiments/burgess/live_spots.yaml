@@ -23,13 +23,12 @@ actors:
     ports: [50154, 5000,5007,5008,5009,5010,5011,4701,4703,5865,5005,5017,5018] 
     output: output/
     red_chan_image: output/red_channel_image.npy
-    init_filename: output/initialization.h5
-    init_frame: 60
   
   VideoSaver:
     package: experiments.common_actors.video_saver
     class: VideoSaver
     output: output/
+    init_frame: 60
     init_filename: output/initialization.h5
     
   Stimulus:
