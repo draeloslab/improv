@@ -19,19 +19,17 @@ import cv2
 import logging; logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-from experiments.savier.gen_stim import StimulusSpace
+from experiments.burgess.gen_stim import StimulusSpace
 
 class ZMQAcquirer(Actor):
 
-    def __init__(self, *args, ip=None, ports=None, output=None, red_chan_image=None, init_filename=None, init_frame=60, **kwargs):
+    def __init__(self, *args, ip=None, ports=None, output=None, red_chan_image=None, **kwargs):
         super().__init__(*args, **kwargs)
         print("init")
         self.ip = ip
         self.ports = ports
         self.frame_num = 0
         self.stim_count = 0
-        self.initial_frame_num = init_frame     # Number of frames for initialization
-        self.init_filename = init_filename 
         self.red_chan_image = red_chan_image
         
         self.output_folder = str(output)
@@ -52,9 +50,7 @@ class ZMQAcquirer(Actor):
         # logger.info('Connected to '+str(self.ip)+':'+str(port))
         self.socket.setsockopt(zmq.SUBSCRIBE, b'')
 
-        self.saveArray = []
         self.saveArrayRedChan = []
-        self.save_ind = 0
         self.fullStimmsg = []
         self.total_times_frame = []
         self.total_times_pstim = []
@@ -62,29 +58,22 @@ class ZMQAcquirer(Actor):
         self.timestamp_pstim = []
         self.stimmed = []
         self.frametimes = []
-        self.framesendtimes = []
-        self.stimsendtimes = []
-        self.tailsendtimes = []
+        # self.framesendtimes = []
+        # self.stimsendtimes = []
+        # self.tailsendtimes = []
         self.tails = []
         self.photostims = []
+        # self.receive_time = []
+        # self.pickle_load_time = []
+        # self.unpacking_time = []
+        self.acq_stim_queue_ts = []
+        self.improv_recv_img_ts = []
+        self.improv_recv_pstim_ts = []
 
         self.tailF = False
         self.stimF = False
         self.frameF = False
         self.align_flag = True
-        self.counter_img_number = 0  # TODO: delete after use
-
-        if not os.path.exists(self.init_filename):
-
-            ## Save initial set of frames to output/initialization.h5
-            self.kill_flag = False
-            while self.frame_num < self.initial_frame_num:
-                self.runStep()
-
-            self.imgs = np.array(self.saveArray)
-            f = h5py.File(self.init_filename, 'w', libver='earliest')
-            f.create_dataset("default", data=self.imgs)
-            f.close()
 
         self.frame_num = 0
         self.track = 0
@@ -94,30 +83,28 @@ class ZMQAcquirer(Actor):
 
     def stop(self):
         logger.info('Acquire ZMQ stopping procedure --')
-        self.imgs = np.array(self.saveArray)
-        logger.info('Trying to save 1')
-        f = h5py.File('output/sample_stream_end.h5', 'w', libver='earliest')
-        logger.info('Trying to save 2')
-        f.create_dataset("default", data=self.imgs)
-        logger.info('Trying to save 3')
-        f.close()
-        logger.info('Trying to save 4')
-
         np.save('output/stimmed.npy', np.array(self.stimmed))
-        np.savetxt('output/photostimmed_msgs.txt', np.array(self.photostims))
+        # np.savetxt('output/photostimmed_msgs.txt', np.array(self.photostims))
         np.save('output/tails.npy', np.array(self.tails))
         np.savetxt('output/timing/frametimes.txt', np.array(self.frametimes))
-        np.savetxt('output/timing/framesendtimes.txt', np.array(self.framesendtimes), fmt="%s")
-        np.savetxt('output/timing/stimsendtimes.txt', np.array(self.stimsendtimes), fmt="%s")
-        np.savetxt('output/timing/tailsendtimes.txt', np.array(self.tailsendtimes), fmt="%s")
-        np.savetxt('output/timing/acquire_frame_time.txt', self.total_times_frame, fmt="%s")
-        np.savetxt('output/timing/acquire_pstim_time.txt', self.total_times_pstim, fmt="%s")
+        # np.savetxt('output/timing/framesendtimes.txt', np.array(self.framesendtimes), fmt="%s")
+        # np.savetxt('output/timing/stimsendtimes.txt', np.array(self.stimsendtimes), fmt="%s")
+        # np.savetxt('output/timing/tailsendtimes.txt', np.array(self.tailsendtimes), fmt="%s")
+        # np.savetxt('output/timing/acquire_frame_time.txt', self.total_times_frame, fmt="%s")
+        # np.savetxt('output/timing/acquire_pstim_time.txt', self.total_times_pstim, fmt="%s")
         np.savetxt('output/timing/acquire_frame_timestamp.txt', self.timestamp_frame, fmt="%s")
         np.savetxt('output/timing/acquire_pstim_timestamp.txt', self.timestamp_pstim, fmt="%s")
+        # np.savetxt('output/timing/acquire_receive_time.txt', self.receive_time, fmt="%s")
+        # np.savetxt('output/timing/acquire_pickle_load_time.txt', self.pickle_load_time, fmt="%s")
+        # np.savetxt('output/timing/acquire_unpacking_time.txt', self.unpacking_time, fmt="%s")
+        np.savetxt('output/timing/acquire_stim_queue_time.txt', self.acq_stim_queue_ts)
+        np.savetxt("output/timing/improv_recv_img_ts.txt", self.improv_recv_img_ts) 
+        np.savetxt("output/timing/improv_recv_pstim_ts.txt", self.improv_recv_pstim_ts)
         np.save('output/fullstim.npy', self.fullStimmsg)
 
         logger.info('Acquisition complete, avg time per frame: {}'.format(np.mean(self.total_times_frame)))
         logger.info('Acquire got through {} frames'.format(self.frame_num))
+
 
     def runStep(self):
         try:
@@ -166,20 +153,20 @@ class ZMQAcquirer(Actor):
             try:
                 # logger.info("before us trying pickling ahah")
                 msg_body = msg_obj[5:]  # strip the header 'image'
-                timestamp = struct.unpack('d', msg_body[:8])[0]  # double (8 bytes)
-                timestamp = dt.utcfromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-                frame_bytes = msg_body[8:]
+                microscope_frame_num = struct.unpack('Q', msg_body[:8])[0]
+                timestamp = struct.unpack('d', msg_body[8:16])[0]  # double (8 bytes)
+                # timestamp = dt.utcfromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S.%f")#[:-3]
+                self.improv_recv_img_ts.append([microscope_frame_num, self.frame_num, time.time(), timestamp])
+                frame_bytes = msg_body[16:]
                 image_array = np.frombuffer(frame_bytes, dtype=np.uint8)
                 image_array =  65535 - image_array.view('<u2').reshape((750, 512))#(600, 512)) #np.frombuffer(frame_bytes, dtype=np.uint8)#.reshape((512, 796))
                 # logger.info('image_array_size: {}'.format(image_array.size))
                 if image_array.size == 512 * 750: #600 :#* 2:
-                    self.counter_img_number += 1
                     msg = image_array.T #image_array.view(np.uint16).reshape((512, 796))  # TODO: dim hard coded, maybe move into params. 
                     # logger.info('hey do i have correct image?')
                 if isinstance(msg, np.ndarray):  # is it ok to add this here?
                     finalthing = msg
                     tag = "scanbox_img"
-                    # logger.info('Image {} received from matlab at time {}'.format(self.counter_img_number, timestamp))
                 # else:
                 #     logger.info("yo this is np from buffer we don't know what the type is")
             except Exception as e:
@@ -190,20 +177,20 @@ class ZMQAcquirer(Actor):
             if not self.stimF:
                 logger.info('Receiving stimulus information')
                 self.stimF = True
-            t0 = time.time()
+            # t0 = time.time()
             self.fullStimmsg.append(msg)
             self._collect_stimulus(msg_dict, category)
-            self.total_times_pstim.append(time.time() - t0)
+            # self.total_times_pstim.append(time.time() - t0)
             self.timestamp_pstim.append([dt.now(), self.frame_num])
 
         # elif 'frame' in tag: 
         else:
-            t0 = time.time()
+            # t0 = time.time()
             # brought back the self.track, collect every other frame
             if self.track %2 == 0:  # next two lines unindented
                 self._collect_frame(finalthing)
                 self.frame_num += 1
-            self.total_times_frame.append(time.time() - t0)
+            # self.total_times_frame.append(time.time() - t0)
             self.timestamp_frame.append([dt.now(), self.frame_num])
             self.track += 1
 
@@ -216,7 +203,6 @@ class ZMQAcquirer(Actor):
             logger.info('Image frame(s) size is {}'.format(array.shape))
             if array.shape[0] == 2:
                 logger.info('Acquiring also in the red channel')
-        self.saveArray.append(array)
         if array.shape[0] == 2:
             self.saveArrayRedChan.append(array[1])
         
@@ -230,15 +216,6 @@ class ZMQAcquirer(Actor):
         self.frametimes.append([self.frame_num, time.time()])
         # self.framesendtimes.append([sendtime])
         # logger.info('sent a frame on')
-        if len(self.saveArray) >= 1000:
-            self.imgs = np.array(self.saveArray)
-            f = h5py.File(self.output_folder+'/sample_stream'+str(self.save_ind)+'.h5', 'w', libver='earliest')
-            f.create_dataset("default", data=self.imgs)
-            f.close()
-            self.save_ind += 1
-            del self.saveArray
-            self.saveArray = []
-            logger.info('after saving internal')
         
 
     def _collect_stimulus(self, msg_dict, category):
@@ -270,7 +247,7 @@ class ZMQAcquirer(Actor):
         sendtime = msg_dict['timestamp']
         tails = np.array(msg_dict['tail_points']) 
         self.tails.append(tails) 
-        self.tailsendtimes.append([sendtime])
+        # self.tailsendtimes.append([sendtime])
 
     def _msg_unpacker(self, msg):
 
@@ -290,6 +267,14 @@ class ZMQAcquirer(Actor):
             msg_dict = {}
             logger.info('No stim change')
         else:
+            try:
+                if category == "motionOn":
+                    _, ts_str, content = msg_unpacked.split('|', 2)
+                    dt_obj = dt.strptime(ts_str.strip(), '%Y-%m-%d %H:%M:%S.%f')
+                    sent_time = dt_obj.timestamp()
+                    self.improv_recv_pstim_ts.append([sent_time, time.time()])
+            except Exception as e:
+                logger.info(f"whaat acquirer zmq error: {e}")
             start_idx = msg_unpacked.find("{")
             end_idx = msg_unpacked.find("}}")+2
             msg_str= msg_unpacked[start_idx:end_idx]
@@ -338,14 +323,9 @@ class ZMQAcquirer(Actor):
                         
             # logger.info('Is speed = float(0): {}'.format(speed == float(0)))
             if speed == float(0):
-                logger.info('Stimulus: Flashing spot at ({},{})'.format(center_x, center_y))
+                logger.info('Stimulus: Flashing spot at ({},{}) at frame {}'.format(center_x, center_y, self.frame_num))
             else:
-                if angle in [45, 135, 225, 315]:
-                    # Adjust angle to match stimulus space, remapping to the "center" of the stimulus screen
-                    center_x = 850
-                    center_y = 1000
-                logger.info('Stimulus: {} Moving dots with size {} at angle {} and speed {}'.format(freq, size, angle, speed))
-
+                logger.info('Stimulus: {} Moving dots with size {} at angle {} and speed {} with contrast {} at frame {}'.format(freq, size, angle, speed, contrast, self.frame_num))
 
         elif msg_dict['texture']['texture_name'] == 'grating_gray':
             try:
@@ -359,15 +339,17 @@ class ZMQAcquirer(Actor):
                 shape = 1
             except Exception as e:
                 logger.info('acquirer receiving msg error: {}'.format(e))
-            logger.info('Stimulus: Sin Drift Gratings at angle {} and speed {}'.format(angle, speed))
-      
-        # try:
+            logger.info('Stimulus: Sin Drift Gratings at angle {} and speed {} at frame {}'.format(angle, speed, self.frame_num))
+
 
         stim_set_tag = msg_dict['stimulus']['note']
+        # logger.info(f"this is stimsettag {stim_set_tag} ")
         indices = self.stimuli_space.param_to_ridx([angle, speed, size, freq, center_x, center_y, contrast, shape], tag=stim_set_tag)
-        # except Exception as e:
-        #     logger.info(f'Params are: {[angle, speed, size, freq, center_x, center_y, contrast, shape]}')
-        #     logger.info('Error finding stimulus index: {}'.format(e))
-        self.links['stim_queue'].put({self.frame_num:indices})
+        # logger.info(f"this is indices {indices}")
+        # logger.info(f"{[angle, speed, size, freq, center_x, center_y, contrast, shape]}")
+        # self.links['stim_queue'].put({self.frame_num:indices})
+        self.links['stim_queue'].put({"frame": self.frame_num,"indices": indices,"tag": stim_set_tag, "stim_count": self.stim_count})
+        # logger.info("stim queue sent")
+        self.acq_stim_queue_ts.append([self.frame_num, time.time()])
         self.stimmed.append([self.frame_num, angle, speed, size, freq, center_x, center_y, contrast, shape])
         

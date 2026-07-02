@@ -192,12 +192,9 @@ class BayesOptimizer(Actor):
                 logger.info('Calibration counter is {}/{}'.format(self.counter+1, len(self.stim_space['calibration_stim'])))
                 self.stim_ind = self.stim_space['calibration_stim'][self.counter]
                 logger.info('calibration_stim set: {}'.format(self.stim_ind))
-                # logger.info(f"what is this?? {self.stimuli_space.map_full_to_r1[self.stim_ind]}")
                 if self.stimuli_space.map_full_to_r1[self.stim_ind] >= 0:
                     self.tag_to_go = "calibration_initial"
-                    # logger.info(f"HEYYYY optimizer is remapping the tags yooo, now it's {self.tag_to_go}")
                 else:
-                    # logger.info(f"calibration calibration, this is the index {self.stimuli_space.param_index_space[self.stim_ind]}")
                     self.tag_to_go = "calibration"
             
             if (time.time() - self.timer) >= self.total_stim_time:
@@ -658,9 +655,7 @@ class GridSampler(Actor):
                 logger.info('calibration_stim set: {}'.format(self.stim_ind))
                 if self.stimuli_space.map_full_to_r1[self.stim_ind] >= 0:
                     self.tag_to_go = "calibration_initial"
-                    # logger.info(f"HEYYYY optimizer is remapping the tags yooo, now it's {self.tag_to_go}")
                 else:
-                    # logger.info(f"calibration calibration, this is the index {self.stimuli_space.param_index_space[self.stim_ind]}")
                     self.tag_to_go = "calibration"
             
             if (time.time() - self.timer) >= self.total_stim_time:
@@ -797,9 +792,7 @@ class RandomSamplerWithReplace(Actor):
                 logger.info('calibration_stim set: {}'.format(self.stim_ind))
                 if self.stimuli_space.map_full_to_r1[self.stim_ind] >= 0:
                     self.tag_to_go = "calibration_initial"
-                    # logger.info(f"HEYYYY optimizer is remapping the tags yooo, now it's {self.tag_to_go}")
                 else:
-                    # logger.info(f"calibration calibration, this is the index {self.stimuli_space.param_index_space[self.stim_ind]}")
                     self.tag_to_go = "calibration"
             
             if (time.time() - self.timer) >= self.total_stim_time:
@@ -998,9 +991,7 @@ class RandomBayesOptimizer(Actor):
                 logger.info('calibration_stim set: {}'.format(self.stim_ind))
                 if self.stimuli_space.map_full_to_r1[self.stim_ind] >= 0:
                     self.tag_to_go = "calibration_initial"
-                    # logger.info(f"HEYYYY optimizer is remapping the tags yooo, now it's {self.tag_to_go}")
                 else:
-                    # logger.info(f"calibration calibration, this is the index {self.stimuli_space.param_index_space[self.stim_ind]}")
                     self.tag_to_go = "calibration"
             
             if (time.time() - self.timer) >= self.total_stim_time:
