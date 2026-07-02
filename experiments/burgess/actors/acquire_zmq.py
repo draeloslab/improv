@@ -52,7 +52,7 @@ class ZMQAcquirer(Actor):
         # logger.info('Connected to '+str(self.ip)+':'+str(port))
         self.socket.setsockopt(zmq.SUBSCRIBE, b'')
 
-        self.saveArray = []
+        # self.saveArray = []
         self.saveArrayRedChan = []
         self.save_ind = 0
         self.fullStimmsg = []
@@ -80,17 +80,17 @@ class ZMQAcquirer(Actor):
         self.align_flag = True
         self.counter_img_number = 0  # TODO: delete after use
 
-        if not os.path.exists(self.init_filename):
+        # if not os.path.exists(self.init_filename):
 
-            ## Save initial set of frames to output/initialization.h5
-            self.kill_flag = False
-            while self.frame_num < self.initial_frame_num:
-                self.runStep()
+        #     ## Save initial set of frames to output/initialization.h5
+        #     self.kill_flag = False
+        #     while self.frame_num < self.initial_frame_num:
+        #         self.runStep()
 
-            self.imgs = np.array(self.saveArray)
-            f = h5py.File(self.init_filename, 'w', libver='earliest')
-            f.create_dataset("default", data=self.imgs)
-            f.close()
+        #     self.imgs = np.array(self.saveArray)
+        #     f = h5py.File(self.init_filename, 'w', libver='earliest')
+        #     f.create_dataset("default", data=self.imgs)
+        #     f.close()
 
         self.frame_num = 0
         self.track = 0
@@ -100,14 +100,14 @@ class ZMQAcquirer(Actor):
 
     def stop(self):
         logger.info('Acquire ZMQ stopping procedure --')
-        self.imgs = np.array(self.saveArray)
-        logger.info('Trying to save 1')
-        f = h5py.File('output/sample_stream_end.h5', 'w', libver='earliest')
-        logger.info('Trying to save 2')
-        f.create_dataset("default", data=self.imgs)
-        logger.info('Trying to save 3')
-        f.close()
-        logger.info('Trying to save 4')
+        # self.imgs = np.array(self.saveArray)
+        # logger.info('Trying to save 1')
+        # f = h5py.File('output/sample_stream_end.h5', 'w', libver='earliest')
+        # logger.info('Trying to save 2')
+        # f.create_dataset("default", data=self.imgs)
+        # logger.info('Trying to save 3')
+        # f.close()
+        # logger.info('Trying to save 4')
 
         np.save('output/stimmed.npy', np.array(self.stimmed))
         # np.savetxt('output/photostimmed_msgs.txt', np.array(self.photostims))
@@ -231,7 +231,7 @@ class ZMQAcquirer(Actor):
             logger.info('Image frame(s) size is {}'.format(array.shape))
             if array.shape[0] == 2:
                 logger.info('Acquiring also in the red channel')
-        self.saveArray.append(array)
+        # self.saveArray.append(array)
         if array.shape[0] == 2:
             self.saveArrayRedChan.append(array[1])
         
@@ -245,15 +245,15 @@ class ZMQAcquirer(Actor):
         self.frametimes.append([self.frame_num, time.time()])
         # self.framesendtimes.append([sendtime])
         # logger.info('sent a frame on')
-        if len(self.saveArray) >= 1000:
-            self.imgs = np.array(self.saveArray)
-            f = h5py.File(self.output_folder+'/sample_stream'+str(self.save_ind)+'.h5', 'w', libver='earliest')
-            f.create_dataset("default", data=self.imgs)
-            f.close()
-            self.save_ind += 1
-            del self.saveArray
-            self.saveArray = []
-            logger.info('after saving internal')
+        # if len(self.saveArray) >= 1000:
+        #     self.imgs = np.array(self.saveArray)
+        #     f = h5py.File(self.output_folder+'/sample_stream'+str(self.save_ind)+'.h5', 'w', libver='earliest')
+        #     f.create_dataset("default", data=self.imgs)
+        #     f.close()
+        #     self.save_ind += 1
+        #     del self.saveArray
+        #     self.saveArray = []
+        #     logger.info('after saving internal')
         
 
     def _collect_stimulus(self, msg_dict, category):
