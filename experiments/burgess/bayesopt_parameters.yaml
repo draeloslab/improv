@@ -1,5 +1,5 @@
 General:
-  seed: 513
+  seed: 512
   init_T: 8
   max_tests: 15
   improv: True
@@ -15,7 +15,7 @@ Stimuli:
 Optimizer:
   n: 1  # only for counting optimizers, differ from d
   mse_cutoff: 0.5
-  gamma: 1 #1e-1 #1
+  gamma: 0.4 #1e-1 #1
   var: 0.5
   nu: 0.5 #1e-1
   eta: 5e-2
