@@ -50,7 +50,6 @@ class ZMQAcquirer(Actor):
         # logger.info('Connected to '+str(self.ip)+':'+str(port))
         self.socket.setsockopt(zmq.SUBSCRIBE, b'')
 
-        # self.saveArray = []
         self.saveArrayRedChan = []
         self.fullStimmsg = []
         self.total_times_frame = []
@@ -204,7 +203,6 @@ class ZMQAcquirer(Actor):
             logger.info('Image frame(s) size is {}'.format(array.shape))
             if array.shape[0] == 2:
                 logger.info('Acquiring also in the red channel')
-        # self.saveArray.append(array)
         if array.shape[0] == 2:
             self.saveArrayRedChan.append(array[1])
         
