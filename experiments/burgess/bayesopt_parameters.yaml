@@ -15,12 +15,12 @@ Stimuli:
 Optimizer:
   n: 1  # only for counting optimizers, differ from d
   mse_cutoff: 0.5
-  gamma: 0.4 #1e-1 #1
+  gamma: 0.2 #1e-1 #1
   var: 0.5
   nu: 0.5 #1e-1
   eta: 5e-2
   optim_1:
     kernel: ['rbf_periodic', 'rbf', 'rbf', 'rbf', 'rbf']  
-    stopping_crit: 3e-4 #3e-4 
+    stopping_crit: 2.5e-4 #3e-4 
     periodic_p: 8
   
