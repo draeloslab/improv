@@ -109,7 +109,8 @@ class BayesOptimizer(Actor):
         self.timer = time.time()
 
         self.stim_ind = None
-
+        # keep track of the number of stim-resp pairs we optimized
+        self.last_optimized_count = -1
         
 
     def stop(self):
@@ -257,7 +258,7 @@ class BayesOptimizer(Actor):
                 self.stim_count = self.stim_count - self.calibration_not_moving_dots
                 # logger.info(f"after trimming this is shape of self.x_all {self.X_all.shape} the sahpe of y0 {self.y0.shape}")
             self.X = self.stimuli_space.param_space_shrinking(self.X_all) 
-            logger.info('Initialization check: stim_count: {}, Y length: {}, same len? {}'.format(self.stim_count, self.y0.shape[1], self.y0.shape[1] == self.stim_count))
+            logger.info('Initialization check: frame: {}, stim_count: {}, X length: {}, Y length: {}, same len? {}'.format(self.frame_num, self.stim_count, self.X.shape[1], self.y0.shape[1], self.y0.shape[1] == self.stim_count))
             # logger.info('self.X in INITIALIZATION is {} and has shape {} - init'.format(self.X, self.X.shape))
 
             nonopt = np.array(list(set(np.arange(self.y0.shape[0]))-set(self.optimized_n)))
@@ -362,71 +363,79 @@ class BayesOptimizer(Actor):
         else:
             # logger.info("Reducing X from 8D to 5D for optimization - update")
             self.X = self.stimuli_space.param_space_shrinking(self.X_all) 
+            if self.X.shape[1] > self.last_optimized_count:
+                t_update = time.time()
+                if self.stim_ind is None: 
+                    # X = np.zeros(self.d) 
+                    # for i in range(self.d):
+                    #     X[i] = self.GP_stimuli[i][int(self.X[i,-1])] #NOTE: this is bascially matching the stimulus with teh stim set, so we don't need this anymore 
+                    logger.info('Update check: frame: {}, stim_count: {}, X length: {}, Y length: {}, same len? {}'.format(self.frame_num, self.stim_count, self.X.shape[1], self.y0.shape[1], self.y0.shape[1] == self.stim_count))
+                    logger.info(f"from optimizer update, the frame num is {self.frame_num}")
+                    # logger.info('looking at self.X: {}, {}, {}'.format(self.X[:,-1], self.X[:,-2], self.X[:,-3])) 
+                    logger.info('optim {} (test: {}), update GP with {}, {}'.format(self.nID, self.test_count, self.X[:,-1], self.y0[self.nID, -1]))
+                    self.optim.update_GP(np.squeeze(self.X[:, -1]), self.y0[self.nID,-1])
 
-            t_update = time.time()
-            if self.stim_ind is None: 
-                # X = np.zeros(self.d) 
-                # for i in range(self.d):
-                #     X[i] = self.GP_stimuli[i][int(self.X[i,-1])] #NOTE: this is bascially matching the stimulus with teh stim set, so we don't need this anymore 
-                logger.info('Update check: stim_count: {}, Y length: {}, same len? {}'.format(self.stim_count, self.y0.shape[1], self.y0.shape[1] == self.stim_count))
-                logger.info(f"from optimizer update, the frame num is {self.frame_num}")
-                # logger.info('looking at self.X: {}, {}, {}'.format(self.X[:,-1], self.X[:,-2], self.X[:,-3])) 
-                logger.info('optim {} (test: {}), update GP with {}, {}'.format(self.nID, self.test_count, self.X[:,-1], self.y0[self.nID, -1]))
-                self.optim.update_GP(np.squeeze(self.X[:, -1]), self.y0[self.nID,-1])
+                    curr_unc = np.diagonal(self.optim.sigma).reshape((self.stim_choice))
+                    curr_est = self.optim.f.reshape((self.stim_choice))
+                    self.saved_GP_unc.append(curr_unc)
+                    self.saved_GP_est.append(curr_est)
 
-                curr_unc = np.diagonal(self.optim.sigma).reshape((self.stim_choice))
-                curr_est = self.optim.f.reshape((self.stim_choice))
-                self.saved_GP_unc.append(curr_unc)
-                self.saved_GP_est.append(curr_est)
+                    ids = []
+                    ids.append(self.nID)
+                    ids.append(self.client.put(curr_est)) #, 'est'))
+                    ids.append(self.client.put(curr_unc)) #, 'unc'))
+                    self.q_out.put(ids)
+                    # logger.info(f"anything weird/ nan in curr_est? {np.isnan(curr_est).any()} what about curr_unc {np.isnan(curr_unc).any()}")
+                    stopCrit, PI = self.optim.stopping()
+                    logger.info('----------- stopCrit: {}'.format(stopCrit))
+                    self.stopping[self.test_count] = stopCrit
+                    self.test_count += 1
 
-                ids = []
-                ids.append(self.nID)
-                ids.append(self.client.put(curr_est)) #, 'est'))
-                ids.append(self.client.put(curr_unc)) #, 'unc'))
-                self.q_out.put(ids)
-                logger.info(f"anything weird/ nan in curr_est? {np.isnan(curr_est).any()} what about curr_unc {np.isnan(curr_unc).any()}")
-                stopCrit, PI = self.optim.stopping()
-                logger.info('----------- stopCrit: {}'.format(stopCrit))
-                self.stopping[self.test_count] = stopCrit
-                self.test_count += 1
+                    self.total_times_update.append([dt.now(), time.time() - t_update])
 
-                self.total_times_update.append([dt.now(), time.time() - t_update])
+                    if stopCrit < self.stopping_crit: 
+                        logger.info('optim.f: {}'.format(self.optim.f))
+                        logger.info('np.argmax(self.optim.f): {}'.format(np.argmax(self.optim.f)))
+                        peak = self.stim_star[np.argmax(self.optim.f)] #TODO: need to check what np.argmax returns here (is it just the row index? so i don't need stim_star?)
+                        logger.info('Satisfied with this neuron, moving to next. Est peak: {}'.format(peak))
+                        # self.nID += 1
+                        self.newN = True
+                        self.stopping_list.append(self.stopping)
+                        self.peak_list.append(peak)
+                        self.optim_f_list.append(self.optim.f)
 
-                if stopCrit < self.stopping_crit: 
-                    logger.info('optim.f: {}'.format(self.optim.f))
-                    logger.info('np.argmax(self.optim.f): {}'.format(np.argmax(self.optim.f)))
-                    peak = self.stim_star[np.argmax(self.optim.f)] #TODO: need to check what np.argmax returns here (is it just the row index? so i don't need stim_star?)
-                    logger.info('Satisfied with this neuron, moving to next. Est peak: {}'.format(peak))
-                    # self.nID += 1
-                    self.newN = True
-                    self.stopping_list.append(self.stopping)
-                    self.peak_list.append(peak)
-                    self.optim_f_list.append(self.optim.f)
+                        np.save('output/saved_GP_est_'+str(self.nID)+'.npy', np.array(self.saved_GP_est))
+                        np.save('output/saved_GP_unc_'+str(self.nID)+'.npy', np.array(self.saved_GP_unc))
 
-                    np.save('output/saved_GP_est_'+str(self.nID)+'.npy', np.array(self.saved_GP_est))
-                    np.save('output/saved_GP_unc_'+str(self.nID)+'.npy', np.array(self.saved_GP_unc))
+                    elif self.test_count >= self.maxT:
+                        logger.info('exceeded test count')
+                        self.goback_neurons.append(self.nID)
+                        self.newN = True
+                        self.stopping_list.append(self.stopping)
+                        peak = self.stim_star[np.argmax(self.optim.f)]
+                        self.peak_list.append(peak)
+                        self.optim_f_list.append(self.optim.f)
+                        np.save('output/saved_GP_est_'+str(self.nID)+'.npy', np.array(self.saved_GP_est))
+                        np.save('output/saved_GP_unc_'+str(self.nID)+'.npy', np.array(self.saved_GP_unc))
 
-                elif self.test_count >= self.maxT:
-                    logger.info('exceeded test count')
-                    self.goback_neurons.append(self.nID)
-                    self.newN = True
-                    self.stopping_list.append(self.stopping)
-                    peak = self.stim_star[np.argmax(self.optim.f)]
-                    self.peak_list.append(peak)
-                    self.optim_f_list.append(self.optim.f)
-                    np.save('output/saved_GP_est_'+str(self.nID)+'.npy', np.array(self.saved_GP_est))
-                    np.save('output/saved_GP_unc_'+str(self.nID)+'.npy', np.array(self.saved_GP_unc))
-
-                else:
-                    ind, xt_1 = self.optim.max_acq()
-                    logger.info('optim.max_acq: {}'.format(ind))
-                    self.stim_ind = ind
+                    else:
+                        ind, xt_1 = self.optim.max_acq()
+                        logger.info('optim.max_acq: {}'.format(ind))
+                        self.stim_ind = ind
+                    self.last_optimized_count = self.stim_count
 
             # Need to send ind to stimulus actor to create this stim request ??
             if (time.time() - self.timer) >= self.total_stim_time:
-                self.links['stim_ind_out'].put([self.stim_ind, 'optim'])
-                # self.links['stim_flag_out'].put(stim_flag)
-                self.stim_ind = None
+
+                if self.stim_ind is not None:
+                    self.links['stim_ind_out'].put([self.stim_ind, 'optim'])
+                    self.stim_ind = None 
+                else:
+                    # FALLBACK TODO: may need to change the fallback strategy
+                    logger.warning("Analysis lagged! Sending a random fallback stimulus to maintain timing.")
+                    fallback_ind = np.random.randint(0, self.stim_star.shape[0])  # TODO: change this?
+                    self.links['stim_ind_out'].put([fallback_ind, 'optim'])
+                    
                 self.timer = time.time()
                 
         # self.total_times.append(time.time() - t)
