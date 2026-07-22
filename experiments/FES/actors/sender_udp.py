@@ -1,4 +1,6 @@
 import time
+import os
+import ipaddress
 import socket
 import json
 import numpy as np
@@ -34,21 +36,32 @@ class SenderUDP(Actor):
         logger.info("Beginning setup for SenderUDP")
 
         # UDP connection parameters
-        self.UDP_IP_send = "127.0.0.1"  # Default to localhost, can be configured
-        self.UDP_PORT_send = 11115  # Default port, can be configured
+        self.UDP_IP_send = os.getenv("SENDER_UDP_IP", "192.168.137.201")
+        self.UDP_PORT_send = int(os.getenv("SENDER_UDP_PORT", "5000"))
+
+        try:
+            resolved_ip = str(ipaddress.ip_address(self.UDP_IP_send))
+        except ValueError as exc:
+            raise ValueError(
+                f"Invalid UDP destination IP {self.UDP_IP_send!r}; use a dotted IPv4/IPv6 address"
+            ) from exc
+
+        if not (0 < self.UDP_PORT_send < 65536):
+            raise ValueError(f"Invalid UDP destination port {self.UDP_PORT_send}")
         
         # Create UDP socket
         self.sock_send = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        print(f"UDP socket created for sending to {resolved_ip}:{self.UDP_PORT_send}")
         
         self.last_angle = 0
-        self.last_angle2 = 0
+        self.last_angle2 = 10
         
-        logger.info(f"UDP Sender configured to send to {self.UDP_IP_send}:{self.UDP_PORT_send}")
+        logger.info(f"UDP Sender configured to send to {resolved_ip}:{self.UDP_PORT_send}")
         logger.info("Completed setup for SenderUDP")
 
     def runStep(self):
         """Main execution step - get angles from processors and send as JSON over UDP."""
-        got_data = False
+        got_data = True
 
         try:
             #Processor 0
@@ -88,9 +101,11 @@ class SenderUDP(Actor):
                 
                 # Send the data via UDP
                 self.sock_send.sendto(data_bytes, (self.UDP_IP_send, self.UDP_PORT_send))
-                logger.debug(f"Sent {len(data_bytes)} bytes via UDP: {data_dict}")
+                print(f"Sent {len(data_bytes)} bytes via UDP to {self.UDP_IP_send}:{self.UDP_PORT_send}: {data_dict}")
+                logger.info(f"Sent {len(data_bytes)} bytes via UDP to {self.UDP_IP_send}:{self.UDP_PORT_send}: {data_dict}")
             except Exception as e:
                 logger.error(f"Error sending UDP data: {e}")
+                print(f"Error sending UDP data: {e}")
 
     def stop(self):
         logger.info("Stopping SenderUDP")
@@ -99,3 +114,14 @@ class SenderUDP(Actor):
         except Exception as e:
             logger.error(f"Error closing socket: {e}")
         logger.info("SenderUDP stopped")
+
+if __name__ == "__main__":
+    # For testing purposes, you can instantiate and run the actor here.
+    sender = SenderUDP('SenderUDP')
+    sender.setup()
+    try:
+        while True:
+            sender.runStep()
+            time.sleep(0.01)  # Adjust sleep time as needed
+    except KeyboardInterrupt:
+        sender.stop()

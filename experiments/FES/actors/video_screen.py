@@ -9,7 +9,7 @@ import traceback
 import subprocess
 from pathlib import Path
 from improv.actor import ManagedActor, Actor, Signal
-from .front_end import CameraStreamWidget
+from .front_end5 import CameraStreamWidget
 from PyQt5 import QtWidgets
 import os
 from collections import deque

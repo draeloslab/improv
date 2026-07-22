@@ -10,12 +10,12 @@ actors:
     class: VideoScreen
     num_active_cameras: 1
   
-  # Processor0:
-  #   package: actors.processor
-  #   class: Processor
-  #   pred_active: True
-  #   camera_num: 0
-  #   method: spawn
+  Processor0:
+    package: actors.processor
+    class: Processor
+    pred_active: True
+    camera_num: 0
+    method: spawn
 
   # Processor2:
   #   package: actors.processor
@@ -38,7 +38,7 @@ actors:
   Generator0:
     package: actors.camera_reader
     class: CameraReader
-    camera_num: 3
+    camera_num: 0
 
   # Generator2:
   #   package: actors.camera_reader
@@ -48,19 +48,19 @@ actors:
   VideoSaver0:
     package: actors.video_saver
     class: VideoSaver
-    camera_num: 3
+    camera_num: 0
     method: spawn
 
   # VideoSaver2:
-    # package: actors.video_saver
-    # class: VideoSaver
-    # camera_num: 2
-    # method: spawn
-
-  # Receiver:
-  #   package: actors.recieverActor
-  #   class: Receiver
+  #   package: actors.video_saver
+  #   class: VideoSaver
+  #   camera_num: 2
   #   method: spawn
+
+  Receiver:
+    package: actors.recieverActor
+    class: Receiver
+    method: spawn
 
   # Sender:
   #   package: actors.sender
@@ -68,8 +68,11 @@ actors:
   #   method: spawn
 
 connections:
-  Generator0.q_out: [VideoScreen.images0_in , VideoSaver0.q_in]
+  Generator0.q_out: [VideoScreen.images0_in , VideoSaver0.q_in, Processor0.q_in]
   # Generator2.q_out: [VideoScreen.images2_in , VideoSaver2.q_in]
+  Processor0.q_out: [VideoScreen.preds0_in]
+
+
 
 redis_config:
   port: 6379

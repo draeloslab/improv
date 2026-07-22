@@ -139,7 +139,7 @@ class Receiver(Actor):
 
             # Receive UDP packet with timeout
             data = self.sock_receive.recv(1500)
-            logger.debug("Received UDP packet")
+            logger.info("Received UDP packet")
             
             # Parse the packet
             eTime, feat, dsize, neural_data, fpos, msCount, xpcBinSize, enable, \

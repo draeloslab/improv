@@ -17,12 +17,12 @@ actors:
     camera_num: 0
     method: spawn
 
-  Processor2:
-    package: actors.processor
-    class: Processor
-    pred_active: True
-    camera_num: 2
-    method: spawn
+  # Processor2:
+  #   package: actors.processor
+  #   class: Processor
+  #   pred_active: True
+  #   camera_num: 2
+  #   method: spawn
 
 # Uncomment this to run psuedo cameras
   # Generator0:
@@ -40,10 +40,10 @@ actors:
     class: CameraReader
     camera_num: 0
 
-  Generator2:
-    package: actors.camera_reader
-    class: CameraReader
-    camera_num: 2
+  # Generator2:
+  #   package: actors.camera_reader
+  #   class: CameraReader
+  #   camera_num: 2
 
   VideoSaver0:
     package: actors.video_saver
@@ -51,31 +51,31 @@ actors:
     camera_num: 0
     method: spawn
 
-  VideoSaver2:
-    package: actors.video_saver
-    class: VideoSaver
-    camera_num: 2
-    method: spawn
+  # VideoSaver2:
+  #   package: actors.video_saver
+  #   class: VideoSaver
+  #   camera_num: 2
+  #   method: spawn
 
-  Receiver:
-    package: actors.recieverActor
-    class: Receiver
-    method: spawn
+  # Receiver:
+  #   package: actors.recieverActor
+  #   class: Receiver
+  #   method: spawn
 
-  Sender:
-    package: actors.sender
-    class: Sender
-    method: spawn
+  # Sender:
+  #   package: actors.sender
+  #   class: Sender
+  #   method: spawn
 
 connections:
   Generator0.q_out: [Processor0.q_in, VideoScreen.images0_in , VideoSaver0.q_in]
-  Generator2.q_out: [Processor2.q_in, VideoScreen.images2_in , VideoSaver2.q_in]
+  # Generator2.q_out: [VideoScreen.images2_in , VideoSaver2.q_in]
   # CameraReader0.q_out: [VideoSaver0.q_in, Processor0.q_in]
   # CameraReader1.q_out: [VideoSaver1.q_in, Processor1.q_in]
   # CameraReader2.q_out: [VideoSaver2.q_in, Processor2.q_in]
-  Processor0.q_out: [VideoScreen.preds0_in, Sender.preds0_in]
+  Processor0.q_out: [VideoScreen.preds0_in] 
   # Processor1.q_out: [VideoScreen.preds1_in]
-  Processor2.q_out: [VideoScreen.preds2_in, Sender.preds2_in]
+  # Processor2.q_out: [VideoScreen.preds2_in, Sender.preds2_in]
 
 redis_config:
   port: 6379

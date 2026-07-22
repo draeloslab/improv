@@ -278,6 +278,7 @@ class Processor(Actor):
                     t0 = time.perf_counter()
                     try:
                         raw_prediction = self.pose_runner.inference([frame])
+                        logger.debug(f"Raw prediction shape: {np.array(raw_prediction).shape}")
                     except Exception as e:
                         logger.error(f"DLC inference error: {e}")
                         logger.error(traceback.format_exc())
@@ -295,9 +296,12 @@ class Processor(Actor):
 
                     # Extract the bodyparts array from the prediction dictionary
                     self.prediction = raw_prediction[0]['bodyparts'][0]
+                    self.prediction[:,0] += self.prediction[:,3]  # Adjust x-coordinates if needed
+                    self.prediction[:,1] += self.prediction[:,4]  # Adjust y-coordinates if needed
+                    logger.debug(f"Camera {self.camera_num}: Prediction shape after extraction: {self.prediction}")
                     # Select bodyparts based on camera number
                     if self.camera_num == 0:
-                        self.prediction = self.prediction[:4]
+                        self.prediction = self.prediction[:, :3]
                     elif self.camera_num == 2:
                         self.prediction = self.prediction[:1]
                     
@@ -306,7 +310,7 @@ class Processor(Actor):
                     # --- Step 5: Kalman filter ---
                     t0 = time.perf_counter()
                     try:
-                        # assert False
+                        assert False
                         smoothed_prediction = self.kalman_filter.process(self.prediction, frame_time=camera_start)
                     except Exception as e:
                         logger.error(f"Kalman filter processing error: {e}")
@@ -317,7 +321,7 @@ class Processor(Actor):
                     # Save prediction for analysis
                     self.predictions.append(smoothed_prediction)
                     self.smoothed_prediction = smoothed_prediction
-
+                    logger.debug(f"Camera {self.camera_num}: Smoothed prediction shape: {smoothed_prediction.shape}")
                     # --- Step 6: Post-processing (angle calculation + smoothing) ---
                     t0 = time.perf_counter()
                     if len(smoothed_prediction) >= 3:
@@ -332,6 +336,7 @@ class Processor(Actor):
                             smoothed_angle = self.prev_angle  # ignore sudden large jumps
                         self.prev_angle = smoothed_angle
                     else:
+                        logger.debug(f"Camera {self.camera_num}: Prediction shape insufficient for angle calculation: {smoothed_prediction.shape}")
                         self.angle_queue.append(smoothed_prediction[0][0])  # Just treat the x value as angle for queue
                         smoothed_angle = np.mean(self.angle_queue) if len(self.angle_queue) > 0 else angle
 
@@ -359,6 +364,7 @@ class Processor(Actor):
                 # --- Step 7: Queue put (send to downstream) ---
                 t0 = time.perf_counter()
                 try:
+                    logger.debug(f"Camera {self.camera_num}: Sending smoothed prediction and angle to downstream")
                     smoothed_angle = smoothed_angle/self.resize #if self.camera_num == 2 else smoothed_angle
                     # Pass along camera_start and frame_num so Sender can compute true end-to-end
                     self.q_out.put([smoothed_prediction, smoothed_angle, camera_start, gen_frame_num])
