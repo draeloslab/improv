@@ -59,9 +59,9 @@ actors:
 
   Optimizer:
     package: experiments.common_actors.optimizer
-    class: BayesOptimizer #BayesOptimizer #RandomSampler 
+    class: BayesOptimizer #BayesOptimizer #RandomSampler #GridSampler
     param_file: bayesopt_parameters.yaml
-    calibration: True
+    calibration: False
 
 connections:
   Acquirer.q_out: [Processor.q_in, Visual.raw_frame_queue, VideoSaver.q_in]
