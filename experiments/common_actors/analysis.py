@@ -183,7 +183,7 @@ class VizStimAnalysis(Actor):
                 self.stimText = list(sig.values())
                 self.total_stim_counts = self.stimText[-1]
                 logger.info('total_stim_counts: {}'.format(self.total_stim_counts)) # add a logger: when send to optimizer
-                self.should_send_frame_num = self.frame + self.after_amount
+                # self.should_send_frame_num = self.frame + self.after_amount
             except Empty as e:
                 pass # no change in input stimulus
             except Exception as e:
@@ -216,9 +216,9 @@ class VizStimAnalysis(Actor):
                 self.Cpop = self.Cpop[-len(self.Cx):]
             self.putAnalysis()
             self.putStimulus()
-            if self.total_stim_counts > self.old_stim_num: 
-                logger.info('sent stimX and stimY to optimizer at frame: {}'.format(self.frame))
-                self.old_stim_num = self.total_stim_counts
+            # if self.total_stim_counts > self.old_stim_num: 
+            #     logger.info('current size stimX {} and stimY {} at frame: {}'.format(len(self.stimX), len(self.stimY), self.frame))
+            #     self.old_stim_num = self.total_stim_counts
             
 
             self.timestamp.append([time.time(), self.frame])
@@ -256,7 +256,7 @@ class VizStimAnalysis(Actor):
         else:
             multi_idx = self.param_index_space[whichStim]
         multi_idx = np.asarray(multi_idx, dtype=int)
-        logger.info('multi_idx: {}'.format(multi_idx))
+        # logger.info('multi_idx: {}'.format(multi_idx))
 
         self.xs = multi_idx #np.vstack([self.xs, multi_idx])
         logger.info('xs: {}'.format(self.xs))
@@ -314,6 +314,9 @@ class VizStimAnalysis(Actor):
         self.links['stim_out'].put(ids)
         self.ana_stim_out_ts.append([self.frame, time.time()])
         # self.putstimtime.append(time.time()-t)
+        # if self.total_stim_counts > self.old_stim_num: 
+        #     logger.info('sent stimX {} and stimY {} to optimizer at frame: {}'.format(len(self.stimX), len(self.stimY), self.frame))
+        #     self.old_stim_num = self.total_stim_counts
 
     def stimAvg_start(self): #TODO: need to rewrite this section (since ys will no longer be a dict)
         t = time.time()
@@ -378,7 +381,7 @@ class VizStimAnalysis(Actor):
                 self.auc_to_peak_ratio.append(current_ratios)
                 # logger.info(f"local_peak: {local_peak}, local_peak shape: {local_peak.shape}, stimY_val shape: {stimY_val.shape}, auc_to_peak_ratio shape: {self.auc_to_peak_ratio[-1].shape}")
                 # self.stimY.append(np.mean(ests[:, -self.after_amount:], 1))  # relative indexing
-                logger.info(f"done appending at frame {self.frame}. before the estimated frame num {self.should_send_frame_num}? {self.frame <= self.should_send_frame_num}")
+                # logger.info(f"done appending at frame {self.frame}. before the estimated frame num {self.should_send_frame_num}? {self.frame <= self.should_send_frame_num}")
                 logger.info('at frame {} we have {} neurons right now'.format(self.frame, ests.shape[0]))
                 self.testNum += 1
                 numN = self.ests.shape[0]
