@@ -233,6 +233,7 @@ class BayesOptimizer(Actor):
 
             if (time.time() - self.timer) >= self.total_stim_time:
                 self.links['stim_ind_out'].put([self.stim_ind, 'initial'])
+                self.opt_stim_ind_out_ts.append([self.stim_ind, time.time()])
                 self.stim_ind = None
                 self.counter += 1  # FIXME: counter started with 1 (somehow)
                 # logger.info("self.counter just added by 1!")
@@ -429,12 +430,14 @@ class BayesOptimizer(Actor):
 
                 if self.stim_ind is not None:
                     self.links['stim_ind_out'].put([self.stim_ind, 'optim'])
+                    self.opt_stim_ind_out_ts.append([self.stim_ind, time.time()])
                     self.stim_ind = None 
                 else:
                     # FALLBACK TODO: may need to change the fallback strategy
                     logger.warning("Analysis lagged! Sending a random fallback stimulus to maintain timing.")
                     fallback_ind = np.random.randint(0, self.stim_star.shape[0])  # TODO: change this?
                     self.links['stim_ind_out'].put([fallback_ind, 'optim'])
+                    self.opt_stim_ind_out_ts.append([self.stim_ind, time.time()])
                     
                 self.timer = time.time()
                 
