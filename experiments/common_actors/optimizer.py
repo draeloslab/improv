@@ -127,7 +127,7 @@ class BayesOptimizer(Actor):
             np.savetxt('output/timing/optimizer_time.txt', np.array(self.total_times))
             np.savetxt('output/timing/optimizer_q_in_ts.txt', np.array(self.opt_q_in_ts))
             np.savetxt('output/timing/optimizer_stim_ind_out_ts.txt', np.array(self.opt_stim_ind_out_ts))
-            np.savetxt('output/timing/optimizer_q_in_qsize.txt', np.array(self.opt_q_in_qsize))
+            np.savetxt('output/timing/optimizer_q_in_qsize.txt', self.opt_q_in_qsize, fmt = "%s")
         except Exception as e:
             logger.error("Trouble saving optimizer timings: {}".format(e))
             pass
