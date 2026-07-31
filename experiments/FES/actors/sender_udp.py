@@ -37,7 +37,7 @@ class SenderUDP(Actor):
 
         # UDP connection parameters
         self.UDP_IP_send = os.getenv("SENDER_UDP_IP", "192.168.137.201")
-        self.UDP_PORT_send = int(os.getenv("SENDER_UDP_PORT", "5000"))
+        self.UDP_PORT_send = int(os.getenv("SENDER_UDP_PORT", "11115"))
 
         try:
             resolved_ip = str(ipaddress.ip_address(self.UDP_IP_send))
@@ -64,32 +64,18 @@ class SenderUDP(Actor):
         got_data = True
 
         try:
-            #Processor 0
-            element = self.links["preds0_in"].get(timeout=0.0001)
-            if len(element) == 4:
-                _, angle, _, _ = element
-            else:
-                _, angle = element
+            # Processor 0
+            _, angle, _, _ = self.links["preds0_in"].get(timeout=0.0001)
             self.last_angle = angle
             got_data = True
         except Exception:
             pass
 
         try:
-            #Processor 2
-            element2 = self.links["preds2_in"].get(timeout=0.0001)
-            if len(element2) == 4:
-                _, angle2, _, _ = element2
-            else:
-                _, angle2 = element2
+            # Processor 2
+            _, angle2, _, _ = self.links["preds2_in"].get(timeout=0.0001)
             self.last_angle2 = angle2
             got_data = True
-        except Exception:
-            pass
-
-        # Drain generator q_in just in case
-        try:
-            self.q_in.get(timeout=0.0001)
         except Exception:
             pass
 
@@ -98,14 +84,12 @@ class SenderUDP(Actor):
                 # Pack the angles as simple JSON dictionary
                 data_dict = {"angle": float(self.last_angle), "angle2": float(self.last_angle2)}
                 data_bytes = json.dumps(data_dict).encode('utf-8')
-                
+
                 # Send the data via UDP
                 self.sock_send.sendto(data_bytes, (self.UDP_IP_send, self.UDP_PORT_send))
-                print(f"Sent {len(data_bytes)} bytes via UDP to {self.UDP_IP_send}:{self.UDP_PORT_send}: {data_dict}")
                 logger.info(f"Sent {len(data_bytes)} bytes via UDP to {self.UDP_IP_send}:{self.UDP_PORT_send}: {data_dict}")
             except Exception as e:
                 logger.error(f"Error sending UDP data: {e}")
-                print(f"Error sending UDP data: {e}")
 
     def stop(self):
         logger.info("Stopping SenderUDP")
