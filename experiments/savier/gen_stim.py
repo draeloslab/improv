@@ -85,7 +85,7 @@ class StimulusSpace():
         for param in drift_grating:
             row_index = self.param_to_ridx(param, tag = 'calibration')
             calibration_stim.append(row_index)
-        
+        calibration_stim.append(calibration_stim[0]) # repeat the first drift grating
         stationary_spots = [[0,0,0,0,1,1,1,0], [0,0,0,0,0,2,1,0], [0,0,0,0,2,2,1,0], [0,0,0,0,2,0,1,0], [0,0,0,0,0,0,1,0]]
         moving_spots = [[i,2,0,1,1,1,1,0] for i in range(0,6,2)]
         spots = stationary_spots + moving_spots
