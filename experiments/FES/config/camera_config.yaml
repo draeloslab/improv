@@ -2,7 +2,34 @@ camera_params:
   resolution:
     width: 1920 #1280   640
     height: 1080 #720   480
+  # Frames are captured at `resolution` (native sensor format) but downscaled
+  # by GStreamer's videoscale element before they ever reach numpy/the object
+  # store/the model — cuts the JPEG-round-trip + cv2.resize cost that used to
+  # run on the full 1080p frame. Consumers that read frames back out of the
+  # store (Processor, VideoSaver, VideoScreen) should size against this, not
+  # `resolution` above.
+  stream_resolution:
+    width: 960
+    height: 540
   fps: "30/1"
+  # Start each free-running camera one Nth of a frame period after the last, so
+  # their inference requests reach the GPU spread out instead of bunched. In
+  # 20260804-1432 three of four cameras submitted within 4.2 ms of each other
+  # and all four blocked until the GPU drained the pile; the earliest submitter
+  # measured 22.13 ms of "inference" for 5.4 ms of actual GPU work.
+  # corr(submission phase, measured inference time) was -0.999.
+  #
+  # `slots` is how many phase slots to divide the period into; defaults to
+  # config.yaml's max_camera_slots. Over-estimating is harmless (the slots are
+  # just narrower than they need to be), under-estimating re-creates the
+  # collision.
+  #
+  # Turn this OFF once the cameras are hardware-triggered: sync and stagger are
+  # opposite goals, and triangulation needs sync. See MULTICAM_3D_PLAN.md.
+  capture_stagger:
+    enabled: true
+    slots: 4
+    lead_seconds: 2.0
 zmq_config:
   ip: "localhost"
 active_cameras:
@@ -13,9 +40,6 @@ active_cameras:
       name: "back_left"
       serial_id: "45324224-aravis"
   - camera:
-      name: "back_right"
-      serial_id: "45324230-aravis"
-  - camera:
       name: "front_right"
       serial_id: "14624029-aravis"
   - camera:
@@ -23,3 +47,6 @@ active_cameras:
       serial_id: "45324225-aravis"
 
 inactive_cameras:
+  - camera:
+      name: "back_right"
+      serial_id: "45324230-aravis"

@@ -9,6 +9,7 @@ import traceback
 import subprocess
 from pathlib import Path
 from improv.actor import ManagedActor, Actor, Signal
+from . import cpu_affinity
 from .front_end5 import CameraStreamWidget
 from PyQt5 import QtWidgets
 import os
@@ -59,6 +60,11 @@ class VideoScreen(ManagedActor):
         self.num_cameras = kwargs['num_active_cameras']
 
     def setup(self):
+        # The GUI redraws on its own timer and was measured at ~106 us per
+        # frame, so it does not belong on a P-core -- it only needs to keep up
+        # with the eye, not with the FES loop.
+        cpu_affinity.pin_actor(cpu_affinity.BACKGROUND, label="VideoScreen")
+
         # store init
         self._getStoreInterface()
 
@@ -74,16 +80,26 @@ class VideoScreen(ManagedActor):
         cameras_config = config['active_cameras']
         camera_params = config['camera_params']
 
-        self.frame_w = camera_params['resolution']['width'] # frame width
-        self.frame_h = camera_params['resolution']['height'] # frame height
+        # Frames actually flowing through the store are at stream_resolution
+        # (TIS downscales in GStreamer before the store) -- fall back to the
+        # native `resolution` if stream_resolution isn't configured.
+        stream_res = camera_params.get('stream_resolution', camera_params['resolution'])
+        self.frame_w = stream_res['width'] # frame width
+        self.frame_h = stream_res['height'] # frame height
+        # self.num_cameras comes from the num_active_cameras kwarg (set per-yaml,
+        # e.g. 1 for a single-camera run, 3 for latency_benchmarking.yaml's
+        # current 3-camera wiring) -- NOT from len(cameras_config), which is
+        # every camera camera_config.yaml *knows about* (hardware inventory),
+        # not how many are wired up in this particular experiment. Getting
+        # this wrong means the GUI tries to open images{N}_in/preds{N}_in
+        # links that were never connected, for every camera in the building.
         self.num_buffers_rec = [0 for _ in range(self.num_cameras)] # num of buffers recorded by each camera
         self.num_buffers_progress = [0 for _ in range(self.num_cameras)] # num of buffers converted for each camera
         self.buffer_conv_completed = [False for _ in range(self.num_cameras)] # flag to indicate if the buffer conversion is completed
-        
-        self.num_cameras = len(cameras_config)
+
         self.camera_names = []
         self.camera_ids = []
-        
+
         for camera in cameras_config:
             self.camera_names.append(camera['camera']['name'])
             self.camera_ids.append(camera['camera']['serial_id'])
@@ -115,6 +131,12 @@ class VideoScreen(ManagedActor):
         predictions = None  # Initialize predictions with a default value
         angle = None
         frame = None
+        # Real physical camera identity, from the prediction message's 5th
+        # element (see processor.py). Falls back to the slot index (camera_id)
+        # if a message doesn't carry it -- slot index is only a stand-in, since
+        # it's just wiring order in the yaml and can differ from camera_num
+        # (e.g. Processor1 can be camera_num=3 while wired to preds1_in).
+        camera_num = camera_id
 
         # Clear the frame queue for the specific camera
         # while not self.links[f"preds{camera_id}_in"].empty():
@@ -163,9 +185,12 @@ class VideoScreen(ManagedActor):
             pred_start = time.perf_counter()
             element = self.links[f"preds{camera_id}_in"].get(timeout=0.01)
 
-            # Support both old [pred, angle] and new [pred, angle, camera_start, frame_num] formats
+            # Support [pred, angle], [pred, angle, camera_start, frame_num], and
+            # [pred, angle, camera_start, frame_num, camera_num] formats.
             predictions = element[0]
             angle = element[1]
+            if len(element) >= 5:
+                camera_num = element[4]
             # logger.debug(f'Angle received: {angle}')
 
             self.pred_latencies.append(time.perf_counter() - pred_start)
@@ -184,8 +209,8 @@ class VideoScreen(ManagedActor):
             logger.info(f'Unexpected error getting prediction for camera {camera_id}: {traceback.format_exc()}')
             # pass
 
-        return frame,predictions,angle
-    
+        return frame, predictions, angle, camera_num
+
     def start_buffer_conversion(self):
         """Function to start the buffer data conversion for each camera."""
         msg = {'type': 'video_conversion', 'value': True}

@@ -83,7 +83,7 @@ class TIS:
         self.frame_num = 0
         # Per-step breakdown (perf_counter durations in seconds)
         self.convert_latencies = []    # GStreamer buffer → numpy
-        self.encode_latencies = []     # cv2.imencode
+        self.encode_latencies = []     # unused (JPEG encode removed); kept for file-schema compat
         self.store_put_latencies = []  # client.put
         self.queue_put_latencies = []  # q_out.put
         
@@ -101,15 +101,21 @@ class TIS:
                     framerate,
                     sinkformat: SinkFormats,
                     showvideo: bool,
-                    conversion: str = ""):
+                    conversion: str = "",
+                    out_width: int = None,
+                    out_height: int = None):
         ''' Inialize a device, e.g. camera.
         :param serial: Serial number of the camera to be used.
-        :param width: Width of the wanted video format
-        :param height: Height of the wanted video format
+        :param width: Width of the wanted video format (native capture)
+        :param height: Height of the wanted video format (native capture)
         :param framerate: Frame rate of the wanted video format
         :param sinkformat: Color format to use for the sink
         :param showvideo: Whether to always open a live video preview
         :param conversion: Optional pipeline string to add a conversion before the appsink
+        :param out_width: If given, GStreamer downscales to this width before appsink
+            (defaults to `width`, i.e. no scaling)
+        :param out_height: If given, GStreamer downscales to this height before appsink
+            (defaults to `height`, i.e. no scaling)
         :return: none
         '''
         if serial is None:
@@ -120,6 +126,11 @@ class TIS:
         self.height = height
         self.framerate = framerate
         self.sinkformat = sinkformat
+        # Output dimensions delivered to __on_new_buffer / the numpy array.
+        # Cached once here instead of being re-queried from GObject caps on
+        # every single frame (see __convert_to_numpy).
+        self.out_width = out_width if out_width is not None else width
+        self.out_height = out_height if out_height is not None else height
 
         if self.sinkformat == SinkFormats.GRAY8:
             self.bpp = 1
@@ -139,7 +150,12 @@ class TIS:
         if conversion and not conversion.strip().endswith("!"):
             conversion += " !"
         p = 'tcambin name=source ! videoconvert ! capsfilter name=caps'
-        
+        # Downscale in GStreamer (C, off the Python critical path) instead of
+        # decoding a full-res JPEG and cv2.resize-ing it in the processor.
+        # When out_width/out_height == width/height this is a same-size
+        # negotiation and effectively a no-op.
+        p += ' ! videoscale ! capsfilter name=caps_out'
+
         if showvideo:
             p += " ! tee name=t"
             p += " t. ! queue ! videoconvert ! ximagesink"
@@ -169,7 +185,8 @@ class TIS:
 
     def _setcaps(self):
         """
-        Set pixel and sink format and frame rate
+        Set pixel and sink format and frame rate (native capture), plus the
+        downscaled format requested of the videoscale element before appsink.
         """
         caps = Gst.Caps.from_string('video/x-raw,format=%s,width=%d,height=%d,framerate=%s' % (self.sinkformat.value, self.width, self.height, self.framerate))
 
@@ -177,6 +194,13 @@ class TIS:
 
         capsfilter = self.pipeline.get_by_name("caps")
         capsfilter.set_property("caps", caps)
+
+        caps_out = Gst.Caps.from_string('video/x-raw,format=%s,width=%d,height=%d' % (self.sinkformat.value, self.out_width, self.out_height))
+
+        logger.info(f"\tcaps_out command: {caps_out.to_string()}")
+
+        capsfilter_out = self.pipeline.get_by_name("caps_out")
+        capsfilter_out.set_property("caps", caps_out)
 
     def start_pipeline(self):
         """ Start the pipeline, so the video start running """
@@ -218,22 +242,24 @@ class TIS:
             self.cameraStarts.append(camera_start)
 
             # --- Step 1: Convert GStreamer buffer to numpy ---
+            # Dimensions are cached on self (out_width/out_height/bpp, set once in
+            # open_device) instead of being re-derived from sample.get_caps() /
+            # get_structure() / get_value() on every single frame.
             t0 = time.perf_counter()
-            frame = self.__convert_to_numpy(buf.extract_dup(0, buf.get_size()), sample.get_caps())
+            frame = self.__convert_to_numpy(buf.extract_dup(0, buf.get_size()))
             self.convert_latencies.append(time.perf_counter() - t0)
 
-            # --- Step 2: JPEG encode ---
-            t0 = time.perf_counter()
-            _, frame_enc = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
-            self.encode_latencies.append(time.perf_counter() - t0)
+            # --- Step 2: (JPEG encode removed) ---
+            # Frame is already downscaled to out_width x out_height by GStreamer
+            # (see _create_pipeline/_setcaps), so it goes into the store raw --
+            # no encode here, no imdecode + cv2.resize downstream in the
+            # processor. encode_latencies is kept (always empty) so downstream
+            # tooling that expects the file to exist doesn't break.
 
             try:
-                if frame_enc is None:
-                    logger.error(f"[Camera {self.camera_name}] Encoded frame is None!")
-
                 # --- Step 3: Store put ---
                 t0 = time.perf_counter()
-                data_id = self.client.put(frame_enc)
+                data_id = self.client.put(frame)
                 self.store_put_latencies.append(time.perf_counter() - t0)
 
                 # --- Step 4: Queue put (with frame_num for cross-actor correlation) ---
@@ -272,13 +298,16 @@ class TIS:
         return Gst.FlowReturn.OK
 
     # @profile
-    def __convert_to_numpy(self, data, caps):
-        ''' Convert a GStreamer sample to a numpy array
-            Sample code from https://gist.github.com/cbenhagen/76b24573fa63e7492fb6#file-gst-appsink-opencv-py-L34
+    def __convert_to_numpy(self, data):
+        ''' Convert a GStreamer sample to a numpy array.
+            Dimensions come from self.out_height/self.out_width/self.bpp, cached
+            once in open_device() -- the frame is always negotiated to exactly
+            that size by the caps_out capsfilter, so there is nothing to look up
+            per-frame. (Previously queried via caps.get_structure(0).get_value(),
+            which was ~1.9 ms of GObject introspection per frame.)
+            Adapted from https://gist.github.com/cbenhagen/76b24573fa63e7492fb6#file-gst-appsink-opencv-py-L34
         '''
-        s = caps.get_structure(0)
-
-        return np.ndarray((s.get_value('height'), s.get_value('width'),self.bpp), buffer=data, dtype=np.uint8)
+        return np.ndarray((self.out_height, self.out_width, self.bpp), buffer=data, dtype=np.uint8)
     
     def stop_pipeline(self):
         stop_time = time.perf_counter()

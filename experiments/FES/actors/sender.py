@@ -140,9 +140,10 @@ class Sender(Actor):
         try:
             #Processor 0
             element = self.links["preds0_in"].get(timeout=0.0001)
-            # Support both old [pred, angle] and new [pred, angle, camera_start, frame_num] formats
-            if len(element) == 4:
-                _, angle, camera_start_cam0, frame_num_cam0 = element
+            # Support [pred, angle], [pred, angle, camera_start, frame_num], and
+            # [pred, angle, camera_start, frame_num, camera_num] formats.
+            if len(element) >= 4:
+                _, angle, camera_start_cam0, frame_num_cam0 = element[:4]
             else:
                 _, angle = element
                 camera_start_cam0 = None
@@ -164,9 +165,10 @@ class Sender(Actor):
         try:
             #Processor 2
             element2 = self.links["preds2_in"].get(timeout=0.0001)
-            # Support both old [pred, angle] and new [pred, angle, camera_start, frame_num] formats
-            if len(element2) == 4:
-                _, angle2, camera_start_cam2, frame_num_cam2 = element2
+            # Support [pred, angle], [pred, angle, camera_start, frame_num], and
+            # [pred, angle, camera_start, frame_num, camera_num] formats.
+            if len(element2) >= 4:
+                _, angle2, camera_start_cam2, frame_num_cam2 = element2[:4]
             else:
                 _, angle2 = element2
                 camera_start_cam2 = None

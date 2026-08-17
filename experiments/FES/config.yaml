@@ -1,11 +1,85 @@
 fps: 30
 model_path_0: '/home/chesteklab/Desktop/fatigueRhodesAll-Jakr-2026-05-29/dlc-models-pytorch/iteration-6/fatigueRhodesAllMay29-trainset95shuffle1/train'
 model_snapshot_0: "snapshot-best-150.pt"
-model_path_2: '/home/chesteklab/Downloads/all_videos_side_viewFeb8-trainset95shuffle5/train'
-model_snapshot_2: "snapshot-best-010.pt"
+model_path_1: '/home/chesteklab/Desktop/fatigueRhodesAll-Jakr-2026-05-29/dlc-models-pytorch/iteration-6/fatigueRhodesAllMay29-trainset95shuffle1/train'
+model_snapshot_1: "snapshot-best-150.pt"
+model_path_2: '/home/chesteklab/Desktop/fatigueRhodesAll-Jakr-2026-05-29/dlc-models-pytorch/iteration-6/fatigueRhodesAllMay29-trainset95shuffle1/train'
+model_snapshot_2: "snapshot-best-150.pt"
+model_path_3: '/home/chesteklab/Desktop/fatigueRhodesAll-Jakr-2026-05-29/dlc-models-pytorch/iteration-6/fatigueRhodesAllMay29-trainset95shuffle1/train'
+model_snapshot_3: "snapshot-best-150.pt"
+# model_path_3: '/home/chesteklab/Desktop/fatigueRhodesAll-Jakr-2026-05-29/dlc-models-pytorch/iteration-6/fatigueRhodesAllMay29-trainset95shuffle1/train'
+# model_snapshot_3: "snapshot-best-150.pt"
+# # slot 1 = back_left, standing in for the unplugged back_right (see latency_benchmarking.yaml)
+# model_path_1: '/home/chesteklab/Downloads/all_videos_side_viewFeb8-trainset95shuffle5/train'
+# model_snapshot_1: "snapshot-best-010.pt"
+# model_path_2: '/home/chesteklab/Downloads/all_videos_side_viewFeb8-trainset95shuffle5/train'
+# model_snapshot_2: "snapshot-best-010.pt"
 video_path_0: '/home/chesteklab/Desktop/FES_Fatigue Videos/FES_Fatigue_Rhodes/camera_video_0_0617_1211.mp4'
 video_path_2: '/home/chesteklab/camera_video/2026-02-27/102051/camera_video_2_0227_1020.mp4'
+# Confidence below which the GUI draws a keypoint hollow/orange instead of solid
+# red. It no longer *hides* low-confidence keypoints -- every keypoint the model
+# returns is drawn.
 threshold: 0.2
+# Replace the model's PartAffinityFieldPredictor with HeatmapPredictor at load
+# time. These models are trained with num_animals=1, so PAF's job (grouping
+# keypoints into individuals) is meaningless, and its assembly step is what
+# blanks keypoints out to NaN / the -1 sentinel. HeatmapPredictor takes a
+# per-bodypart argmax and always returns every keypoint. Measured on real hand
+# footage: where PAF is confident the two agree to a median 1.5 px / max 4.6 px
+# on a 960x540 frame, but PAF returns a finite coordinate for only 60.8% of
+# keypoints vs 100% for Heatmap. Set false to restore the original PAF behaviour.
+single_animal_predictor: true
 output_path: '/home/chesteklab/predictions'
+# `resize` is the scale factor between native camera resolution and the frame
+# the model actually sees (960x540 / 1920x1080 = 0.5). It is used at two
+# points: (1) processor.py's Step 3, to cv2.resize the frame down to that size
+# -- but ONLY when camera_prescaled is false, since TIS now does this
+# downscale in GStreamer instead; (2) unconditionally, to un-scale the
+# predicted angle back to the reference coordinate space the sender's
+# normalize_to_range() constants were calibrated against. Keep this at 0.5
+# even with camera_prescaled: true -- it describes the scale ratio, not
+# whether cv2.resize runs.
 resize: 0.5
+# TIS (real camera, actors/camera_reader.py + actors/TIS.py) downscales to
+# stream_resolution in GStreamer before the frame reaches the store, so
+# processor.py should NOT cv2.resize it again. Set this to false if Generator0
+# is switched back to the synthetic actors.generator.Generator, which still
+# puts native-resolution frames and needs the cv2.resize step.
+camera_prescaled: true
 alpha: 0.5
+# --- CPU core placement (actors/cpu_affinity.py) --------------------------
+# This is a hybrid CPU: cpu0-15 are the SMT thread pairs of 8 performance
+# cores (5.7 GHz, 6.0 GHz on cpu8-11), cpu16-31 are 16 efficiency cores
+# (4.4 GHz). The same DLC inference on the same frame measured 6.3-6.6 ms on a
+# P-core and 11.4-12.0 ms on an E-core -- a 1.72x penalty. The 4-camera run
+# 20260804-1432 showed a 1.79x spread across cameras running *identical*
+# weights, which is that penalty showing up live: with ~15 busy processes and
+# only 8 physical P-cores, the scheduler put some processors on E-cores.
+#
+# With 4 cameras this hands out, deterministically:
+#   Processor  cam0..3  -> cpu[8,9] [10,11] [0,1] [2,3]   (P, fastest first)
+#   CameraReader cam0..3 -> cpu[4,5] [6,7] [14,15] [12,13] (P, after processors)
+#   VideoSaver / VideoScreen / SenderUDP -> cpu16-31       (E, shared)
+#
+# Set enabled: false to go back to letting the scheduler decide.
+cpu_affinity:
+  enabled: true
+  # How many physical P-cores to reserve for Processors before CameraReaders
+  # start claiming them. Defaults to max_camera_slots below.
+  compute_slots: 4
+  # Cores to hand out last. cpu12/13 is the physical core carrying the xhci
+  # USB interrupt for the cameras (IRQ 132, ~750k interrupts and climbing).
+  # scripts/setup_realtime.sh moves that IRQ to cpu31; until it has been run
+  # this keeps a Processor off that core. Harmless either way.
+  avoid_cpus: [12, 13]
+  # Per-actor escape hatch, keyed by the label in the log line, e.g.
+  #   overrides:
+  #     Processor cam3: [14, 15]
+  overrides: {}
+
+# Number of preds{N}_in slots actors.sender_udp.SenderUDP polls each step
+# (0..max_camera_slots-1). Independent of how many cameras are actually wired
+# in a given yaml -- an unwired slot just never yields a message and is
+# skipped at negligible cost every step. Raise this if a yaml ever wires more
+# than 4 Processor actors to the Sender.
+max_camera_slots: 4

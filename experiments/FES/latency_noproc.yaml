@@ -1,0 +1,134 @@
+# Supports 1-4 cameras. To change how many are active:
+#   1. Uncomment/comment matching ProcessorN / GeneratorN / VideoSaverN blocks
+#      and their connections below (N = slot index, 0-3).
+#   2. Set VideoScreen.num_active_cameras to the number of slots you enabled.
+#      This MUST match, or the GUI will loop over the wrong number of camera
+#      panels (either not creating some it needs, or spending every frame
+#      catching KeyErrors on links that don't exist).
+#   3. Set each block's camera_num to the physical camera you want on that
+#      slot (0-4, per config/camera_config.yaml's active_cameras list). Slot
+#      index and camera_num are independent -- a slot is just wiring order in
+#      this file, camera_num is what selects the model (config.yaml's
+#      model_path_N / model_snapshot_N) and the physical device
+#      (camera_config.yaml). They do not need to match, and in the 3-camera
+#      block below they deliberately don't (slot 1 -> camera_num 3).
+#   4. actors.sender_udp.SenderUDP polls preds0_in..preds{max_camera_slots-1}_in
+#      every step (config.yaml: max_camera_slots, default 4) and identifies each
+#      camera by the real camera_num carried in the message, not by slot index
+#      -- so no Sender-side change is needed when you add/remove camera slots
+#      here, only the config.yaml's max_camera_slots if you ever go past 4.
+
+actors:
+  GUI:
+    package: actors.video_screen
+    class: Visual
+    visual: VideoScreen
+
+  # video screen: displaying the camera video frames
+  VideoScreen:
+    package: actors.video_screen
+    class: VideoScreen
+    num_active_cameras: 4  # <-- must match the number of slots enabled below
+
+  # Processor0:
+  #   package: actors.processor
+  #   class: Processor
+  #   pred_active: True
+  #   camera_num: 0
+  #   method: spawn
+
+  # Processor1:
+  #   package: actors.processor
+  #   class: Processor
+  #   pred_active: True
+  #   camera_num: 1
+  #   method: spawn
+
+  # Processor2:
+  #   package: actors.processor
+  #   class: Processor
+  #   pred_active: True
+  #   camera_num: 2
+  #   method: spawn
+
+  # Processor3:
+  #   package: actors.processor
+  #   class: Processor
+  #   pred_active: True
+  #   camera_num: 3
+  #   method: spawn
+
+# Uncomment this to run psuedo cameras
+  # Generator0:
+  #   package: actors.generator
+  #   class: Generator
+  #   camera_num: 0
+
+  # Generator2:
+  #   package: actors.generator
+  #   class: Generator
+  #   camera_num: 2
+
+  Generator0:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 0
+
+  Generator1:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 1
+
+  Generator2:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 2
+
+  Generator3:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 3
+
+  VideoSaver0:
+    package: actors.video_saver
+    class: VideoSaver
+    camera_num: 0
+    method: spawn
+
+  VideoSaver1:
+    package: actors.video_saver
+    class: VideoSaver
+    camera_num: 1
+    method: spawn
+
+  VideoSaver2:
+    package: actors.video_saver
+    class: VideoSaver
+    camera_num: 2
+    method: spawn
+
+  VideoSaver3:
+    package: actors.video_saver
+    class: VideoSaver
+    camera_num: 3
+    method: spawn
+
+  Receiver:
+    package: actors.recieverActor
+    class: Receiver
+    method: spawn
+
+  # Sender:
+  #   package: actors.sender_udp
+  #   class: SenderUDP
+  #   method: spawn
+
+connections:
+  Generator0.q_out: [VideoScreen.images0_in , VideoSaver0.q_in]
+  Generator1.q_out: [ VideoScreen.images1_in , VideoSaver1.q_in]
+  Generator2.q_out: [VideoScreen.images2_in , VideoSaver2.q_in]
+  Generator3.q_out: [ VideoScreen.images3_in , VideoSaver3.q_in]
+
+
+redis_config:
+  port: 6379

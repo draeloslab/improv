@@ -8,6 +8,7 @@ import struct
 from skvideo.io import FFmpegWriter
 from copy import deepcopy
 from improv.actor import ManagedActor
+from . import cpu_affinity
 from pathlib import Path
 from multiprocessing import Pool, Process
 from collections import deque
@@ -136,6 +137,13 @@ class VideoSaver(ManagedActor):
                 worker = self.save_buffer_frames(buffer, num_buffer)
 
     def setup(self):
+        # Disk writing is throughput work, not latency work -- it buffers and
+        # is not in the measured end-to-end path. Keeping it (and its ffmpeg
+        # children, which inherit this affinity) on the E-cores is what leaves
+        # the P-cores free for the processors and camera readers.
+        cpu_affinity.pin_actor(cpu_affinity.BACKGROUND,
+                               label=f"VideoSaver cam{self.camera_num}")
+
         # store init
         self._getStoreInterface()
 
@@ -151,8 +159,12 @@ class VideoSaver(ManagedActor):
             config = yaml.safe_load(file)
 
         camera_params = camera_config['camera_params']
-        self.frame_w = camera_params['resolution']['width'] # frame width
-        self.frame_h = camera_params['resolution']['height'] # frame height        
+        # Frames actually flowing through the store are at stream_resolution
+        # (TIS downscales in GStreamer before the store) -- fall back to the
+        # native `resolution` if stream_resolution isn't configured.
+        stream_res = camera_params.get('stream_resolution', camera_params['resolution'])
+        self.frame_w = stream_res['width'] # frame width
+        self.frame_h = stream_res['height'] # frame height
         self.fps = int(camera_params['fps'].split('/')[0]) # extract the fps value
 
         self.wait_time = np.round(1/self.fps/2, 3) # wait time when recordin not active (twice fast the frame rate)

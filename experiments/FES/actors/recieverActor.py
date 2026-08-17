@@ -14,7 +14,7 @@ logger.setLevel(logging.DEBUG)
 # Create a file handler
 log_file = "reciever.log"
 file_handler = logging.FileHandler(log_file)
-file_handler.setLevel(logging.INFO)
+file_handler.setLevel(logging.DEBUG)
 
 # Create a formatter and set it for the handler
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')

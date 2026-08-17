@@ -174,9 +174,17 @@ class VideoConverter:
                                 logger.warning(f"VideoConverter: Unexpected frame length in {buffer_file}")
                                 break
 
-                            # Decompress the frame (assuming PNG compression)
+                            # Frames may be raw RGB bytes (TIS no longer JPEG-encodes
+                            # before the store, so VideoSaver's save_buffer_frames
+                            # writes raw bytes to these buffer files) or compressed
+                            # (older captures / other camera sources). Detect by
+                            # size rather than assuming one or the other.
                             nparr = np.frombuffer(frame_data, np.uint8)
-                            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                            expected_raw_bytes = self.frame_h * self.frame_w * 3
+                            if nparr.size == expected_raw_bytes:
+                                frame = nparr.reshape((self.frame_h, self.frame_w, 3))
+                            else:
+                                frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
                             if frame is not None:
                                 self.video_conv_queue.put(frame)

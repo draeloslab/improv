@@ -22,6 +22,7 @@ from collections import deque
 from deeplabcut.pose_estimation_pytorch.config import read_config_as_dict
 from deeplabcut.pose_estimation_pytorch.apis.utils import get_inference_runners
 from .kalmanfilter import KalmanFilterPredictor
+from . import cpu_affinity
 from improv.store import ObjectNotFoundError
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,15 @@ class Processor(Actor):
 
     def setup(self):
         """Initializes all class variables."""
+        # Claim a dedicated physical P-core BEFORE anything else. Thread
+        # affinity is inherited only by threads created *after* this call, so
+        # this has to happen ahead of get_inference_runners() -- that is what
+        # spins up the CUDA driver's helper threads. Landing on an E-core costs
+        # 1.72x on the full inference call and is the entire reason the four
+        # cameras used to report different DLC times; see cpu_affinity.py.
+        cpu_affinity.pin_actor(cpu_affinity.COMPUTE, slot=self.camera_num,
+                               label=f"Processor cam{self.camera_num}")
+
         self._getStoreInterface()
 
         if self.pred_active:
@@ -86,7 +96,48 @@ class Processor(Actor):
 
             # read model configuration
             model_cfg = read_config_as_dict(pytorch_config_path)
-            
+
+            # --- Predictor override -------------------------------------------------
+            # These models are trained with num_animals=1, but ship a
+            # PartAffinityFieldPredictor. PAF exists to group keypoints into
+            # *individuals* -- meaningless for a single animal, and it is the sole
+            # source of blanked-out keypoints: Assembly.data starts as all-NaN and
+            # only the joints that PAF can link (affinity >= min_affinity, and at
+            # least min_n_links=2 links) get filled in. Everything else stays NaN,
+            # and if assembly fails outright the whole pose comes back as the -1
+            # sentinel. That NaN then propagates into the angle and the GUI drops
+            # the keypoint (front_end5 only draws when likelihood > 0).
+            #
+            # HeatmapPredictor takes a per-bodypart argmax instead, so it always
+            # returns a coordinate and a score for every keypoint. Measured against
+            # PAF on real hand footage, where PAF is confident (score > 0.3) the two
+            # agree to a median of 1.5 px and a max of 4.6 px on a 960x540 frame
+            # (100% within 5 px) -- so this does not move the keypoints, it only
+            # stops them disappearing. On the same footage PAF returned a finite
+            # coordinate for just 60.8% of keypoints vs 100% for Heatmap.
+            #
+            # Set `single_animal_predictor: false` in config.yaml to restore PAF.
+            if config.get('single_animal_predictor', True):
+                try:
+                    head_cfg = model_cfg['model']['heads']['bodypart']
+                    old_pred = head_cfg.get('predictor', {})
+                    if old_pred.get('type') != 'HeatmapPredictor':
+                        # PAF spells it locref_stdev, HeatmapPredictor locref_std
+                        locref_std = old_pred.get('locref_stdev', old_pred.get('locref_std', 7.2801))
+                        head_cfg['predictor'] = {
+                            'type': 'HeatmapPredictor',
+                            'apply_sigmoid': old_pred.get('apply_sigmoid', True),
+                            'clip_scores': old_pred.get('clip_scores', False),
+                            'location_refinement': True,
+                            'locref_std': locref_std,
+                        }
+                        logger.info(f"Camera {self.camera_num}: predictor "
+                                    f"{old_pred.get('type')} -> HeatmapPredictor "
+                                    f"(single-animal; always emits every keypoint)")
+                except (KeyError, TypeError) as e:
+                    logger.warning(f"Camera {self.camera_num}: could not override predictor "
+                                   f"({e}); keeping the model's own predictor")
+
             logger.info(f"Camera {self.camera_num}: Using model from {train_dir}")
             logger.info(f"Camera {self.camera_num}: Using snapshot {config[model_snapshot_key]}")
 
@@ -115,6 +166,15 @@ class Processor(Actor):
             logger.info(f'Kalman filter initialized for camera {self.camera_num}')
 
             self.resize = config['resize']
+            # TIS (real camera) now downscales in GStreamer before the frame ever
+            # reaches the store, so no further cv2.resize is needed here. The
+            # synthetic Generator actor still puts native-resolution frames, so
+            # this must stay False if you switch Generator0 back to the synthetic
+            # source. `self.resize` itself is still used below to un-scale the
+            # angle back to the calibration's reference coordinate space -- it
+            # reflects the scale factor applied to the frame regardless of
+            # whether GStreamer or cv2.resize is what applied it.
+            self.camera_prescaled = config.get('camera_prescaled', False)
             self.name = "Processor"
             self.frame = None
             self.predictions = []
@@ -261,8 +321,11 @@ class Processor(Actor):
                     self.frame_num += 1
 
                     # --- Step 3: Resize ---
+                    # Skipped when the frame source already delivers pre-scaled
+                    # frames (TIS + camera_prescaled: true in config.yaml).
                     t0 = time.perf_counter()
-                    frame = cv2.resize(frame, (int(frame.shape[1] * self.resize), int(frame.shape[0] * self.resize)))
+                    if not self.camera_prescaled:
+                        frame = cv2.resize(frame, (int(frame.shape[1] * self.resize), int(frame.shape[0] * self.resize)))
                     self.resize_latencies.append(time.perf_counter() - t0)
 
                     # Quick check: log color channel info periodically
@@ -289,20 +352,27 @@ class Processor(Actor):
                         self.dlc_latencies.append(time.perf_counter() - t0)
                         self.total_latencies.append(time.perf_counter() - step_start)
                         self.angles_sent.append(smoothed_angle if smoothed_angle is not None else np.nan)
-                        self.q_out.put([smoothed_prediction, smoothed_angle, camera_start, gen_frame_num])
+                        # camera_num is appended so aggregating downstream actors (Sender,
+                        # VideoScreen) that fan multiple Processor instances into one
+                        # actor can identify which physical camera a message came from --
+                        # the preds{N}_in slot a message arrives on is just wiring order
+                        # in the yaml, not the camera's real identity (e.g. Processor1
+                        # can be camera_num=3 and still be wired to preds1_in).
+                        self.q_out.put([smoothed_prediction, smoothed_angle, camera_start, gen_frame_num, self.camera_num])
                         logger.info(f"Processor camera {self.camera_num}: Sent fallback prediction and angle")
                         return
                     self.dlc_latencies.append(time.perf_counter() - t0)
 
                     # Extract the bodyparts array from the prediction dictionary
                     self.prediction = raw_prediction[0]['bodyparts'][0]
-                    self.prediction[:,0] += self.prediction[:,3]  # Adjust x-coordinates if needed
-                    self.prediction[:,1] += self.prediction[:,4]  # Adjust y-coordinates if needed
+                    # DLCRNet models emit offset columns 3/4; heatmap-only models emit just x,y,score
+                    if self.prediction.shape[1] >= 5:
+                        self.prediction[:,0] += self.prediction[:,3]  # Adjust x-coordinates if needed
+                        self.prediction[:,1] += self.prediction[:,4]  # Adjust y-coordinates if needed
+                    self.prediction = self.prediction[:, :3]
                     logger.debug(f"Camera {self.camera_num}: Prediction shape after extraction: {self.prediction}")
                     # Select bodyparts based on camera number
-                    if self.camera_num == 0:
-                        self.prediction = self.prediction[:, :3]
-                    elif self.camera_num == 2:
+                    if self.camera_num == 2:
                         self.prediction = self.prediction[:1]
                     
                     self.raw_predictions.append(self.prediction.copy())
@@ -313,8 +383,8 @@ class Processor(Actor):
                         assert False
                         smoothed_prediction = self.kalman_filter.process(self.prediction, frame_time=camera_start)
                     except Exception as e:
-                        logger.error(f"Kalman filter processing error: {e}")
-                        logger.error(traceback.format_exc())
+                        # logger.error(f"Kalman filter processing error: {e}")
+                        # logger.error(traceback.format_exc())
                         smoothed_prediction = self.prediction  # fallback to raw prediction on error
                     self.kalman_latencies.append(time.perf_counter() - t0)
                     
@@ -327,23 +397,30 @@ class Processor(Actor):
                     if len(smoothed_prediction) >= 3:
                         # angle = self.calculateAngle(smoothed_prediction)
                         angle = smoothed_prediction[1][1] # Just take the y value of the PIP joint as a proxy for angle, since actual angle calc is noisy
-                        # Angle Smoothing
-                        self.angle_queue.append(angle)
-                        smoothed_angle = np.mean(self.angle_queue) if len(self.angle_queue) > 0 else angle
-
-                        # Apply sudden jump detection on the smoothed angle
-                        if self.prev_angle is not None and np.abs(smoothed_angle - self.prev_angle) > 500:
-                            smoothed_angle = self.prev_angle  # ignore sudden large jumps
-                        self.prev_angle = smoothed_angle
                     else:
                         logger.debug(f"Camera {self.camera_num}: Prediction shape insufficient for angle calculation: {smoothed_prediction.shape}")
-                        self.angle_queue.append(smoothed_prediction[0][0])  # Just treat the x value as angle for queue
-                        smoothed_angle = np.mean(self.angle_queue) if len(self.angle_queue) > 0 else angle
+                        angle = smoothed_prediction[0][0]  # Just treat the x value as angle for queue
 
-                        # Apply sudden jump detection on the smoothed angle
-                        if self.prev_angle is not None and np.abs(smoothed_angle - self.prev_angle) > 500:
-                            smoothed_angle = self.prev_angle  # ignore sudden large jumps
-                        self.prev_angle = smoothed_angle
+                    # Only feed real numbers into the smoothing window. A single NaN
+                    # used to poison np.mean for the whole 15-frame deque, which is
+                    # why one dropped keypoint produced a run of NaN angles rather
+                    # than a single glitch. -1/-2 are DLC's "assembly failed"
+                    # sentinels and are not real coordinates either.
+                    if np.isfinite(angle) and angle > -1.5:
+                        self.angle_queue.append(angle)
+
+                    if len(self.angle_queue) > 0:
+                        smoothed_angle = float(np.mean(self.angle_queue))
+                    else:
+                        # Nothing valid seen yet this run -- hold the last good angle
+                        # rather than emitting NaN downstream to the sender/GUI.
+                        smoothed_angle = self.prev_angle
+
+                    # Apply sudden jump detection on the smoothed angle
+                    if (smoothed_angle is not None and self.prev_angle is not None
+                            and np.abs(smoothed_angle - self.prev_angle) > 500):
+                        smoothed_angle = self.prev_angle  # ignore sudden large jumps
+                    self.prev_angle = smoothed_angle
                     self.postprocess_latencies.append(time.perf_counter() - t0)
 
                     if self.frame_num % self.frames_log == 0:
@@ -365,9 +442,14 @@ class Processor(Actor):
                 t0 = time.perf_counter()
                 try:
                     logger.debug(f"Camera {self.camera_num}: Sending smoothed prediction and angle to downstream")
-                    smoothed_angle = smoothed_angle/self.resize #if self.camera_num == 2 else smoothed_angle
-                    # Pass along camera_start and frame_num so Sender can compute true end-to-end
-                    self.q_out.put([smoothed_prediction, smoothed_angle, camera_start, gen_frame_num])
+                    # smoothed_angle is None only before the first valid keypoint of a
+                    # run; don't let that raise here and skip the q_out.put entirely.
+                    if smoothed_angle is not None:
+                        smoothed_angle = smoothed_angle/self.resize #if self.camera_num == 2 else smoothed_angle
+                    # Pass along camera_start and frame_num so Sender can compute true end-to-end,
+                    # and camera_num so it (and VideoScreen) can identify the physical camera
+                    # regardless of which preds{N}_in slot this message arrives on.
+                    self.q_out.put([smoothed_prediction, smoothed_angle, camera_start, gen_frame_num, self.camera_num])
                 except Exception as e:
                     logger.error(f"Processor Exception: {e}")
                     logger.error(traceback.format_exc())
