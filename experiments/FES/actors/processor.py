@@ -25,20 +25,9 @@ from .kalmanfilter import KalmanFilterPredictor
 from . import cpu_affinity
 from improv.store import ObjectNotFoundError
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+from .run_paths import get_logger, run_folder
 
-# Create a file handler
-log_file = "processor.log"
-file_handler = logging.FileHandler(log_file)
-file_handler.setLevel(logging.INFO)
-
-# Create a formatter and set it for the handler
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-file_handler.setFormatter(formatter)
-
-# Add the handler to the logger
-logger.addHandler(file_handler)
+logger = get_logger(__name__, "processor.log")
 
 
 class Processor(Actor):
@@ -213,11 +202,7 @@ class Processor(Actor):
             self.time_start = time.perf_counter()
 
 
-            date = time.strftime("%Y%m%d")
-            timestamp = time.strftime("%Y%m%d-%H%M")
-            string = config['output_path']
-            self.out_folder = Path(f"{string}/{date}/{timestamp}")
-            self.out_folder.mkdir(parents=True, exist_ok=True)
+            self.out_folder = run_folder()
             logger.info(f"Output folder set to {self.out_folder}")
             logger.info(f"Using alpha: {self.alpha} and interp_thresh: {self.interp_thresh} and resize: {self.resize}")
             logger.info("Completed setup for Processor")

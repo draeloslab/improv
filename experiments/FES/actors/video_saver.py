@@ -16,20 +16,9 @@ from queue import Queue, Empty
 from .video_converter import VideoConverter
 
 import logging
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+from .run_paths import get_logger, run_folder, video_session_folder
 
-# Create a file handler
-log_file = "camera_video_saver.log"
-file_handler = logging.FileHandler(log_file)
-file_handler.setLevel(logging.INFO)
-
-# Create a formatter and set it for the handler
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-file_handler.setFormatter(formatter)
-
-# Add the handler to the logger
-logger.addHandler(file_handler)
+logger = get_logger(__name__, "camera_video_saver.log")
 
 class VideoSaver(ManagedActor):
     def __init__(self, *args, **kwargs):
@@ -148,7 +137,6 @@ class VideoSaver(ManagedActor):
         self._getStoreInterface()
 
         source_folder = Path(__file__).resolve().parent.parent
-        home_dir = os.path.expanduser('~')
 
         # load the camera configuration params
         with open(f'{source_folder}/config/camera_config.yaml', 'r') as file:
@@ -181,17 +169,17 @@ class VideoSaver(ManagedActor):
         self.num_save_processes = video_config['num_save_processes']
         self.compression_quality = video_config['compression_quality']
 
-        # create the dest folder
-        date = time.strftime("%Y-%m-%d")
-        timestamp = time.strftime("%H%M%S")
+        # create the dest folder. Derived from the shared run id so all of this
+        # run's savers agree on one session folder -- see run_paths.
+        session_folder = video_session_folder(raw_chunks_path)
 
-        self.out_folder_buffer = f"{home_dir}/{raw_chunks_path}/{date}/{timestamp}/camera_{self.camera_num}/"
-        self.out_folder_video = f"{home_dir}/{raw_chunks_path}/{date}/{timestamp}/"
+        self.out_folder_buffer = f"{session_folder}/camera_{self.camera_num}/"
+        self.out_folder_video = f"{session_folder}/"
 
         if not Path(self.out_folder_buffer).exists():
             Path(self.out_folder_buffer).mkdir(parents=True, exist_ok=True)
 
-        timestamp_hhmm = time.strftime("%H%M")
+        timestamp_hhmm = session_folder.name[:4]
         self.output_video = os.path.join(self.out_folder_video, f"camera_video_{self.camera_num+1}_{timestamp_hhmm}.mp4")
 
         # Initialize latency tracking variables
@@ -199,11 +187,7 @@ class VideoSaver(ManagedActor):
         self.start_times = []
 
 
-        date = time.strftime("%Y%m%d")
-        timestamp = time.strftime("%Y%m%d-%H%M")
-        string = config['output_path']
-        self.out_folder = Path(f"{string}/{date}/{timestamp}")
-        self.out_folder.mkdir(parents=True, exist_ok=True)
+        self.out_folder = run_folder()
         logger.info(f"Latency Output folder set to {self.out_folder}")
 
         # video converter setup

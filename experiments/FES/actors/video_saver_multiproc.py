@@ -17,20 +17,9 @@ from redis import Redis
 from collections import deque
 
 import logging
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+from .run_paths import get_logger, video_session_folder
 
-# Create a file handler
-log_file = "camera_video_saver.log"
-file_handler = logging.FileHandler(log_file)
-file_handler.setLevel(logging.INFO)
-
-# Create a formatter and set it for the handler
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-file_handler.setFormatter(formatter)
-
-# Add the handler to the logger
-logger.addHandler(file_handler)
+logger = get_logger(__name__, "camera_video_saver.log")
 
 # Function to save chunks of frames to a video file
 def save_buffer_frames(buffer, out_folder, num_buffer):    
@@ -138,7 +127,6 @@ class VideoSaver(ManagedActor):
         self._getStoreInterface()
 
         source_folder = Path(__file__).resolve().parent.parent
-        home_dir = os.path.expanduser('~')
 
         # load the camera configuration params
         with open(f'{source_folder}/config/camera_config.yaml', 'r') as file:
@@ -161,12 +149,12 @@ class VideoSaver(ManagedActor):
         self.num_save_processes = video_config['num_save_processes']
         self.compression_quality = video_config['compression_quality']
 
-        # create the dest folder
-        date = time.strftime("%Y-%m-%d")
-        timestamp = time.strftime("%H%M%S")
+        # create the dest folder. Derived from the shared run id so all of this
+        # run's savers agree on one session folder -- see run_paths.
+        session_folder = video_session_folder(raw_chunks_path)
 
-        self.out_folder_buffer = f"{home_dir}/{raw_chunks_path}/{date}/{timestamp}/camera_{self.camera_num}/"
-        self.out_folder_video = f"{home_dir}/{raw_chunks_path}/{date}/{timestamp}/"
+        self.out_folder_buffer = f"{session_folder}/camera_{self.camera_num}/"
+        self.out_folder_video = f"{session_folder}/"
 
         if not Path(self.out_folder_buffer).exists():
             Path(self.out_folder_buffer).mkdir(parents=True, exist_ok=True)

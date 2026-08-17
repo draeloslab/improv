@@ -9,20 +9,9 @@ gi.require_version("Gst", "1.0")
 gi.require_version("Tcam", "1.0")
 
 import logging
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+from .run_paths import get_logger, run_folder
 
-# Create a file handler
-log_file = "camera_reader.log"
-file_handler = logging.FileHandler(log_file)
-file_handler.setLevel(logging.INFO)
-
-# Create a formatter and set it for the handler
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-file_handler.setFormatter(formatter)
-
-# Add the handler to the logger
-logger.addHandler(file_handler)
+logger = get_logger(__name__, "camera_reader.log")
 
 from pathlib import Path
 
@@ -87,11 +76,7 @@ class TIS:
         self.store_put_latencies = []  # client.put
         self.queue_put_latencies = []  # q_out.put
         
-        date = time.strftime("%Y%m%d")
-        timestamp = time.strftime("%Y%m%d-%H%M")
-        string = '/home/chesteklab/predictions'
-        self.out_folder = Path(f"{string}/{date}/{timestamp}")
-        self.out_folder.mkdir(parents=True, exist_ok=True)
+        self.out_folder = run_folder()
         # logger.info(f"Output folder set to {self.out_folder}")
         logger.info("Completed setup for TIS")
 

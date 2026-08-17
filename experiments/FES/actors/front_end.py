@@ -14,20 +14,9 @@ import pyqtgraph as pg
 from collections import deque
 
 import logging
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+from .run_paths import get_logger
 
-# Create a file handler
-log_file = "video_screen.log"
-file_handler = logging.FileHandler(log_file)
-file_handler.setLevel(logging.INFO)
-
-# Create a formatter and set it for the handler
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-file_handler.setFormatter(formatter)
-
-# Add the handler to the logger
-logger.addHandler(file_handler)
+logger = get_logger(__name__, "video_screen.log")
 logging.getLogger('matplotlib.font_manager').setLevel(logging.WARNING)
 
 

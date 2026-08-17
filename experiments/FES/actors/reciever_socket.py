@@ -6,20 +6,9 @@ import logging
 from pathlib import Path
 from improv.actor import Actor
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+from .run_paths import get_logger, run_folder
 
-# Create a file handler
-log_file = "reciever.log"
-file_handler = logging.FileHandler(log_file)
-file_handler.setLevel(logging.INFO)
-
-# Create a formatter and set it for the handler
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-file_handler.setFormatter(formatter)
-
-# Add the handler to the logger
-logger.addHandler(file_handler)
+logger = get_logger(__name__, "reciever.log")
 
 class Receiver(Actor):
     """Actor to receive UDP packets and parse xPC data.
@@ -69,9 +58,7 @@ class Receiver(Actor):
         self.fpos_data = []
 
 
-        timestamp = time.strftime("%Y%m%d-%H%M")
-        self.out_folder = Path(f"/home/chesteklab/predictions/{timestamp}")
-        self.out_folder.mkdir(parents=True, exist_ok=True)
+        self.out_folder = run_folder()
         
         logger.info("Completed setup for UDPReceiver")
 

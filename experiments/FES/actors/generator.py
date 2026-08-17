@@ -8,6 +8,8 @@ import yaml
 
 
 
+from .run_paths import run_folder
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -63,11 +65,7 @@ class Generator(Actor):
         total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
 
-        date = time.strftime("%Y%m%d")
-        timestamp = time.strftime("%Y%m%d-%H%M")
-        string = config['output_path']
-        self.out_folder = Path(f"{string}/{date}/{timestamp}")
-        self.out_folder.mkdir(parents=True, exist_ok=True)
+        self.out_folder = run_folder()
         logger.info(f"Output folder set to {self.out_folder}")
         logger.info(f'Total frames: {total_frames}')
         self.done = False

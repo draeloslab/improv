@@ -8,20 +8,15 @@ from pathlib import Path
 import yaml
 from improv.actor import Actor
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+from .run_paths import get_logger, run_folder
+from . import xpc_link
 
-# Create a file handler
-log_file = "reciever.log"
-file_handler = logging.FileHandler(log_file)
-file_handler.setLevel(logging.DEBUG)
+logger = get_logger(__name__, "reciever.log", level=logging.DEBUG)
 
-# Create a formatter and set it for the handler
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-file_handler.setFormatter(formatter)
-
-# Add the handler to the logger
-logger.addHandler(file_handler)
+#: How long after the first runStep to wait before complaining that nothing has
+#: arrived. Long enough to cover actor startup skew, short enough that you find
+#: out at the start of a session rather than at the end of it.
+SILENCE_WARNING_SECONDS = 5.0
 
 class Receiver(Actor):
     """Actor to receive UDP packets and parse xPC data.
@@ -39,12 +34,35 @@ class Receiver(Actor):
         # UDP connection parameters
         self.UDP_IP_receive = "0.0.0.0"  # Listen on all interfaces
         self.UDP_PORT_receive = 11114
-        
+
+        # Check the spoofed xPC link before binding. A wrong or missing link is
+        # the difference between a session's worth of data and an empty
+        # fpos_data.npy, and it is invisible at runtime -- so say so loudly now.
+        xpc_link.check(logger)
+
         # Create and bind socket
         self.sock_receive = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sock_receive.bind((self.UDP_IP_receive, self.UDP_PORT_receive))
+        # A dirty quit can leave the previous run's socket lingering; without
+        # this the next run dies on bind with EADDRINUSE.
+        self.sock_receive.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            self.sock_receive.bind((self.UDP_IP_receive, self.UDP_PORT_receive))
+        except OSError as e:
+            logger.error(
+                "Could not bind UDP port %d: %s. Something else is holding it "
+                "-- most likely a standalone actors/reciever.py, or an improv "
+                "run that did not exit cleanly. Free it with: "
+                "lsof -ti:%d | xargs -r kill -9",
+                self.UDP_PORT_receive, e, self.UDP_PORT_receive,
+            )
+            raise
         self.sock_receive.settimeout(0.1)  # Non-blocking with short timeout
-        
+
+        # Silence tracking -- see runStep.
+        self.packets_received = 0
+        self.first_step_time = None
+        self.warned_silent = False
+
         # Data parsing parameters
         self.data_lengths = [            # should add up to 832 (July 2022)
             4,      # eTime
@@ -77,11 +95,7 @@ class Receiver(Actor):
             config = yaml.safe_load(file)
     
 
-        date = time.strftime("%Y%m%d")
-        timestamp = time.strftime("%Y%m%d-%H%M")
-        string = config['output_path']
-        self.out_folder = Path(f"{string}/{date}/{timestamp}")
-        self.out_folder.mkdir(parents=True, exist_ok=True)
+        self.out_folder = run_folder()
         
         logger.info("Completed setup for UDPReceiver")
 
@@ -135,12 +149,18 @@ class Receiver(Actor):
 
     def runStep(self):
         """Main execution step - receive and parse UDP packet."""
+        if self.first_step_time is None:
+            self.first_step_time = time.time()
+
         try:
 
             # Receive UDP packet with timeout
             data = self.sock_receive.recv(1500)
-            logger.info("Received UDP packet")
-            
+            if self.packets_received == 0:
+                logger.info("First UDP packet received from xPC")
+            self.packets_received += 1
+            logger.debug("Received UDP packet")
+
             # Parse the packet
             eTime, feat, dsize, neural_data, fpos, msCount, xpcBinSize, enable, \
                 target_pos, trial_count, xpc_switches, xpc_vals, xpc_dict = self.parse_packet(data)
@@ -155,14 +175,33 @@ class Receiver(Actor):
             
             
         except socket.timeout:
-            # No data received within timeout - this is normal
-            logger.debug("Did not get packet")
-            pass
+            # No data received within timeout - this is normal per-step, but a
+            # sustained silence is not, and the per-step DEBUG line is far too
+            # noisy to notice it in. Say it once, clearly.
+            if (not self.warned_silent
+                    and self.packets_received == 0
+                    and time.time() - self.first_step_time > SILENCE_WARNING_SECONDS):
+                self.warned_silent = True
+                logger.warning(
+                    "No xPC packets on port %d after %.0f s of running. Check "
+                    "that the run is started on Morpheous, that the red Vision "
+                    "cable is in xPC, and that the link is up (%s).",
+                    self.UDP_PORT_receive, SILENCE_WARNING_SECONDS,
+                    xpc_link.FIX_COMMAND,
+                )
+                xpc_link.check(logger)
         except Exception as e:
             logger.error(f"Error receiving/parsing UDP data: {e}")
 
     def stop(self):
         logger.info("Stopping UDPReceiver")
+        if self.packets_received == 0:
+            logger.error(
+                "Received 0 xPC packets this run -- fpos_data.npy will be "
+                "empty. Fix the link with: %s", xpc_link.FIX_COMMAND,
+            )
+        else:
+            logger.info("Received %d xPC packets this run", self.packets_received)
         try:
             self.sock_receive.close()
         except Exception as e:

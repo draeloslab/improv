@@ -22,20 +22,9 @@ from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QGridLayout
 from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen, QColor, QBrush, QFont
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+from .run_paths import get_logger, run_folder
 
-# Create a file handler
-log_file = "video_screen.log"
-file_handler = logging.FileHandler(log_file)
-file_handler.setLevel(logging.INFO)
-
-# Create a formatter and set it for the handler
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-file_handler.setFormatter(formatter)
-
-# Add the handler to the logger
-logger.addHandler(file_handler)
+logger = get_logger(__name__, "video_screen.log", level=logging.DEBUG, handler_level=logging.INFO)
 
 class Visual(Actor):
     def setup(self, visual):
@@ -116,11 +105,7 @@ class VideoScreen(ManagedActor):
         self.pred_latencies = []
         self.frame_count = 0
 
-        date = time.strftime("%Y%m%d")
-        timestamp = time.strftime("%Y%m%d-%H%M")
-        string = '/home/chesteklab/predictions'
-        self.out_folder = Path(f"{string}/{date}/{timestamp}")
-        self.out_folder.mkdir(parents=True, exist_ok=True)
+        self.out_folder = run_folder()
         logger.info(f"Output folder set to {self.out_folder}")
 
         logger.info(f"Video GUI setup completed")
