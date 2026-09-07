@@ -41,6 +41,27 @@ class SenderUDP(Actor):
         object shape naturally handles a 1-, 2-, 3-, or 4-camera run with no
         padding/nulls for cameras that aren't part of this experiment.
         Example, 2 active cameras (0 and 3): [1523, {"0": 142.7, "3": 88.1}]
+
+    3D mode (actors/processor_batch3d.ProcessorBatch3D)
+    ---------------------------------------------------
+    When a `joints_in` link is wired, this actor also polls it for the single
+    dict ProcessorBatch3D emits per step, and the keys in `angles` become JOINT
+    NAMES rather than camera numbers:
+
+        [1523, {"INDEX_PIP": 41.2, "INDEX_MCP": 12.8, "THUMB_IP": 7.4, ...}]
+
+    The two modes coexist deliberately: the payload shape (a flat
+    string-keyed object of angles) is identical, so a receiver that already
+    parses the per-camera form needs no change to consume joint angles. If a
+    yaml wires BOTH `joints_in` and the per-camera `preds{N}_in` slots, joint
+    angles win the payload from the first joint message onward -- the two key
+    spaces cannot be merged without ambiguity, and 3D joint angles are the more
+    specific signal. Per-camera angles keep being recorded to disk either way.
+    Joint angles are in degrees, deviation from
+    straight (0 = fully extended), from dlc2kinematics. A joint that could not
+    be triangulated this frame (fewer than two confident views) is sent as
+    null, NOT dropped or zero-filled -- a receiver must be able to tell "not
+    measured" from "measured as 0", which is a perfectly normal extended joint.
     """
 
     def __init__(self, *args, **kwargs):
@@ -107,6 +128,14 @@ class SenderUDP(Actor):
         self.true_e2e_frame_nums = {}
         self.true_e2e_timestamps = {}
 
+        # --- 3D joint-angle state (only used when `joints_in` is wired) ----
+        self.last_joint_angles = {}   # joint name -> most recently known angle
+        self.joint_names = []         # stable order, from the processor
+        self.sent_joint_angles = []   # one row per SENT packet, in joint_names order
+        self.joint_frame_nums = []
+        self.joint_e2e = []
+        self.joints_seen = False
+
         self.send_timestamps = []
         self.step_latencies = []
 
@@ -135,11 +164,60 @@ class SenderUDP(Actor):
             self.true_e2e_timestamps[cam] = []
             logger.info(f"SenderUDP: new camera_num {cam} seen for the first time")
 
+    def _poll_joints(self):
+        """Drain `joints_in` for the newest ProcessorBatch3D message.
+
+        Returns the message that was consumed, or None. Drains rather than
+        taking one per step: if the sender ever falls behind the processor,
+        sending the freshest angles matters far more than sending every one --
+        this is a control signal, not a recording (the processor already saves
+        the full series to disk).
+        """
+        link = self.links.get("joints_in")
+        if link is None:
+            return None
+
+        msg = None
+        try:
+            msg = link.get(timeout=0.0001)
+        except Exception:
+            return None
+        while True:
+            try:
+                msg = link.get_nowait()
+            except Exception:
+                break
+
+        if not isinstance(msg, dict):
+            logger.warning(f"joints_in delivered a {type(msg).__name__}, expected dict; ignoring")
+            return None
+
+        angles = msg.get('joint_angles') or {}
+        names = msg.get('joint_names')
+        if names and not self.joint_names:
+            self.joint_names = list(names)
+            logger.info(f"SenderUDP: 3D mode, {len(self.joint_names)} joint angles: "
+                        f"{self.joint_names}")
+        elif not self.joint_names:
+            self.joint_names = sorted(angles)
+
+        self.joints_seen = True
+        self.last_joint_angles.update(angles)
+
+        camera_start = msg.get('camera_start')
+        if camera_start is not None:
+            self._pending_joint_start = camera_start
+        self._pending_joint_frame = msg.get('frame_num', -1)
+        return msg
+
     def runStep(self):
         """Poll every wired preds{N}_in slot; send ONLY if at least one camera
         produced a fresh prediction this step."""
         step_start = time.perf_counter()
         fresh_this_step = {}  # camera_num -> (angle, camera_start, frame_num)
+
+        # --- 3D joint angles, if this yaml wires ProcessorBatch3D ---
+        fresh_joints = self._poll_joints()
 
         for slot in range(self.max_camera_slots):
             try:
@@ -172,7 +250,7 @@ class SenderUDP(Actor):
         # UDP has no serial backpressure to hide that behind, so without this
         # gate the pipeline would flood the socket at the actor's full spin
         # rate instead of at the ~30 Hz the predictions actually arrive at.
-        if not fresh_this_step:
+        if not fresh_this_step and not fresh_joints:
             self.skipped_steps += 1
             return
 
@@ -189,7 +267,17 @@ class SenderUDP(Actor):
         # angles keyed by camera_num (string, JSON object keys must be strings);
         # frame_index is this sender's own outgoing packet counter, not any
         # per-camera frame number -- see the class docstring.
-        angles_out = {str(cam): float(self.last_angle[cam]) for cam in sorted(self.last_angle)}
+        if self.joints_seen:
+            # 3D mode: keys are joint names. NaN is not valid JSON, and it means
+            # "this joint had fewer than two confident views this frame" -- a
+            # real, actionable state that must not be confused with 0 degrees
+            # (a normally extended joint). Send it as null.
+            angles_out = {
+                name: (float(v) if v is not None and np.isfinite(v) else None)
+                for name, v in ((n, self.last_joint_angles.get(n)) for n in self.joint_names)
+            }
+        else:
+            angles_out = {str(cam): float(self.last_angle[cam]) for cam in sorted(self.last_angle)}
         payload = [self.packet_n, angles_out]
 
         try:
@@ -203,6 +291,14 @@ class SenderUDP(Actor):
 
         send_time = time.time()
         self.packet_n += 1
+
+        if fresh_joints is not None:
+            self.sent_joint_angles.append(
+                [self.last_joint_angles.get(n, np.nan) for n in self.joint_names])
+            self.joint_frame_nums.append(getattr(self, '_pending_joint_frame', -1))
+            start = getattr(self, '_pending_joint_start', None)
+            if start is not None:
+                self.joint_e2e.append(send_time - start)
 
         # --- Log timing data, per camera_num ---
         self.send_timestamps.append(send_time)
@@ -261,6 +357,30 @@ class SenderUDP(Actor):
                 logger.info(f"True E2E cam{cam}: mean={np.mean(e2e)*1000:.1f}ms, "
                             f"median={np.median(e2e)*1000:.1f}ms, "
                             f"max={np.max(e2e)*1000:.1f}ms (from {len(e2e)} frames)")
+
+        # --- 3D joint angles (only present when joints_in was wired) ---
+        if self.joints_seen:
+            np.save(self.out_folder / "sender_joint_names.npy", np.asarray(self.joint_names))
+            np.save(self.out_folder / "sender_joint_angles.npy",
+                    np.asarray(self.sent_joint_angles, dtype=float))
+            np.save(self.out_folder / "sender_joint_frame_nums.npy",
+                    np.asarray(self.joint_frame_nums))
+            np.save(self.out_folder / "sender_joint_e2e.npy", np.asarray(self.joint_e2e))
+            if self.joint_e2e:
+                logger.info(f"Joint-angle E2E: mean={np.mean(self.joint_e2e)*1000:.1f}ms, "
+                            f"median={np.median(self.joint_e2e)*1000:.1f}ms, "
+                            f"max={np.max(self.joint_e2e)*1000:.1f}ms "
+                            f"(from {len(self.joint_e2e)} packets)")
+            arr = np.asarray(self.sent_joint_angles, dtype=float)
+            if arr.size:
+                for i, name in enumerate(self.joint_names):
+                    col = arr[:, i]
+                    good = np.isfinite(col)
+                    if good.any():
+                        logger.info(f"  {name}: median {np.median(col[good]):6.1f} deg, "
+                                    f"measured {good.sum()}/{len(col)} packets")
+                    else:
+                        logger.info(f"  {name}: never triangulated")
 
         # Legacy file names for backward compatibility with tooling that
         # assumed a single primary camera (camera_num 0).

@@ -19,6 +19,42 @@ from .run_paths import get_logger
 logger = get_logger(__name__, "video_screen.log")
 logging.getLogger('matplotlib.font_manager').setLevel(logging.WARNING)
 
+# Keypoint drawing schemes keyed by how many points the model returned this
+# frame -- see display_frame(). `skeleton` is pairs of *label* names to
+# connect (looked up to indices at draw time); None means "chain consecutive
+# points in list order" instead, which is what the two DLC schemes always did.
+# circle_d/font_pt are sized down for the 11-point JARVIS hand model
+# (actors/processor_jarvis.py), which packs far more keypoints into the same
+# frame area than the old single-finger DLC models (1 or 4 points) did -- the
+# original circle_d=50/font_pt=50 would heavily overlap between fingers.
+_KEYPOINT_SCHEMES = {
+    1: {  # DLC single-point model (camera_num == 2's old subsetting)
+        "labels": ["MRS"],
+        "skeleton": None,
+        "circle_d": 50,
+        "font_pt": 50,
+    },
+    4: {  # DLC single-finger model (processor.py, fatigueRhodesAll)
+        "labels": ["DIP", "PIP", "MCP", "Wrist"],
+        "skeleton": None,  # sequential chain: DIP-PIP-MCP-Wrist
+        "circle_d": 50,
+        "font_pt": 50,
+    },
+    11: {  # JARVIS whole-hand fine-tune (processor_jarvis.py, fisk_freebie)
+        "labels": ["Wrist", "Thumb_Tip", "Thumb_IP", "Index_Tip", "Index_MCP",
+                   "Middle_Tip", "Middle_MCP", "Ring_Tip", "Ring_MCP", "Small_Tip", "Small_MCP"],
+        "skeleton": [
+            ("Wrist", "Thumb_IP"), ("Thumb_IP", "Thumb_Tip"),
+            ("Wrist", "Index_MCP"), ("Index_MCP", "Index_Tip"),
+            ("Wrist", "Middle_MCP"), ("Middle_MCP", "Middle_Tip"),
+            ("Wrist", "Ring_MCP"), ("Ring_MCP", "Ring_Tip"),
+            ("Wrist", "Small_MCP"), ("Small_MCP", "Small_Tip"),
+        ],
+        "circle_d": 16,
+        "font_pt": 14,
+    },
+}
+
 
 class CameraStreamWidget(QWidget):
     """PyQt Widget for displaying multiple camera streams."""
@@ -198,37 +234,69 @@ class CameraStreamWidget(QWidget):
         if predictions is not None:
             painter.setBrush(QBrush(QColor(255, 0, 0)))
 
-            # Bodypart labels are chosen from how many keypoints the model
-            # actually returned this frame, not from camera_id -- this is
-            # self-describing and needs no camera-specific config, and it
-            # doesn't break if a camera_num<->model mapping ever changes.
-            labels = ["MRS"] if len(predictions) == 1 else ["DIP", "PIP", "MCP", "Wrist"]
+            # Keypoint scheme is chosen from how many the model actually
+            # returned this frame, not from camera_id -- self-describing, and
+            # it doesn't break if a camera_num<->model mapping ever changes.
+            # See _KEYPOINT_SCHEMES: 1/4 are the original DLC single-finger
+            # models (unchanged look), 11 is the JARVIS whole-hand fine-tune.
+            scheme = _KEYPOINT_SCHEMES.get(len(predictions))
+            if scheme is not None:
+                labels = scheme["labels"]
+                circle_d, font_pt = scheme["circle_d"], scheme["font_pt"]
+                skeleton_idx = ([(labels.index(a), labels.index(b)) for a, b in scheme["skeleton"]]
+                                 if scheme["skeleton"] is not None else None)
+            else:
+                # Unknown keypoint count -- fall back rather than crashing.
+                labels = [str(i) for i in range(len(predictions))]
+                circle_d, font_pt = 30, 30
+                skeleton_idx = None
 
-            prev_point = None
+            # Pass 1: draw every keypoint the model returns, regardless of
+            # confidence. Only genuinely undrawable values (NaN from a failed
+            # PAF assembly, or the -1/-2 "no detection" sentinel both DLC and
+            # ProcessorJarvis use) are skipped -- there is no coordinate to
+            # draw in those cases. Low-confidence keypoints are drawn hollow
+            # and dimmer so they're still visibly distinguishable from
+            # confident ones. Points are cached in frame (post-resize) pixel
+            # coordinates for the skeleton pass below.
+            points_px = [None] * len(predictions)
             for i, point in enumerate(predictions):
                 x, y, likelihood = point
-                # Draw every keypoint the model returns, regardless of confidence.
-                # Only genuinely undrawable values (NaN from a failed PAF assembly,
-                # or DLC's -1/-2 "no detection" sentinel) are skipped -- there is no
-                # coordinate to draw in those cases. Low-confidence keypoints are
-                # drawn hollow and dimmer so they are still visibly distinguishable
-                # from confident ones.
                 if not (np.isfinite(x) and np.isfinite(y)) or x < -1.5 or y < -1.5:
-                    prev_point = None  # break the skeleton line across a missing joint
                     continue
                 x = x/self.resize
                 y = y/self.resize
+                points_px[i] = (x, y)
                 confident = likelihood > self.threshold
                 colour = QColor(255, 0, 0) if confident else QColor(255, 165, 0)
                 painter.setPen(QPen(colour, 2 if confident else 1))
-                painter.drawEllipse(int(x), int(y), 50, 50)
+                painter.drawEllipse(int(x), int(y), circle_d, circle_d)
                 painter.setPen(QPen(QColor(255, 255, 255) if confident else QColor(200, 200, 200), 2))
-                painter.setFont(QFont("Arial", 50))
-                painter.drawText(int(x) + 20, int(y) + 20, labels[i % len(labels)])
-                # Draw lines between points
-                if prev_point is not None:
-                    painter.drawLine(int(prev_point[0]), int(prev_point[1]), int(x), int(y))
-                prev_point = (x, y)
+                painter.setFont(QFont("Arial", font_pt))
+                painter.drawText(int(x) + circle_d // 3, int(y) + circle_d // 3, labels[i % len(labels)])
+
+            # Pass 2: skeleton lines. Schemes with an explicit `skeleton` (the
+            # 11-point hand) connect anatomically adjacent named joints --
+            # connecting *consecutive list indices* would zigzag across the
+            # whole hand for that scheme, since BODYPARTS groups Tip/IP/MCP
+            # pairs by finger, not as one walkable path. Schemes with
+            # `skeleton: None` (the two single-finger DLC models) keep the
+            # original behaviour of chaining consecutive points in order.
+            painter.setPen(QPen(QColor(255, 255, 255), 2))
+            if skeleton_idx is not None:
+                for a, b in skeleton_idx:
+                    if points_px[a] is not None and points_px[b] is not None:
+                        painter.drawLine(int(points_px[a][0]), int(points_px[a][1]),
+                                          int(points_px[b][0]), int(points_px[b][1]))
+            else:
+                prev_point = None
+                for p in points_px:
+                    if p is None:
+                        prev_point = None  # break the skeleton line across a missing joint
+                        continue
+                    if prev_point is not None:
+                        painter.drawLine(int(prev_point[0]), int(prev_point[1]), int(p[0]), int(p[1]))
+                    prev_point = p
 
         # Always draw angle text on every frame
         painter.setPen(QPen(QColor(0, 255, 0), 2))

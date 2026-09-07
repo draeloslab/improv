@@ -226,6 +226,9 @@ def run_server(args):
         datefmt='%Y-%m-%d %H:%M:%S',
         handlers=[logging.FileHandler(args.logfile), zmq_log_handler],
     )
+    # numba's internal loggers have no level of their own, so they inherit
+    # the root DEBUG level above and flood the log with SSA/bytecode dumps.
+    logging.getLogger("numba").setLevel(logging.WARNING)
 
     if not args.actor_path:
         sys.path.append(os.path.dirname(args.configfile))

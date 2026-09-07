@@ -31,22 +31,22 @@ actors:
     num_active_cameras: 3  # <-- must match the number of slots enabled below
 
   Processor0:
-    package: actors.processor
-    class: Processor
+    package: actors.processor_jarvis
+    class: ProcessorJarvis
     pred_active: True
     camera_num: 0
     method: spawn
 
   Processor1:
-    package: actors.processor
-    class: Processor
+    package: actors.processor_jarvis
+    class: ProcessorJarvis
     pred_active: True
     camera_num: 1
     method: spawn
 
   Processor2:
-    package: actors.processor
-    class: Processor
+    package: actors.processor_jarvis
+    class: ProcessorJarvis
     pred_active: True
     camera_num: 2
     method: spawn

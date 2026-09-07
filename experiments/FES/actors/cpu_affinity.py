@@ -166,13 +166,22 @@ def _core_pool(avoid_cpus):
     return clean + dirty, e_cores
 
 
-def pin_actor(role, slot=0, config=None, label=None):
+def pin_actor(role, slot=0, config=None, label=None, n_slots=1):
     """Pin the calling process to the CPUs assigned to (role, slot).
 
-    role   COMPUTE / CAPTURE / BACKGROUND
-    slot   which actor of that role this is (camera_num works well)
-    config the parsed config.yaml dict, or None to use defaults
-    label  name to use in the log line, e.g. "Processor cam2"
+    role    COMPUTE / CAPTURE / BACKGROUND
+    slot    which actor of that role this is (camera_num works well)
+    config  the parsed config.yaml dict, or None to use defaults
+    label   name to use in the log line, e.g. "Processor cam2"
+    n_slots for role=COMPUTE only: claim this many physical P-cores (starting
+            at `slot`) instead of one. Use this when one process now does the
+            work that used to be split across n_slots separate per-camera
+            processes -- e.g. ProcessorBatch3D's mediapipe backend runs
+            num_cameras HandLandmarker instances concurrently on a thread
+            pool, and pinning that process to a single physical core (2
+            logical CPUs) starves those threads: measured 57 ms for a
+            4-camera step pinned to 1 core vs 32.6 ms unpinned. Default 1
+            preserves the original one-actor-one-core behaviour.
 
     Returns the list of CPUs pinned to, or None if pinning was disabled,
     unavailable, or failed. Never raises -- a pipeline that cannot set affinity
@@ -196,6 +205,17 @@ def pin_actor(role, slot=0, config=None, label=None):
     n_compute = int(settings.get("compute_slots",
                                  config.get("max_camera_slots", 4)))
     pool, e_cores = _core_pool(settings.get("avoid_cpus"))
+
+    if role == COMPUTE and n_slots > 1:
+        if not pool:
+            logger.warning(f"{label}: no performance cores discovered, not pinning")
+            return None
+        claimed = pool[slot:slot + n_slots] or pool[:n_slots]
+        cpus = sorted({c for core in claimed for c in core})
+        if len(claimed) < n_slots:
+            logger.warning(f"{label}: wanted {n_slots} P-cores, only {len(claimed)} "
+                           f"available ({len(pool)} total) -- sharing what exists")
+        return _apply(cpus, label, f"{len(claimed)} physical P-cores (multi-slot)")
 
     if role == BACKGROUND:
         # Savers, GUI and sender are throughput work, not latency work: the

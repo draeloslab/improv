@@ -8,7 +8,7 @@ actors:
   VideoScreen:
     package: actors.video_screen
     class: VideoScreen
-    num_active_cameras: 1
+    num_active_cameras: 4
 
 
   Generator0:
@@ -21,20 +21,20 @@ actors:
     class: CameraReader
     camera_num: 1
 
-  # Generator2:
-  #   package: actors.camera_reader
-  #   class: CameraReader
-  #   camera_num: 2
+  Generator2:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 2
 
   Generator3:
     package: actors.camera_reader
     class: CameraReader
     camera_num: 3
 
-  Generator4:
-    package: actors.camera_reader
-    class: CameraReader
-    camera_num: 4
+  # Generator4:
+  #   package: actors.camera_reader
+  #   class: CameraReader
+  #   camera_num: 4
 
   VideoSaver0:
     package: actors.video_saver
@@ -48,11 +48,11 @@ actors:
     camera_num: 1
     method: spawn
 
-  # VideoSaver2:
-  #   package: actors.video_saver
-  #   class: VideoSaver
-  #   camera_num: 2
-  #   method: spawn
+  VideoSaver2:
+    package: actors.video_saver
+    class: VideoSaver
+    camera_num: 2
+    method: spawn
 
   VideoSaver3:
     package: actors.video_saver
@@ -60,24 +60,24 @@ actors:
     camera_num: 3
     method: spawn
 
-  VideoSaver4:
-    package: actors.video_saver
-    class: VideoSaver
-    camera_num: 4
-    method: spawn
+  # VideoSaver4:
+  #   package: actors.video_saver
+  #   class: VideoSaver
+  #   camera_num: 4
+  #   method: spawn
 
-  Receiver:
-    package: actors.recieverActor
-    class: Receiver
-    method: spawn
+  # Receiver:
+  #   package: actors.recieverActor
+  #   class: Receiver
+  #   method: spawn
 
 
 connections:
   Generator0.q_out: [VideoScreen.images0_in , VideoSaver0.q_in]
   Generator1.q_out: [VideoScreen.images1_in , VideoSaver1.q_in]
-  # Generator2.q_out: [VideoScreen.images2_in , VideoSaver2.q_in]
+  Generator2.q_out: [VideoScreen.images2_in , VideoSaver2.q_in]
   Generator3.q_out: [VideoScreen.images3_in , VideoSaver3.q_in]
-  Generator4.q_out: [VideoScreen.images4_in , VideoSaver4.q_in]
+  # Generator4.q_out: [VideoScreen.images4_in , VideoSaver4.q_in]
 
 redis_config:
   port: 6379

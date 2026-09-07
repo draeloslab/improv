@@ -1,0 +1,99 @@
+# 4-camera batched 3D hand tracking.
+#
+# Differs from 5cam_test.yaml in one structural way: there is ONE processor for
+# all four cameras instead of one per camera. Every CameraReader feeds the same
+# ProcessorBatch3D on its own frames{N}_in link; the processor assembles the
+# four frames into a single batch, runs one forward pass, triangulates with the
+# anipose calibration, and emits joint angles.
+#
+#   CameraReader0..3 ─┬─> ProcessorBatch3D ─┬─> SenderUDP.joints_in
+#                     │                     └─> VideoScreen3D.preds_in
+#                     ├─> VideoScreen3D.images{N}_in
+#                     └─> VideoSaver{N}.q_in
+#
+# The slot -> physical camera mapping lives in camera_nums below, and is what
+# ties each frames{N}_in link to the right entry in the calibration file. Slot
+# order is wiring order and is NOT a camera identity on its own.
+
+actors:
+  GUI:
+    package: actors.video_screen_3d
+    class: Visual3D
+    visual: VideoScreen3D
+
+  VideoScreen3D:
+    package: actors.video_screen_3d
+    class: VideoScreen3D
+    num_active_cameras: 4
+
+  Generator0:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 0
+
+  Generator1:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 1
+
+  Generator2:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 2
+
+  Generator3:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 3
+
+  # The single batched processor. camera_nums[i] is the physical camera on
+  # frames{i}_in -- keep it in sync with the Generator wiring below.
+  ProcessorBatch3D:
+    package: actors.processor_batch3d
+    class: ProcessorBatch3D
+    num_cameras: 4
+    camera_nums: [0, 1, 2, 3]
+    pred_active: True
+    method: spawn
+
+  SenderUDP:
+    package: actors.sender_udp
+    class: SenderUDP
+    method: spawn
+
+  # VideoSaver0:
+  #   package: actors.video_saver
+  #   class: VideoSaver
+  #   camera_num: 0
+  #   method: spawn
+
+  # VideoSaver1:
+  #   package: actors.video_saver
+  #   class: VideoSaver
+  #   camera_num: 1
+  #   method: spawn
+
+  # VideoSaver2:
+  #   package: actors.video_saver
+  #   class: VideoSaver
+  #   camera_num: 2
+  #   method: spawn
+
+  # VideoSaver3:
+  #   package: actors.video_saver
+  #   class: VideoSaver
+  #   camera_num: 3
+  #   method: spawn
+
+connections:
+  Generator0.q_out: [VideoScreen3D.images0_in,ProcessorBatch3D.frames0_in]
+  Generator1.q_out: [VideoScreen3D.images1_in,ProcessorBatch3D.frames1_in]
+  Generator2.q_out: [VideoScreen3D.images2_in, ProcessorBatch3D.frames2_in]
+  Generator3.q_out: [VideoScreen3D.images3_in, ProcessorBatch3D.frames3_in]
+
+  # One prediction message covering all four cameras, fanned to the wire and
+  # the GUI.
+  ProcessorBatch3D.q_out: [SenderUDP.joints_in, VideoScreen3D.preds_in]
+
+redis_config:
+  port: 6379

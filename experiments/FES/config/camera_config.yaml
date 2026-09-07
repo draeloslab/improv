@@ -40,11 +40,12 @@ active_cameras:
       name: "back_left"
       serial_id: "45324224-aravis"
   - camera:
-      name: "front_right"
-      serial_id: "14624029-aravis"
-  - camera:
       name: "front_left"
       serial_id: "45324225-aravis"
+  - camera:
+      name: "front_right"
+      serial_id: "14624029-aravis"
+
 
 inactive_cameras:
   - camera:

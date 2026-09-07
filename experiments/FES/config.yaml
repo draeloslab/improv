@@ -9,13 +9,125 @@ model_path_3: '/home/chesteklab/Desktop/fatigueRhodesAll-Jakr-2026-05-29/dlc-mod
 model_snapshot_3: "snapshot-best-150.pt"
 # model_path_3: '/home/chesteklab/Desktop/fatigueRhodesAll-Jakr-2026-05-29/dlc-models-pytorch/iteration-6/fatigueRhodesAllMay29-trainset95shuffle1/train'
 # model_snapshot_3: "snapshot-best-150.pt"
+
+# --- ProcessorJarvis (actors/processor_jarvis.py) --------------------------
+# Fine-tuned JARVIS-MoCap EfficientTrack weights (see
+# hand-tracking-notebooks-jake-2026-08-17/02_jarvis_finetune.ipynb, dataset
+# dataset_fisk_freebie, run finetune_monkeyhand). One whole-hand 11-keypoint
+# model, reused for every camera_num -- unlike the DLC keys above these four
+# pairs are identical on purpose, just repeated per camera for symmetry.
+jarvis_center_weights_0: '/home/chesteklab/Desktop/hand-tracking-notebooks-jake-2026-08-17/jarvis/JARVIS-HybridNet/projects/fisk_freebie_finetune/models/CenterDetect/finetune_monkeyhand/EfficientTrack-medium_final.pth'
+jarvis_keypoint_weights_0: '/home/chesteklab/Desktop/hand-tracking-notebooks-jake-2026-08-17/jarvis/JARVIS-HybridNet/projects/fisk_freebie_finetune/models/KeypointDetect/finetune_monkeyhand/EfficientTrack-medium_final.pth'
+jarvis_center_weights_1: '/home/chesteklab/Desktop/hand-tracking-notebooks-jake-2026-08-17/jarvis/JARVIS-HybridNet/projects/fisk_freebie_finetune/models/CenterDetect/finetune_monkeyhand/EfficientTrack-medium_final.pth'
+jarvis_keypoint_weights_1: '/home/chesteklab/Desktop/hand-tracking-notebooks-jake-2026-08-17/jarvis/JARVIS-HybridNet/projects/fisk_freebie_finetune/models/KeypointDetect/finetune_monkeyhand/EfficientTrack-medium_final.pth'
+jarvis_center_weights_2: '/home/chesteklab/Desktop/hand-tracking-notebooks-jake-2026-08-17/jarvis/JARVIS-HybridNet/projects/fisk_freebie_finetune/models/CenterDetect/finetune_monkeyhand/EfficientTrack-medium_final.pth'
+jarvis_keypoint_weights_2: '/home/chesteklab/Desktop/hand-tracking-notebooks-jake-2026-08-17/jarvis/JARVIS-HybridNet/projects/fisk_freebie_finetune/models/KeypointDetect/finetune_monkeyhand/EfficientTrack-medium_final.pth'
+jarvis_center_weights_3: '/home/chesteklab/Desktop/hand-tracking-notebooks-jake-2026-08-17/jarvis/JARVIS-HybridNet/projects/fisk_freebie_finetune/models/CenterDetect/finetune_monkeyhand/EfficientTrack-medium_final.pth'
+jarvis_keypoint_weights_3: '/home/chesteklab/Desktop/hand-tracking-notebooks-jake-2026-08-17/jarvis/JARVIS-HybridNet/projects/fisk_freebie_finetune/models/KeypointDetect/finetune_monkeyhand/EfficientTrack-medium_final.pth'
+# --- ProcessorBatch3D (actors/processor_batch3d.py) ------------------------
+# Which pose estimator ProcessorBatch3D uses. Both give the same 21-keypoint
+# MediaPipe hand layout (WRIST, THUMB_CMC..PINKY_TIP) as bodyparts, so nothing
+# downstream (calibration, triangulation, joint angles, the GUI) cares which
+# one is active.
+#
+#   "mediapipe" (default) -- Google's off-the-shelf HandLandmarker. Measured
+#     far more reliable than the DLC model below on this rig's footage
+#     (handedness confidence 0.97-1.0 vs the DLC model's median keypoint
+#     likelihood of ~0.25 on its own training video). Its Python Tasks API has
+#     no tensor-batch call, so "batching" here means one HandLandmarker
+#     instance per camera, run concurrently on a thread pool -- TFLite
+#     releases the GIL during inference, so N concurrent calls cost about the
+#     same as one: measured 32.6 ms for 4 cameras concurrently vs 138 ms
+#     sequential on this rig, comfortably inside a 33 ms/30fps budget.
+#   "dlc" -- the humanWristMP21 fine-tune, batched through one PyTorch forward
+#     pass (batch_size = num_cameras): 41.6 ms for 4 frames vs 75.6 ms
+#     sequential. Kept as a fallback / for comparison; not recommended given
+#     how weakly it's trained.
+batch3d_backend: "mediapipe"
+
+# --- mediapipe backend ------------------------------------------------------
+# From hand-tracking-notebooks-jake-2026-08-17/mediapipe/hand_landmarker.task
+# (the bundle used to bootstrap the humanWristMP21 labels in the first place --
+# that project's bodyparts list IS mediapipe's landmark order).
+mediapipe_model_path: '/home/chesteklab/Desktop/hand-tracking-notebooks-jake-2026-08-17/mediapipe/hand_landmarker.task'
+mediapipe_num_hands: 2
+# HandLandmarker's own internal gate on whether it reports a hand at all --
+# separate from triangulation_likelihood_threshold below, which gates whether
+# a reported hand is confident enough to feed into THIS camera's triangulation.
+mediapipe_min_hand_detection_confidence: 0.5
+# CPU delegate measured as fast as GPU here (mediapipe's GPU delegate showed no
+# speedup on this footage and was less consistent about finding the hand) --
+# leave this on CPU unless a future GPU driver changes that.
+mediapipe_delegate: "CPU"
+
+# --- dlc backend (batch3d_backend: "dlc") -----------------------------------
+# humanWristMP21 is the 21-keypoint MediaPipe hand layout (WRIST, THUMB_CMC..
+# PINKY_TIP). The 4-keypoint fatigueRhodesAll model above cannot produce hand
+# joint angles -- it only has one finger.
+batch3d_model_path: '/home/chesteklab/Desktop/humanWristMP21-Jake-2026-08-14/dlc-models-pytorch/iteration-0/humanWristMP21Aug14-trainset95shuffle1/train'
+batch3d_model_snapshot: "snapshot-120.pt"
+
+# --- 3D triangulation ------------------------------------------------------
+# anipose calibration produced by
+# experiments/FES/calibration_20260903/calibration_20260903.ipynb. Relative
+# paths resolve against experiments/FES/.
+#
+# The file at this path is from the 2026-09-04 recording, calibrated on all 4
+# cameras together: 0.97 px mean reprojection error, focal lengths agree
+# within ~10% across cameras, distortion k1 in [-0.41, -0.08] (physically
+# plausible). The 2026-09-03 recording that preceded it could only solve
+# cam0+cam2 and was not usable -- see that folder's README.md for what changed
+# in the re-record (mainly: far more board coverage on cam1/cam3).
+calibration_toml: 'calibration_20260903/calibration.toml'
+# camera_num -> the camera's name inside calibration_toml. Defaults to
+# "cam{camera_num}" for any camera not listed here, which is what the
+# calibration notebook writes.
+calibration_camera_names: {}
+# [width, height] the calibration was solved at. Live frames are rescaled into
+# this space before triangulation. Leave unset when they already match (both
+# are 960x540 today); set it if a calibration made at a different resolution is
+# ever dropped in, otherwise the error is silent.
+# calibration_frame_size: [960, 540]
+
+# Keypoints the model is less confident about than this are dropped (set NaN)
+# before triangulation, per camera, so a view that cannot see a joint
+# contributes no ray for it rather than pulling the DLT solution off.
+#
+# With batch3d_backend: "mediapipe" this gates on the HandLandmarker's per-hand
+# handedness score, not a per-keypoint score -- MediaPipe's hand landmarks
+# don't carry individual confidences (visibility/presence are always 0 for
+# this task), so a camera's hand is an all-21-keypoints-or-nothing vote. 0.3 is
+# generous for that score (real detections measured 0.97-1.0 here); raise it
+# if a camera starts contributing bad guesses.
+triangulation_likelihood_threshold: 0.3
+# Minimum cameras that must still have a keypoint after the gate above for it
+# to be triangulated. 2 is the geometric minimum; 3 buys robustness if you have
+# the coverage for it.
+triangulation_min_cameras: 2
+
+jarvis_model_size: 'medium'
+# Must match KEYPOINTDETECT.BOUNDING_BOX_SIZE the fine-tune was run with (see
+# cfg_ft in 02_jarvis_finetune.ipynb section 4) -- it's baked into what scale
+# of crop the KeypointDetect head learned to expect, not a free tuning knob.
+jarvis_bbox_size: 512
+# CenterDetect heatmap peak must exceed this to count as a detection (same
+# default jarvis_utils.run_inference / the notebook used, never overridden
+# there either).
+jarvis_center_threshold: 40
 # # slot 1 = back_left, standing in for the unplugged back_right (see latency_benchmarking.yaml)
 # model_path_1: '/home/chesteklab/Downloads/all_videos_side_viewFeb8-trainset95shuffle5/train'
 # model_snapshot_1: "snapshot-best-010.pt"
 # model_path_2: '/home/chesteklab/Downloads/all_videos_side_viewFeb8-trainset95shuffle5/train'
 # model_snapshot_2: "snapshot-best-010.pt"
-video_path_0: '/home/chesteklab/Desktop/FES_Fatigue Videos/FES_Fatigue_Rhodes/camera_video_0_0617_1211.mp4'
-video_path_2: '/home/chesteklab/camera_video/2026-02-27/102051/camera_video_2_0227_1020.mp4'
+# video_path_0/video_path_2/video_path TEMPORARILY overridden below for the
+# 4cam_3d_sim.yaml live-pipeline verification (no physical cameras available
+# in this environment) -- original values are the two commented-out lines.
+# Revert after that verification.
+# video_path_0: '/home/chesteklab/Desktop/FES_Fatigue Videos/FES_Fatigue_Rhodes/camera_video_0_0617_1211.mp4'
+# video_path_2: '/home/chesteklab/camera_video/2026-02-27/102051/camera_video_2_0227_1020.mp4'
+video_path_0: '/home/chesteklab/Desktop/humanWristMP21-Jake-2026-08-14/videos/tcam-capture-45324230-aravis-rggb_1920x1080_30_1-20260812T095112_479.avi'
+video_path_2: '/home/chesteklab/Desktop/humanWristMP21-Jake-2026-08-14/videos/tcam-capture-45324230-aravis-rggb_1920x1080_30_1-20260812T095112_479.avi'
+video_path: '/home/chesteklab/Desktop/humanWristMP21-Jake-2026-08-14/videos/tcam-capture-45324230-aravis-rggb_1920x1080_30_1-20260812T095112_479.avi'
 # Confidence below which the GUI draws a keypoint hollow/orange instead of solid
 # red. It no longer *hides* low-confidence keypoints -- every keypoint the model
 # returns is drawn.
@@ -45,7 +157,9 @@ resize: 0.5
 # processor.py should NOT cv2.resize it again. Set this to false if Generator0
 # is switched back to the synthetic actors.generator.Generator, which still
 # puts native-resolution frames and needs the cv2.resize step.
-camera_prescaled: true
+# TEMPORARILY false for 4cam_3d_sim.yaml (Generator, not CameraReader/TIS) --
+# see the video_path override comment above. Revert to true afterward.
+camera_prescaled: false
 alpha: 0.5
 # --- CPU core placement (actors/cpu_affinity.py) --------------------------
 # This is a hybrid CPU: cpu0-15 are the SMT thread pairs of 8 performance
@@ -60,6 +174,13 @@ alpha: 0.5
 #   Processor  cam0..3  -> cpu[8,9] [10,11] [0,1] [2,3]   (P, fastest first)
 #   CameraReader cam0..3 -> cpu[4,5] [6,7] [14,15] [12,13] (P, after processors)
 #   VideoSaver / VideoScreen / SenderUDP -> cpu16-31       (E, shared)
+#
+# ProcessorBatch3D (4cam_3d.yaml) is one process standing in for what used to
+# be 4 Processor actors, so with the mediapipe backend it claims all
+# `compute_slots` P-cores itself (pin_actor(..., n_slots=num_cameras)) instead
+# of the 1-core-per-actor split above -- its concurrency is N threads inside
+# one process, not N processes. CameraReaders in that yaml still get one P-core
+# each, same as above.
 #
 # Set enabled: false to go back to letting the scheduler decide.
 cpu_affinity:
