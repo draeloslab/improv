@@ -1,0 +1,78 @@
+# 4-camera pipeline with NO Processor actors. The camera_reader's raw queue
+# message [frame_id, camera_start, frame_num] is wired straight to SenderUDP,
+# which reads the frame index directly off it (see actors/sender_udp.py, the
+# len(element) == 3 branch) -- used to benchmark capture->send latency without
+# any inference in the path.
+#
+# GeneratorN.q_out MUST be wired to predsN_in with matching N: this message
+# carries no camera_num, so the Sender identifies each camera by slot index.
+
+actors:
+  GUI:
+    package: actors.video_screen
+    class: Visual
+    visual: VideoScreen
+
+  # video screen: displaying the camera video frames
+  VideoScreen:
+    package: actors.video_screen
+    class: VideoScreen
+    num_active_cameras: 4  # <-- must match the number of slots enabled below
+
+  Generator0:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 0
+
+  Generator1:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 1
+
+  Generator2:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 2
+
+  Generator3:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 3
+
+  VideoSaver0:
+    package: actors.video_saver
+    class: VideoSaver
+    camera_num: 0
+    method: spawn
+
+  VideoSaver1:
+    package: actors.video_saver
+    class: VideoSaver
+    camera_num: 1
+    method: spawn
+
+  VideoSaver2:
+    package: actors.video_saver
+    class: VideoSaver
+    camera_num: 2
+    method: spawn
+
+  VideoSaver3:
+    package: actors.video_saver
+    class: VideoSaver
+    camera_num: 3
+    method: spawn
+
+  Sender:
+    package: actors.sender_udp
+    class: SenderUDP
+    method: spawn
+
+connections:
+  Generator0.q_out: [VideoScreen.images0_in, Sender.preds0_in, VideoSaver0.q_in]
+  Generator1.q_out: [VideoScreen.images1_in, Sender.preds1_in , VideoSaver1.q_in]
+  Generator2.q_out: [VideoScreen.images2_in, Sender.preds2_in , VideoSaver2.q_in]
+  Generator3.q_out: [VideoScreen.images3_in, Sender.preds3_in , VideoSaver3.q_in]
+
+redis_config:
+  port: 6379

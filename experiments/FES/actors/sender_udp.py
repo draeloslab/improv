@@ -233,6 +233,14 @@ class SenderUDP(Actor):
             elif len(element) == 4:
                 _, angle, camera_start, frame_num = element
                 cam = slot
+            elif len(element) == 3:
+                # Raw camera_reader message [frame_id, camera_start, frame_num]:
+                # no Processor in the pipeline (latency benchmarking). There is
+                # no prediction/angle, so report 0.0 and identify the camera by
+                # the slot it is wired to (camera_num isn't carried in this
+                # message -- wire GeneratorN.q_out -> predsN_in to keep them aligned).
+                _, camera_start, frame_num = element
+                angle, cam = 0.0, slot
             elif len(element) == 2:
                 _, angle = element
                 camera_start, frame_num, cam = None, -1, slot
