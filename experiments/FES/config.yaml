@@ -1,12 +1,16 @@
 fps: 30
-model_path_0: '/home/chesteklab/Desktop/fatigueRhodesAll-Jakr-2026-05-29/dlc-models-pytorch/iteration-6/fatigueRhodesAllMay29-trainset95shuffle1/train'
-model_snapshot_0: "snapshot-best-150.pt"
-model_path_1: '/home/chesteklab/Desktop/fatigueRhodesAll-Jakr-2026-05-29/dlc-models-pytorch/iteration-6/fatigueRhodesAllMay29-trainset95shuffle1/train'
-model_snapshot_1: "snapshot-best-150.pt"
-model_path_2: '/home/chesteklab/Desktop/fatigueRhodesAll-Jakr-2026-05-29/dlc-models-pytorch/iteration-6/fatigueRhodesAllMay29-trainset95shuffle1/train'
-model_snapshot_2: "snapshot-best-150.pt"
-model_path_3: '/home/chesteklab/Desktop/fatigueRhodesAll-Jakr-2026-05-29/dlc-models-pytorch/iteration-6/fatigueRhodesAllMay29-trainset95shuffle1/train'
-model_snapshot_3: "snapshot-best-150.pt"
+model_path_0: '/home/chesteklab/Downloads/all_videos_top_viewFeb4-trainset95shuffle2/train'
+model_snapshot_0: "snapshot-best-040.pt"
+model_path_1: '/home/chesteklab/Downloads/all_videos_side_viewFeb8-trainset95shuffle5/train'
+model_snapshot_1: "snapshot-best-010.pt"
+# model_path_0: '/home/chesteklab/Desktop/fatigueRhodesAll-Jakr-2026-05-29/dlc-models-pytorch/iteration-6/fatigueRhodesAllMay29-trainset95shuffle1/train'
+# model_snapshot_0: "snapshot-best-150.pt"
+# model_path_1: '/home/chesteklab/Desktop/fatigueRhodesAll-Jakr-2026-05-29/dlc-models-pytorch/iteration-6/fatigueRhodesAllMay29-trainset95shuffle1/train'
+# model_snapshot_1: "snapshot-best-150.pt"
+# model_path_2: '/home/chesteklab/Desktop/fatigueRhodesAll-Jakr-2026-05-29/dlc-models-pytorch/iteration-6/fatigueRhodesAllMay29-trainset95shuffle1/train'
+# model_snapshot_2: "snapshot-best-150.pt"
+# model_path_3: '/home/chesteklab/Desktop/fatigueRhodesAll-Jakr-2026-05-29/dlc-models-pytorch/iteration-6/fatigueRhodesAllMay29-trainset95shuffle1/train'
+# model_snapshot_3: "snapshot-best-150.pt"
 # model_path_3: '/home/chesteklab/Desktop/fatigueRhodesAll-Jakr-2026-05-29/dlc-models-pytorch/iteration-6/fatigueRhodesAllMay29-trainset95shuffle1/train'
 # model_snapshot_3: "snapshot-best-150.pt"
 
@@ -131,7 +135,7 @@ video_path: '/home/chesteklab/Desktop/humanWristMP21-Jake-2026-08-14/videos/tcam
 # Confidence below which the GUI draws a keypoint hollow/orange instead of solid
 # red. It no longer *hides* low-confidence keypoints -- every keypoint the model
 # returns is drawn.
-threshold: 0.2
+threshold: 0
 # Replace the model's PartAffinityFieldPredictor with HeatmapPredictor at load
 # time. These models are trained with num_animals=1, so PAF's job (grouping
 # keypoints into individuals) is meaningless, and its assembly step is what
@@ -159,7 +163,7 @@ resize: 0.5
 # puts native-resolution frames and needs the cv2.resize step.
 # TEMPORARILY false for 4cam_3d_sim.yaml (Generator, not CameraReader/TIS) --
 # see the video_path override comment above. Revert to true afterward.
-camera_prescaled: false
+camera_prescaled: False
 alpha: 0.5
 # --- CPU core placement (actors/cpu_affinity.py) --------------------------
 # This is a hybrid CPU: cpu0-15 are the SMT thread pairs of 8 performance

@@ -8,9 +8,9 @@ camera_params:
   # run on the full 1080p frame. Consumers that read frames back out of the
   # store (Processor, VideoSaver, VideoScreen) should size against this, not
   # `resolution` above.
-  stream_resolution:
-    width: 960
-    height: 540
+  # stream_resolution:
+  #   width: 960
+  #   height: 540
   fps: "30/1"
   # Start each free-running camera one Nth of a frame period after the last, so
   # their inference requests reach the GPU spread out instead of bunched. In

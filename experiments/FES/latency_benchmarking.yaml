@@ -28,7 +28,7 @@ actors:
   VideoScreen:
     package: actors.video_screen
     class: VideoScreen
-    num_active_cameras: 3  # <-- must match the number of slots enabled below
+    num_active_cameras: 4  # <-- must match the number of slots enabled below
 
   Processor0:
     package: actors.processor
@@ -51,12 +51,12 @@ actors:
     camera_num: 2
     method: spawn
 
-  # Processor3:
-  #   package: actors.processor
-  #   class: Processor
-  #   pred_active: True
-  #   camera_num: 3
-  #   method: spawn
+  Processor3:
+    package: actors.processor
+    class: Processor
+    pred_active: True
+    camera_num: 3
+    method: spawn
 
 # Uncomment this to run psuedo cameras
   # Generator0:
@@ -84,10 +84,10 @@ actors:
     class: CameraReader
     camera_num: 2
 
-  # Generator3:
-  #   package: actors.camera_reader
-  #   class: CameraReader
-  #   camera_num: 3
+  Generator3:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 3
 
   VideoSaver0:
     package: actors.video_saver
@@ -107,11 +107,11 @@ actors:
     camera_num: 2
     method: spawn
 
-  # VideoSaver3:
-  #   package: actors.video_saver
-  #   class: VideoSaver
-  #   camera_num: 3
-  #   method: spawn
+  VideoSaver3:
+    package: actors.video_saver
+    class: VideoSaver
+    camera_num: 3
+    method: spawn
 
   Receiver:
     package: actors.recieverActor
@@ -127,11 +127,11 @@ connections:
   Generator0.q_out: [Processor0.q_in, VideoScreen.images0_in , VideoSaver0.q_in]
   Generator1.q_out: [Processor1.q_in, VideoScreen.images1_in , VideoSaver1.q_in]
   Generator2.q_out: [Processor2.q_in, VideoScreen.images2_in , VideoSaver2.q_in]
-  # Generator3.q_out: [Processor3.q_in, VideoScreen.images3_in , VideoSaver3.q_in]
+  Generator3.q_out: [Processor3.q_in, VideoScreen.images3_in , VideoSaver3.q_in]
   Processor0.q_out: [VideoScreen.preds0_in, Sender.preds0_in]
   Processor1.q_out: [VideoScreen.preds1_in, Sender.preds1_in]
   Processor2.q_out: [VideoScreen.preds2_in, Sender.preds2_in]
-  # Processor3.q_out: [VideoScreen.preds3_in, Sender.preds3_in]
+  Processor3.q_out: [VideoScreen.preds3_in, Sender.preds3_in]
 
 redis_config:
   port: 6379

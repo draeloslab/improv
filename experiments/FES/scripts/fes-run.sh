@@ -26,8 +26,18 @@
 #
 set -uo pipefail
 
+# Camera capture allocates/frees large buffers at a high rate. Past glibc's
+# mmap threshold, free() munmaps those instead of keeping them on the heap,
+# and munmap of a large mapping has to IPI every CPU to flush its TLB --
+# at high enough frequency across many cores this has frozen the machine
+# solid (soft lockups on multiple CPUs, needing a hard power-cycle; see
+# journalctl -b -1 around the freeze). Raising the mmap threshold and
+# disabling trim keeps freed buffers on the heap for reuse instead.
+export MALLOC_MMAP_THRESHOLD_="${MALLOC_MMAP_THRESHOLD_:-33554432}"
+export MALLOC_TRIM_THRESHOLD_="${MALLOC_TRIM_THRESHOLD_:--1}"
+
 FES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONDA_ENV="${FES_CONDA_ENV:-improvPytorchJarvis}"
+CONDA_ENV="${FES_CONDA_ENV:-improvPytorch2}"
 DEFAULT_YAML="latency_benchmarking.yaml"
 
 AUTO=0

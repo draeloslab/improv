@@ -27,9 +27,11 @@ class Sender(Actor):
         self.NUM_SENSORS = 5  # Number of sensors for flex/force: typically 5
         self.CHANS = [2]  # Sensor channels
         self.TIMER_INTERVAL = 0.001  # 1 ms interval
-
+        try:
         # Serial connection (for example, use COM port or /dev/ttyUSB0)
-        self.ser = serial.Serial("/dev/ttyUSB0", 115200)
+            self.ser = serial.Serial("/dev/ttyUSB0", 115200)
+        except:
+            logger.info("Couldn't connect to serial")
 
         logger.info("Completed setup for Sender")
 
@@ -192,7 +194,10 @@ class Sender(Actor):
         valspack = self.pack_bytes([0, 0, self.last_angle, 0, self.last_angle2, 0])
 
         # Send the message through UART
-        self.ser.write(valspack)
+        try:
+            self.ser.write(valspack)
+        except:
+            pass
         send_time = time.time()
         self.packet_n += 1
 

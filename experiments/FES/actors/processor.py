@@ -365,7 +365,7 @@ class Processor(Actor):
                     # --- Step 5: Kalman filter ---
                     t0 = time.perf_counter()
                     try:
-                        assert False
+                        # assert False
                         smoothed_prediction = self.kalman_filter.process(self.prediction, frame_time=camera_start)
                     except Exception as e:
                         # logger.error(f"Kalman filter processing error: {e}")
@@ -393,9 +393,8 @@ class Processor(Actor):
                     # sentinels and are not real coordinates either.
                     if np.isfinite(angle) and angle > -1.5:
                         self.angle_queue.append(angle)
-
-                    if len(self.angle_queue) > 0:
-                        smoothed_angle = float(np.mean(self.angle_queue))
+                        smoothed_angle = angle
+                    # smoothed_angle = float(np.mean(self.angle_queue))  #NOTE this adds so much lag
                     else:
                         # Nothing valid seen yet this run -- hold the last good angle
                         # rather than emitting NaN downstream to the sender/GUI.
