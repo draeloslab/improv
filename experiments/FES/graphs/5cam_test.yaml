@@ -60,11 +60,11 @@ actors:
     camera_num: 3
     method: spawn
 
-  # VideoSaver4:
-  #   package: actors.video_saver
-  #   class: VideoSaver
-  #   camera_num: 4
-  #   method: spawn
+  VideoSaver4:
+    package: actors.video_saver
+    class: VideoSaver
+    camera_num: 4
+    method: spawn
 
   # Receiver:
   #   package: actors.recieverActor

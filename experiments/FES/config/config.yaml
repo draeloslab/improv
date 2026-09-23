@@ -47,7 +47,7 @@ jarvis_keypoint_weights_3: '/home/chesteklab/Desktop/hand-tracking-notebooks-jak
 #     pass (batch_size = num_cameras): 41.6 ms for 4 frames vs 75.6 ms
 #     sequential. Kept as a fallback / for comparison; not recommended given
 #     how weakly it's trained.
-batch3d_backend: "mediapipe"
+batch3d_backend: "dlc"
 
 # --- mediapipe backend ------------------------------------------------------
 # From hand-tracking-notebooks-jake-2026-08-17/mediapipe/hand_landmarker.task
@@ -68,12 +68,18 @@ mediapipe_delegate: "CPU"
 # humanWristMP21 is the 21-keypoint MediaPipe hand layout (WRIST, THUMB_CMC..
 # PINKY_TIP). The 4-keypoint fatigueRhodesAll model above cannot produce hand
 # joint angles -- it only has one finger.
-batch3d_model_path: '/home/chesteklab/Desktop/humanWristMP21-Jake-2026-08-14/dlc-models-pytorch/iteration-0/humanWristMP21Aug14-trainset95shuffle1/train'
-batch3d_model_snapshot: "snapshot-120.pt"
+# HandTrackingVideo1Aug7 shuffle 12: TOP-DOWN (method: td), 42 keypoints = right
+# hand then left hand, each in the MP21 order with lowercase right_/left_
+# names. Top-down means pose inference needs the detector snapshot too; leave
+# batch3d_detector_snapshot unset for a bottom-up model.
+# Previous model: '/home/chesteklab/Desktop/humanWristMP21-Jake-2026-08-14/dlc-models-pytorch/iteration-0/humanWristMP21Aug14-trainset95shuffle1/train' + snapshot-120.pt
+batch3d_model_path: '/home/chesteklab/improv/HandTrackingVideo1Aug7-trainset80shuffle12/train'
+batch3d_model_snapshot: "snapshot-best-100.pt"
+batch3d_detector_snapshot: "snapshot-detector-best-170.pt"
 
 # --- 3D triangulation ------------------------------------------------------
 # anipose calibration produced by
-# experiments/FES/calibration_20260903/calibration_20260903.ipynb. Relative
+# experiments/FES/calibration/calibration_20260903/calibration_20260903.ipynb. Relative
 # paths resolve against experiments/FES/.
 #
 # The file at this path is from the 2026-09-04 recording, calibrated on all 4
@@ -82,7 +88,7 @@ batch3d_model_snapshot: "snapshot-120.pt"
 # plausible). The 2026-09-03 recording that preceded it could only solve
 # cam0+cam2 and was not usable -- see that folder's README.md for what changed
 # in the re-record (mainly: far more board coverage on cam1/cam3).
-calibration_toml: 'calibration_20260903/calibration.toml'
+calibration_toml: 'calibration/calibration_20260903/calibration.toml'
 # camera_num -> the camera's name inside calibration_toml. Defaults to
 # "cam{camera_num}" for any camera not listed here, which is what the
 # calibration notebook writes.
@@ -129,9 +135,9 @@ jarvis_center_threshold: 40
 # Revert after that verification.
 # video_path_0: '/home/chesteklab/Desktop/FES_Fatigue Videos/FES_Fatigue_Rhodes/camera_video_0_0617_1211.mp4'
 # video_path_2: '/home/chesteklab/camera_video/2026-02-27/102051/camera_video_2_0227_1020.mp4'
-video_path_0: '/home/chesteklab/Desktop/humanWristMP21-Jake-2026-08-14/videos/tcam-capture-45324230-aravis-rggb_1920x1080_30_1-20260812T095112_479.avi'
-video_path_2: '/home/chesteklab/Desktop/humanWristMP21-Jake-2026-08-14/videos/tcam-capture-45324230-aravis-rggb_1920x1080_30_1-20260812T095112_479.avi'
-video_path: '/home/chesteklab/Desktop/humanWristMP21-Jake-2026-08-14/videos/tcam-capture-45324230-aravis-rggb_1920x1080_30_1-20260812T095112_479.avi'
+video_path_0: '/home/chesteklab/camera_video/2026-02-27/102051/camera_video_0_0227_1020.mp4'
+video_path: '/home/chesteklab/camera_video/2026-02-27/102051/camera_video_2_0227_1020.mp4'
+# video_path: '/home/chesteklab/Desktop/humanWristMP21-Jake-2026-08-14/videos/tcam-capture-45324230-aravis-rggb_1920x1080_30_1-20260812T095112_479.avi'
 # Confidence below which the GUI draws a keypoint hollow/orange instead of solid
 # red. It no longer *hides* low-confidence keypoints -- every keypoint the model
 # returns is drawn.
@@ -163,7 +169,7 @@ resize: 0.5
 # puts native-resolution frames and needs the cv2.resize step.
 # TEMPORARILY false for 4cam_3d_sim.yaml (Generator, not CameraReader/TIS) --
 # see the video_path override comment above. Revert to true afterward.
-camera_prescaled: False
+camera_prescaled: True
 alpha: 0.5
 # --- CPU core placement (actors/cpu_affinity.py) --------------------------
 # This is a hybrid CPU: cpu0-15 are the SMT thread pairs of 8 performance

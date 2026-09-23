@@ -143,7 +143,7 @@ class VideoSaver(ManagedActor):
             camera_config = yaml.safe_load(file)
 
         # load the configuration file
-        with open(f'{source_folder}/config.yaml', 'r') as file:
+        with open(f'{source_folder}/config/config.yaml', 'r') as file:
             config = yaml.safe_load(file)
 
         camera_params = camera_config['camera_params']

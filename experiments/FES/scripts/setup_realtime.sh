@@ -23,6 +23,26 @@
 #              it to cpu31 (an E-core) frees the core and stops interrupt
 #              delivery preempting a latency-critical actor.
 #
+#   GPU clock  Same duty-cycle problem as the CPU governor, one layer down:
+#              DLC inference runs ~15 ms then the GPU sits idle for the rest
+#              of the ~33 ms frame period. Without persistence mode the driver
+#              lets the clock fall in that gap (idle default ~210 MHz here vs
+#              a 3105 MHz max) and pays a ramp-up cost on the next inference
+#              call. `-pm 1` keeps the driver/clocks loaded between calls;
+#              locking the clock with `-lgc` stops it dropping at all.
+#
+#   Wi-Fi      The cameras and the xPC link are both on wired, private
+#              subnets (eno1/eno2) -- nothing in the pipeline needs the Wi-Fi
+#              uplink. Leaving it up costs nothing most of the time, but
+#              NetworkManager's periodic connectivity-check ping and any
+#              background sync/update traffic on that interface are both
+#              unrelated, un-budgeted CPU/network activity during a benchmark.
+#
+#   Timers     A handful of systemd timers (sysstat every 10 min, fwupd,
+#              anacron, the daily apt timers, man-db) do real CPU/disk/network
+#              work on their own schedule, with no regard for whether a
+#              latency-critical recording is in progress.
+#
 # Not done here, deliberately:
 #   - isolcpus / nohz_full would need a kernel cmdline change and a reboot.
 #   - CUDA MPS is a separate opt-in; see MULTICAM_3D_PLAN.md.
@@ -32,6 +52,8 @@ set -euo pipefail
 MODE="${1:-on}"
 IRQ_TARGET_CPU=31          # an E-core, well away from the pinned P-cores
 IRQ_MATCH="xhci_hcd"
+QUIET_TIMERS=(sysstat fwupd-refresh.timer anacron.timer apt-daily.timer
+              apt-daily-upgrade.timer man-db.timer)
 
 if [[ $EUID -ne 0 ]]; then
     echo "error: needs root (sudo $0 $MODE)" >&2
@@ -109,8 +131,55 @@ elif [[ "$MODE" == "off" ]]; then
     systemctl start irqbalance 2>/dev/null && echo "== Restarted irqbalance" || true
 fi
 
+if command -v nvidia-smi >/dev/null 2>&1; then
+    echo "== GPU clocks"
+    if [[ "$MODE" == "on" ]]; then
+        if nvidia-smi -pm 1 >/dev/null 2>&1; then
+            MAX_SM=$(nvidia-smi --query-gpu=clocks.max.sm --format=csv,noheader,nounits 2>/dev/null | head -1)
+            if [[ -n "$MAX_SM" ]] && nvidia-smi -lgc "$MAX_SM,$MAX_SM" >/dev/null 2>&1; then
+                echo "   persistence on, SM clock locked at ${MAX_SM} MHz"
+            else
+                echo "   persistence on; could not lock SM clock (driver/permissions?)"
+            fi
+        else
+            echo "   could not enable persistence mode (driver/permissions?), leaving GPU clocks alone"
+        fi
+    else
+        nvidia-smi -rgc >/dev/null 2>&1 || true
+        nvidia-smi -pm 0 >/dev/null 2>&1 || true
+        echo "   clock lock released, persistence off"
+    fi
+else
+    echo "== GPU clocks: no nvidia-smi found, skipping"
+fi
+
+if command -v nmcli >/dev/null 2>&1; then
+    if [[ "$MODE" == "on" ]]; then
+        nmcli radio wifi off 2>/dev/null && echo "== Wi-Fi radio off (cameras/xPC link are wired, unaffected)" \
+            || echo "== Wi-Fi radio: could not turn off (already off, or no Wi-Fi hardware)"
+    else
+        nmcli radio wifi on 2>/dev/null && echo "== Wi-Fi radio back on" || true
+    fi
+else
+    echo "== Wi-Fi radio: nmcli not found, skipping"
+fi
+
+echo "== Background timers"
+for t in "${QUIET_TIMERS[@]}"; do
+    if systemctl list-unit-files "$t*" 2>/dev/null | grep -q "$t"; then
+        if [[ "$MODE" == "on" ]]; then
+            systemctl stop "$t" 2>/dev/null && echo "   stopped $t" || true
+        else
+            systemctl start "$t" 2>/dev/null && echo "   restarted $t" || true
+        fi
+    fi
+done
+
 echo
 echo "Done ($MODE). Verify during a run with:"
 echo "  grep -E 'MHz' /proc/cpuinfo | sort -u | head"
 echo "  grep xhci /proc/interrupts"
 echo "  for p in \$(pgrep -f actors.processor); do echo -n \"\$p: \"; taskset -cp \$p; done"
+echo "  nvidia-smi --query-gpu=persistence_mode,clocks.sm,clocks.max.sm --format=csv"
+echo "  nmcli radio wifi"
+echo "  systemctl list-timers --all | head -20"

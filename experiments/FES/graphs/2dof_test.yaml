@@ -30,10 +30,10 @@ actors:
   #   class: Generator
   #   camera_num: 0
 
-  # Generator2:
+  # Generator1:
   #   package: actors.generator
   #   class: Generator
-  #   camera_num: 2
+  #   camera_num: 1
 
   Generator0:
     package: actors.camera_reader

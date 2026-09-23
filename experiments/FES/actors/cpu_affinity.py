@@ -57,7 +57,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 _CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                            "config.yaml")
+                            "config", "config.yaml")
 
 # Roles, in the order they claim physical P-cores.
 COMPUTE = "compute"

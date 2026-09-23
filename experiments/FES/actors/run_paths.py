@@ -37,7 +37,7 @@ RUN_ID_ENV = "IMPROV_RUN_ID"
 #: run started at 23:59 must not file its logs under the next day.
 _RUN_ID_RE = re.compile(r"^(\d{8})-\d{4}$")
 
-_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.yaml"
+_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "config.yaml"
 
 # Module-level caches. Actors are spawned (``method: spawn``), so each process
 # re-imports this module and fills its own cache -- that is fine, because the

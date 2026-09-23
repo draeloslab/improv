@@ -55,8 +55,16 @@ import yaml
 from improv.actor import Actor
 from improv.store import ObjectNotFoundError
 
-from aniposelib.cameras import CameraGroup
-from dlc2kinematics.utils import auxiliaryfunctions as d2k_aux
+# Only needed for triangulation/joint angles. Tolerated as missing so a
+# `triangulate: false` (2D-only) run works in an env without them; the actor
+# raises in setup if 3D is requested and they are absent.
+try:
+    from aniposelib.cameras import CameraGroup
+    from dlc2kinematics.utils import auxiliaryfunctions as d2k_aux
+    _HAVE_3D_DEPS = True
+except ImportError:
+    CameraGroup = d2k_aux = None
+    _HAVE_3D_DEPS = False
 
 # torch/deeplabcut (the "dlc" backend) and mediapipe (the "mediapipe" backend)
 # are imported lazily inside _setup_dlc/_setup_mediapipe -- a machine running
@@ -143,6 +151,41 @@ MEDIAPIPE_LANDMARK_NAMES = [
 ]
 
 
+def _prefixed_hand_names(prefix):
+    """MP21 landmark name -> bodypart name for a lowercase `{prefix}_wrist`,
+    `{prefix}_index_mcp`... layout (the HandTrackingVideo1 two-hand models)."""
+    out = {}
+    for n in MEDIAPIPE_LANDMARK_NAMES:
+        out[n] = prefix + "_" + n.lower().replace("_finger", "")
+    return out
+
+
+def _hand_layouts(bodyparts):
+    """Joint/skeleton definitions for every MP21-shaped hand found in bodyparts.
+
+    Handles the bare uppercase layout (humanWristMP21) and one or two prefixed
+    hands (right_*/left_*). Joint names are prefixed with the hand when there is
+    more than one. Returns (joints, skeleton), or (None, None) if nothing fits.
+    """
+    have = set(bodyparts)
+    maps = []
+    if all(n in have for n in MEDIAPIPE_LANDMARK_NAMES):
+        maps.append(("", {n: n for n in MEDIAPIPE_LANDMARK_NAMES}))
+    for prefix in ("right", "left"):
+        m = _prefixed_hand_names(prefix)
+        if all(v in have for v in m.values()):
+            maps.append((prefix, m))
+    if not maps:
+        return None, None
+    joints, skeleton = {}, []
+    for prefix, m in maps:
+        for jn, trip in MP21_JOINTS.items():
+            key = f"{prefix}_{jn}" if prefix else jn
+            joints[key] = tuple(m[t] for t in trip)
+        skeleton += [(m[a], m[b]) for a, b in MP21_SKELETON]
+    return joints, skeleton
+
+
 class ProcessorBatch3D(Actor):
     """One actor, N cameras, one batched forward pass, 3D keypoints + joint angles."""
 
@@ -155,12 +198,16 @@ class ProcessorBatch3D(Actor):
         # therefore to the right calibration entry.
         self.camera_nums = kwargs.get('camera_nums', list(range(self.num_cameras)))
         self.pred_active = kwargs.get('pred_active', True)
+        # False = 2D-only: run pose estimation and hand the per-camera keypoints
+        # to the GUI, but skip calibration, triangulation and joint angles. For
+        # runs without a usable calibration.
+        self.triangulate = kwargs.get('triangulate', True)
 
     # ------------------------------------------------------------------ setup
 
     def setup(self):
         source_folder = Path(__file__).resolve().parent.parent
-        with open(f'{source_folder}/config.yaml', 'r') as file:
+        with open(f'{source_folder}/config/config.yaml', 'r') as file:
             config = yaml.safe_load(file)
         self.config = config
 
@@ -212,13 +259,18 @@ class ProcessorBatch3D(Actor):
                     f"bodyparts: {self.bodyparts}")
 
         # ---------------- calibration ----------------
-        self._setup_calibration(config, source_folder)
+        if self.triangulate:
+            if not _HAVE_3D_DEPS:
+                raise ImportError("aniposelib/dlc2kinematics are not installed in this env "
+                                  "(use improvPytorchJarvis, or set triangulate: false)")
+            self._setup_calibration(config, source_folder)
+        else:
+            self.cgroup = None
+            logger.info("triangulate=False: 2D keypoints only, no 3D / joint angles")
 
         # ---------------- joint angles ----------------
-        if all(bp in self.bp_index for bp in
-               {b for trip in MP21_JOINTS.values() for b in trip}):
-            self.joints = dict(MP21_JOINTS)
-            self.skeleton = list(MP21_SKELETON)
+        self.joints, self.skeleton = _hand_layouts(self.bodyparts)
+        if self.joints:
             logger.info("using the MP21 hand joint/skeleton definitions")
         else:
             self.joints = _auto_joints(self.bodyparts)
@@ -318,6 +370,10 @@ class ProcessorBatch3D(Actor):
 
         train_dir = Path(config['batch3d_model_path'])
         snapshot_path = train_dir / config['batch3d_model_snapshot']
+        # Top-down models (method: td) need their detector to find the crop the
+        # pose net runs on; bottom-up models leave batch3d_detector_snapshot unset.
+        det_snap = config.get('batch3d_detector_snapshot')
+        detector_path = train_dir / det_snap if det_snap else None
         model_cfg = read_config_as_dict(train_dir / "pytorch_config.yaml")
 
         # PAF -> HeatmapPredictor override, same as processor.py. These models
@@ -343,16 +399,24 @@ class ProcessorBatch3D(Actor):
             except (KeyError, TypeError) as e:
                 logger.warning(f"could not override predictor ({e}); keeping the model's own")
 
+        # Configs written by a newer DLC carry unset (null) detector options the
+        # installed one does not know (SSDLite has no `variant` here) -- drop
+        # them so the constructor falls back to its own defaults.
+        det_model = (model_cfg.get('detector') or {}).get('model')
+        if isinstance(det_model, dict):
+            for k in [k for k, v in det_model.items() if v is None]:
+                del det_model[k]
+
         self.bodyparts = list(model_cfg['metadata']['bodyparts'])
         self.n_keypoints = len(self.bodyparts)
 
-        self.pose_runner, _ = get_inference_runners(
+        self.pose_runner, self.detector_runner = get_inference_runners(
             model_config=model_cfg,
             snapshot_path=snapshot_path,
             max_individuals=1,
             batch_size=self.num_cameras,
-            detector_batch_size=1,
-            detector_path=None,
+            detector_batch_size=self.num_cameras if detector_path else 1,
+            detector_path=detector_path,
         )
         logger.info(f"dlc model {train_dir.name} / {config['batch3d_model_snapshot']}, "
                     f"batch_size={self.num_cameras}")
@@ -524,6 +588,11 @@ class ProcessorBatch3D(Actor):
             return
         self.inference_latencies.append(time.perf_counter() - t0)
 
+        if not self.triangulate:
+            self.points_2d_log.append(raw_2d)
+            self._emit(None, {}, starts, fnums, batch_slots, raw_2d, step_start)
+            return
+
         # --- 4. per-camera 2D keypoints, in calibration camera order ---
         # points_2d rows are indexed by the CALIBRATION's camera order, not by
         # wiring slot; anything the calibration doesn't know about stays NaN and
@@ -567,7 +636,23 @@ class ProcessorBatch3D(Actor):
         self.points_3d_log.append(points_3d)
         self.angles_log.append([angles[j] for j in self.joint_names])
 
-        # --- 7. hand off ---
+        self._emit(points_3d, angles, starts, fnums, batch_slots, raw_2d, step_start)
+
+        if self.frame_num % self.frames_log == 0:
+            elapsed = time.perf_counter() - self.time_start
+            n3d = int(np.sum(np.isfinite(points_3d[:, 0]))) if points_3d is not None else 0
+            logger.info(f"frame {self.frame_num}: {round(self.frames_log / elapsed, 2)} fps, "
+                        f"{len(batch_slots)} cams, {n3d}/{self.n_keypoints} keypoints in 3D, "
+                        f"frame skew {self.frame_skew[-1]}, "
+                        f"infer {np.median(self.inference_latencies[-self.frames_log:])*1000:.1f} ms, "
+                        f"tri {np.median(self.triangulate_latencies[-self.frames_log:])*1000:.2f} ms, "
+                        f"ang {np.median(self.angle_latencies[-self.frames_log:])*1000:.2f} ms")
+            self.time_start = time.perf_counter()
+
+    def _emit(self, points_3d, angles, starts, fnums, batch_slots, raw_2d, step_start):
+        """Step 7: publish one message covering every camera (points_3d None in
+        2D-only mode)."""
+        valid_fnums = [fnums[s] for s in batch_slots if fnums[s] >= 0]
         # camera_start is taken from the earliest contributing camera so the
         # end-to-end latency the sender computes is the worst case over the
         # batch, not a flattering pick.
@@ -597,16 +682,6 @@ class ProcessorBatch3D(Actor):
 
         self.total_latencies.append(time.perf_counter() - step_start)
 
-        if self.frame_num % self.frames_log == 0:
-            elapsed = time.perf_counter() - self.time_start
-            n3d = int(np.sum(np.isfinite(points_3d[:, 0])))
-            logger.info(f"frame {self.frame_num}: {round(self.frames_log / elapsed, 2)} fps, "
-                        f"{len(batch_slots)} cams, {n3d}/{self.n_keypoints} keypoints in 3D, "
-                        f"frame skew {self.frame_skew[-1]}, "
-                        f"infer {np.median(self.inference_latencies[-self.frames_log:])*1000:.1f} ms, "
-                        f"tri {np.median(self.triangulate_latencies[-self.frames_log:])*1000:.2f} ms, "
-                        f"ang {np.median(self.angle_latencies[-self.frames_log:])*1000:.2f} ms")
-            self.time_start = time.perf_counter()
 
     # -------------------------------------------------------------- inference
 
@@ -619,6 +694,10 @@ class ProcessorBatch3D(Actor):
 
     def _infer_dlc(self, frames, batch_slots):
         batch = [frames[s] for s in batch_slots]
+        if self.detector_runner is not None:
+            # Top-down: detector finds the box(es), pose net runs on each crop.
+            ctx = self.detector_runner.inference(batch)
+            batch = list(zip(batch, ctx))
         raw = self.pose_runner.inference(batch)
         raw_2d = np.full((self.num_cameras, self.n_keypoints, 3), np.nan)
         for out_i, slot in enumerate(batch_slots):

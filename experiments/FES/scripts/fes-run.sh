@@ -38,7 +38,7 @@ export MALLOC_TRIM_THRESHOLD_="${MALLOC_TRIM_THRESHOLD_:--1}"
 
 FES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONDA_ENV="${FES_CONDA_ENV:-improvPytorch2}"
-DEFAULT_YAML="latency_benchmarking.yaml"
+DEFAULT_YAML="graphs/latency_benchmarking.yaml"
 
 AUTO=0
 CHECKS=1
@@ -99,10 +99,16 @@ fi
 
 cd "$FES_DIR" || exit 1
 
+# Pipeline yamls live in graphs/; accept a bare name, a graphs/ path, or any
+# other path that exists.
+if [ ! -f "$YAML" ] && [ -f "graphs/$YAML" ]; then
+    YAML="graphs/$YAML"
+fi
+
 if [ ! -f "$YAML" ]; then
     echo "error: no such yaml: $FES_DIR/$YAML" >&2
     echo "available:" >&2
-    ls -1 ./*.yaml | sed 's/^/  /' >&2
+    ls -1 graphs/*.yaml | sed 's/^/  /' >&2
     exit 1
 fi
 
@@ -175,7 +181,7 @@ if [ "$DRY_RUN" -eq 1 ]; then
     if [ "$AUTO" -eq 1 ]; then
         echo "        python scripts/improv_drive.py --config $YAML --logfile $GLOBAL_LOG"
     else
-        echo "        improv run -f $GLOBAL_LOG $YAML"
+        echo "        improv run -a $FES_DIR -f $GLOBAL_LOG $YAML"
     fi
     # The run folder was created while resolving paths; leave nothing behind.
     # rmdir only removes empty directories, so this cannot touch a real run.
@@ -195,13 +201,14 @@ if [ "$AUTO" -eq 1 ]; then
     echo "[fes] launching $YAML (headless)"
     python "$FES_DIR/scripts/improv_drive.py" \
         --config "$YAML" \
+        --actor-path "$FES_DIR" \
         --logfile "$GLOBAL_LOG" \
         --run-folder "$RUN_DIR"
     status=$?
 else
     echo "[fes] launching $YAML"
     echo "[fes] in the improv console: setup -> (wait for ready) -> run -> stop -> quit"
-    improv run -f "$GLOBAL_LOG" "$YAML"
+    improv run -a "$FES_DIR" -f "$GLOBAL_LOG" "$YAML"
     status=$?
 fi
 

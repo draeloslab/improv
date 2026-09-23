@@ -1,0 +1,61 @@
+actors:
+  GUI:
+    package: actors.video_screen
+    class: Visual
+    visual: VideoScreen
+
+  # video screen: displaying the camera video frames
+  VideoScreen:
+    package: actors.video_screen
+    class: VideoScreen
+    num_active_cameras: 2
+
+  # Single batched processor: both cameras through one model, one forward
+  # pass, no triangulation. See actors/processor_batch2.py.
+  ProcessorBatch2:
+    package: actors.processor_batch2
+    class: ProcessorBatch2
+    pred_active: True
+    camera_nums: [0, 1]
+    method: spawn
+
+  Generator0:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 0
+
+  Generator1:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 1
+
+  VideoSaver0:
+    package: actors.video_saver
+    class: VideoSaver
+    camera_num: 0
+    method: spawn
+
+  VideoSaver1:
+    package: actors.video_saver
+    class: VideoSaver
+    camera_num: 1
+    method: spawn
+
+  Receiver:
+    package: actors.recieverActor
+    class: Receiver
+    method: spawn
+
+  Sender:
+    package: actors.sender
+    class: Sender
+    method: spawn
+
+connections:
+  Generator0.q_out: [ProcessorBatch2.frames0_in, VideoScreen.images0_in, VideoSaver0.q_in]
+  Generator1.q_out: [ProcessorBatch2.frames1_in, VideoScreen.images1_in, VideoSaver1.q_in]
+  ProcessorBatch2.q_out0: [VideoScreen.preds0_in, Sender.preds0_in]
+  ProcessorBatch2.q_out1: [VideoScreen.preds1_in, Sender.preds1_in]
+
+redis_config:
+  port: 6379

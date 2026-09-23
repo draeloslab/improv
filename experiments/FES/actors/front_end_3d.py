@@ -1,6 +1,6 @@
 """GUI for the batched 3D pipeline: N camera views + all joint angles + a live 3D skeleton.
 
-Layout (3 x 2 grid):
+Layout (camera block 2 wide up to 4 cameras, 3 wide beyond; plots in the last column):
 
     cam0        cam1        joint-angle plot   (one curve per joint)
     cam2        cam3        3D skeleton        (software-projected, no GL)
@@ -108,22 +108,31 @@ class Camera3DWidget(QWidget):
 
             source_folder = Path(__file__).resolve().parent.parent
             _chk("before config read")
-            with open(f'{source_folder}/config.yaml', 'r') as file:
+            with open(f'{source_folder}/config/config.yaml', 'r') as file:
                 config = yaml.safe_load(file)
-            self.resize = config['resize']
+            # Predictions are in the processor's input-frame pixels. With
+            # camera_prescaled the processor does not resize, so they are
+            # already in display pixels -- dividing by `resize` would draw
+            # every keypoint at 2x its position.
+            self.resize = 1.0 if config.get('camera_prescaled', False) else config['resize']
             self.threshold = config['threshold']
 
             _chk("before setWindowTitle")
             self.setWindowTitle('3D Hand Tracking')
             self.setGeometry(100, 100, 1920, 1080)
 
+            # Camera block is 2 wide up to 4 cameras (the original 2x2), 3 wide
+            # beyond that; the two plots stack in one extra column on the right.
+            cam_cols = 2 if n <= 4 else 3
+            cam_rows = max(2, -(-n // cam_cols))
             layout = QGridLayout()
-            for r in range(2):
+            for r in range(cam_rows):
                 layout.setRowStretch(r, 1)
-            for c in range(3):
+            for c in range(cam_cols + 1):
                 layout.setColumnStretch(c, 1)
+            angle_span = (cam_rows + 1) // 2
 
-            # --- camera views: left 2x2 block ---
+            # --- camera views: left block ---
             _chk("before camera labels")
             self.camera_labels = [QLabel(self) for _ in range(n)]
             for label in self.camera_labels:
@@ -133,11 +142,8 @@ class Camera3DWidget(QWidget):
                 # cell, wasting most of the window.
                 label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
                 label.setAlignment(Qt.AlignCenter)
-            camera_positions = [(0, 0), (0, 1), (1, 0), (1, 1)]
             for i, label in enumerate(self.camera_labels):
-                if i < len(camera_positions):
-                    row, col = camera_positions[i]
-                    layout.addWidget(label, row, col)
+                layout.addWidget(label, i // cam_cols, i % cam_cols)
 
             # --- joint angle plot: top right ---
             _chk("before angle plot widget")
@@ -156,7 +162,7 @@ class Camera3DWidget(QWidget):
                 legend.setBrush(pg.mkBrush(255, 255, 255, 200))
             except Exception:
                 pass  # older pyqtgraph: legend just stays transparent
-            layout.addWidget(self.angle_plot_widget, 0, 2)
+            layout.addWidget(self.angle_plot_widget, 0, cam_cols, angle_span, 1)
 
             # --- 3D skeleton: bottom right. Software-projected (see module
             # docstring for why this isn't pyqtgraph.opengl.GLViewWidget). ---
@@ -180,7 +186,7 @@ class Camera3DWidget(QWidget):
             # each is independently shown/hidden depending on whether both its
             # keypoints triangulated this frame.
             self.bone_items = []
-            layout.addWidget(self.plot3d_widget, 1, 2)
+            layout.addWidget(self.plot3d_widget, angle_span, cam_cols, cam_rows - angle_span, 1)
 
             _chk("before setLayout")
             self.setLayout(layout)

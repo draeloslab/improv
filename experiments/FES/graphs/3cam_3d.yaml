@@ -1,12 +1,12 @@
-# 4-camera batched 3D hand tracking.
+# 3-camera batched 3D hand tracking.
 #
 # Differs from 5cam_test.yaml in one structural way: there is ONE processor for
-# all four cameras instead of one per camera. Every CameraReader feeds the same
+# all three cameras instead of one per camera. Every CameraReader feeds the same
 # ProcessorBatch3D on its own frames{N}_in link; the processor assembles the
-# four frames into a single batch, runs one forward pass, triangulates with the
+# three frames into a single batch, runs one forward pass, triangulates with the
 # anipose calibration, and emits joint angles.
 #
-#   CameraReader0..3 ─┬─> ProcessorBatch3D ─┬─> SenderUDP.joints_in
+#   CameraReader0..2 ─┬─> ProcessorBatch3D ─┬─> SenderUDP.joints_in
 #                     │                     └─> VideoScreen3D.preds_in
 #                     ├─> VideoScreen3D.images{N}_in
 #                     └─> VideoSaver{N}.q_in
@@ -24,7 +24,7 @@ actors:
   VideoScreen3D:
     package: actors.video_screen_3d
     class: VideoScreen3D
-    num_active_cameras: 4
+    num_active_cameras: 3
 
   Generator0:
     package: actors.camera_reader
@@ -34,14 +34,9 @@ actors:
   Generator1:
     package: actors.camera_reader
     class: CameraReader
-    camera_num: 1
-
-  Generator2:
-    package: actors.camera_reader
-    class: CameraReader
     camera_num: 2
 
-  Generator3:
+  Generator2:
     package: actors.camera_reader
     class: CameraReader
     camera_num: 3
@@ -51,9 +46,12 @@ actors:
   ProcessorBatch3D:
     package: actors.processor_batch3d
     class: ProcessorBatch3D
-    num_cameras: 4
-    camera_nums: [0, 1, 2, 3]
+    num_cameras: 3
+    camera_nums: [0, 2, 3]
     pred_active: True
+    # false = 2D-only: skip calibration/triangulation/joint angles and just draw
+    # the keypoints on each camera view (use when there is no calibration).
+    triangulate: false
     method: spawn
 
   SenderUDP:
@@ -89,9 +87,8 @@ connections:
   Generator0.q_out: [VideoScreen3D.images0_in,ProcessorBatch3D.frames0_in]
   Generator1.q_out: [VideoScreen3D.images1_in,ProcessorBatch3D.frames1_in]
   Generator2.q_out: [VideoScreen3D.images2_in, ProcessorBatch3D.frames2_in]
-  Generator3.q_out: [VideoScreen3D.images3_in, ProcessorBatch3D.frames3_in]
 
-  # One prediction message covering all four cameras, fanned to the wire and
+  # One prediction message covering all three cameras, fanned to the wire and
   # the GUI.
   ProcessorBatch3D.q_out: [SenderUDP.joints_in, VideoScreen3D.preds_in]
 

@@ -2,7 +2,7 @@ import sys
 import numpy as np
 import threading
 import queue  
-from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QGridLayout, QMessageBox
+from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QGridLayout, QMessageBox, QSizePolicy
 from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen, QColor, QBrush, QFont
 import cv2  
@@ -94,7 +94,7 @@ class CameraStreamWidget(QWidget):
 
             # Load the configuration file
             source_folder = Path(__file__).resolve().parent.parent
-            with open(f'{source_folder}/config.yaml', 'r') as file:
+            with open(f'{source_folder}/config/config.yaml', 'r') as file:
                 config = yaml.safe_load(file)
 
             self.resize = config['resize']
@@ -104,45 +104,40 @@ class CameraStreamWidget(QWidget):
             self.setWindowTitle('Camera Streams')
             self.setGeometry(100, 100, 1920, 1080)
 
-            # Layout to hold the camera labels in a 2x3 Grid
+            # Grid sized to fit every camera plus the angle plot: n cameras + 1
+            # plot = n+1 cells, laid out as a near-square grid (row-major, plot
+            # in the last cell). 5 cams -> 2x3, 7 cams -> 3x3, 3 cams -> 2x2.
+            n_cells = self.visual.num_cameras + 1
+            n_cols = int(np.ceil(np.sqrt(n_cells)))
+            n_rows = int(np.ceil(n_cells / n_cols))
             layout = QGridLayout()
-            
-            # 2 Rows
-            layout.setRowStretch(0, 1)
-            layout.setRowStretch(1, 1)
-            
-            # 3 Columns
-            layout.setColumnStretch(0, 1)
-            layout.setColumnStretch(1, 1)
-            layout.setColumnStretch(2, 1)
+            for r in range(n_rows):
+                layout.setRowStretch(r, 1)
+            for c in range(n_cols):
+                layout.setColumnStretch(c, 1)
 
             # Create labels to show camera frames
             self.camera_labels = [QLabel(self) for _ in range(self.visual.num_cameras)]
-            for label in self.camera_labels:
-                label.setMinimumSize(320, 240)
-            
-            # Map up to 5 cameras to the grid layout dynamically
-            # (Row, Column) tuples for the first 5 slots
-            camera_positions = [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1)]
             for i, label in enumerate(self.camera_labels):
-                if i < len(camera_positions):
-                    row, col = camera_positions[i]
-                    layout.addWidget(label, row, col)
+                label.setMinimumSize(320, 240)
+                # Ignore the pixmap's size hint so a scaled frame can't grow the cell
+                label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+                layout.addWidget(label, i // n_cols, i % n_cols)
 
             # Add a PyQtGraph PlotWidget for the angle plot. One shared y-axis
             # for every active camera (up to 4), each camera as its own
             # coloured curve with a legend -- generalizes cleanly to however
             # many cameras this run has, unlike a per-camera secondary y-axis.
             self.angle_plot_widget = pg.PlotWidget()
-            self.angle_plot_widget.setMinimumSize(640, 480)
+            self.angle_plot_widget.setMinimumSize(320, 240)
             self.angle_plot_widget.setBackground('w')
             self.angle_plot_widget.setTitle("Live Angle Plot", color='k')
             self.angle_plot_widget.setLabel('bottom', 'Frame', color='k')
             self.angle_plot_widget.setLabel('left', 'Angle (°)', color='k')
             self.angle_plot_widget.addLegend()
 
-            # Always place the plot in the bottom-right corner (Row 1, Col 2)
-            layout.addWidget(self.angle_plot_widget, 1, 2)
+            # Plot takes the last cell (bottom-right corner)
+            layout.addWidget(self.angle_plot_widget, (n_cells - 1) // n_cols, (n_cells - 1) % n_cols)
 
             self.setLayout(layout)
 

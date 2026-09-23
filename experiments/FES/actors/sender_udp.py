@@ -97,7 +97,7 @@ class SenderUDP(Actor):
 
         # Load the configuration file
         source_folder = Path(__file__).resolve().parent.parent
-        with open(f'{source_folder}/config.yaml', 'r') as file:
+        with open(f'{source_folder}/config/config.yaml', 'r') as file:
             config = yaml.safe_load(file)
 
         # How many preds{N}_in slots to poll each runStep. Independent of how

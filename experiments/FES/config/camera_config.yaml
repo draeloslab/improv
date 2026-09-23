@@ -9,8 +9,8 @@ camera_params:
   # store (Processor, VideoSaver, VideoScreen) should size against this, not
   # `resolution` above.
   # stream_resolution:
-  #   width: 960
-  #   height: 540
+    width: 960
+    height: 540
   fps: "30/1"
   # Start each free-running camera one Nth of a frame period after the last, so
   # their inference requests reach the GPU spread out instead of bunched. In
@@ -27,24 +27,33 @@ camera_params:
   # Turn this OFF once the cameras are hardware-triggered: sync and stagger are
   # opposite goals, and triangulation needs sync. See MULTICAM_3D_PLAN.md.
   capture_stagger:
-    enabled: true
+    enabled: false
     slots: 4
     lead_seconds: 2.0
 zmq_config:
   ip: "localhost"
 active_cameras:
   - camera:
-      name: "top"
+      name: "top"  #check
       serial_id: "49320579-aravis"
   - camera:
-      name: "back_left"
+      name: "bottom_left" #check
       serial_id: "45324224-aravis"
   - camera:
-      name: "front_left"
+      name: "front_left"  #check
       serial_id: "45324225-aravis"
   - camera:
-      name: "front_right"
+      name: "front_right" #check
       serial_id: "14624029-aravis"
+  - camera:
+      name: "back_left" #check
+      serial_id: "25625241-aravis"
+  - camera:
+      name: "bottom_right"  #check
+      serial_id: "25625243-aravis"
+  - camera:
+      name: "back_right"  #check
+      serial_id: "25625242-aravis"
 
 
 inactive_cameras:
