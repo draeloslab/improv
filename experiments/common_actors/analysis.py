@@ -155,15 +155,20 @@ class VizStimAnalysis(Actor):
             self.frame = ids[-1]
             self.ana_q_in_ts.append([self.frame, time.time()])
             t_get = time.time()
-            self.coordDict = self.client.get(ids[0])
+            ##self.coordDict = self.client.get(ids[0])
             # if self.calc_color:
             #     self.coordDict = self.client.get(ids[0])
             #     self.coords = [o['coordinates'] for o in self.coordDict]
             # else:
             #     self.coordDict = None
             #     self.coords = None
-            self.image = self.client.get(ids[1])
-            self.S = self.client.get(ids[2])
+            ##self.image = self.client.get(ids[1])
+            ##self.S = self.client.get(ids[2])
+
+            # Previously, the code received (get) three times per instance
+            # So I want to combine this into one using mget
+            self.coordDict, self.image, self.S = self.client.get_many(ids[:3])
+
             self.getCtime.append(time.time()-t_get)
 
             self.C = self.S
@@ -282,15 +287,22 @@ class VizStimAnalysis(Actor):
         t = time.time()
         # logger.info(f"Cx shape {self.Cx.shape}, Call shape {self.Call.shape}, Cpop shape {self.Cpop.shape}, tune shape {len(self.tune)} with len {self.tune[0].shape}, color shape {self.color.shape}, coordDict len {len(self.coordDict)}, allStims len {len(self.allStims)}")
         
-        ids = []
-        ids.append(self.client.put(self.Cx))    #, 'Cx'+str(self.frame))) 
-        ids.append(self.client.put(self.Call))  #, 'Call'+str(self.frame)))
-        ids.append(self.client.put(self.Cpop))  #, 'Cpop'+str(self.frame)))
-        ids.append(self.client.put(self.tune))  #, 'tune'+str(self.frame))) (probably dont need)
-        ids.append(self.client.put(self.color)) #, 'color'+str(self.frame))) (we should rename bc it's not colored (motion correction))
-        ids.append(self.client.put(self.coordDict)) #, 'analys_coords'+str(self.frame)))
-        ids.append(self.client.put(self.allStims))  #, 'stim'+str(self.frame)))
-        ids.append(self.client.put(self.tc_list)) #, 'tc_list'))
+        # ids = []
+        # ids.append(self.client.put(self.Cx))    #, 'Cx'+str(self.frame))) 
+        # ids.append(self.client.put(self.Call))  #, 'Call'+str(self.frame)))
+        # ids.append(self.client.put(self.Cpop))  #, 'Cpop'+str(self.frame)))
+        # ids.append(self.client.put(self.tune))  #, 'tune'+str(self.frame))) (probably dont need)
+        # ids.append(self.client.put(self.color)) #, 'color'+str(self.frame))) (we should rename bc it's not colored (motion correction))
+        # ids.append(self.client.put(self.coordDict)) #, 'analys_coords'+str(self.frame)))
+        # ids.append(self.client.put(self.allStims))  #, 'stim'+str(self.frame)))
+        # ids.append(self.client.put(self.tc_list)) #, 'tc_list'))
+        # ids.append(self.frame)
+
+        ## Same for here, instead of 8 trips of "put" I made it into one
+        ids = self.client.put_many([
+            self.Cx, self.Call, self.Cpop, self.tune,
+            self.color, self.coordDict, self.allStims, self.tc_list
+        ])
         ids.append(self.frame)
         
         # logger.info('ids: {}'.format(ids))
@@ -301,15 +313,23 @@ class VizStimAnalysis(Actor):
         ''' Throw things to DS and put IDS in queue for Optimizer
         '''
         # t = time.time()
-        ids = []
-        ids.append(self.client.put(self.stimX))   #, 'stimX'+str(self.frame)))
-        ids.append(self.client.put(self.stimY))   #, 'stimY'+str(self.frame)))
-        ids.append(self.client.put(self.frame))
-        ids.append(self.client.put(self.testNum)) #, 'stim_testNum'+str(self.frame)))
-        ids.append(self.client.put(self.nID))     #, 'stim_nID'+str(self.frame)))
-        ids.append(self.client.put(self.auc_to_peak_ratio))
-        ids.append(self.client.put(self.calibration_not_moving_dots))
-        ids.append(self.client.put(self.total_stim_counts))
+        # ids = []
+        # ids.append(self.client.put(self.stimX))   #, 'stimX'+str(self.frame)))
+        # ids.append(self.client.put(self.stimY))   #, 'stimY'+str(self.frame)))
+        # ids.append(self.client.put(self.frame))
+        # ids.append(self.client.put(self.testNum)) #, 'stim_testNum'+str(self.frame)))
+        # ids.append(self.client.put(self.nID))     #, 'stim_nID'+str(self.frame)))
+        # ids.append(self.client.put(self.auc_to_peak_ratio))
+        # ids.append(self.client.put(self.calibration_not_moving_dots))
+        # ids.append(self.client.put(self.total_stim_counts))
+
+        # Same here
+        ids = self.client.put_many([
+            self.stimX, self.stimY, self.frame, self.testNum,
+            self.nID, self.auc_to_peak_ratio, self.calibration_not_moving_dots,
+            self.total_stim_counts
+        ])
+
         self.links['stim_out'].put(ids)
         self.ana_stim_out_ts.append([self.frame, time.time()])
         # self.putstimtime.append(time.time()-t)
@@ -406,8 +426,15 @@ class VizStimAnalysis(Actor):
         tc_list = []
             #TODO: don't stack image each time?
         if self.calc_color:
-            color = np.stack([image, image, image, image], axis=-1).astype(np.uint8).copy()
-            color[...,3] = 255
+            # color = np.stack([image, image, image, image], axis=-1).astype(np.uint8).copy()
+            # color[...,3] = 255
+
+            # Cast once, then broadcast into RGBA. Previously, it stacked four
+            # copies of the float image, casted that, then copied it again.
+            img8 = image.astype(np.uint8)
+            color = np.empty(img8.shape + (4,), dtype=np.uint8)
+            color[..., :3] = img8[..., None]
+            color[..., 3] = 255
             if self.coords is not None:
                 # activity = np.zeros((len(self.coords),self.C.shape[0]))
                 for i,c in enumerate(self.coords):

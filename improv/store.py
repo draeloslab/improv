@@ -22,6 +22,9 @@ import time
 
 REDIS_GLOBAL_TOPIC = "global_topic"
 
+# variable for redis object expiration time. put() was originally 100 as well
+REDIS_EXP = 100
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
@@ -43,6 +46,14 @@ class StoreInterface:
 
     def subscribe(self):
         raise NotImplementedError
+
+    def put_many(self, objects):
+        """Store several objects thenreturns their keys in the same order."""
+        return [self.put(obj) for obj in objects]
+
+    def get_many(self, object_keys):
+        """Fetch several objects in order"""
+        return [self.get(key) for key in object_keys]
 
 
 class RedisStoreInterface(StoreInterface):
@@ -206,6 +217,41 @@ class RedisStoreInterface(StoreInterface):
     def notify(self):
         pass  # I don't see any call sites for this, so leaving it blank at the moment
 
+    def put_many(self, objects):
+        """Store several objects in ONE Redis round trip.
+
+        Returns the list of keys, in the same order as objects.
+        """
+        if not objects:
+            return []
+        pid = str(os.getpid())
+        keys = [pid + str(uuid.uuid4()) for _ in objects]
+        try:
+            pipe = self.client.pipeline(transaction=False)
+            for key, obj in zip(keys, objects):
+                pipe.set(key, pickle.dumps(obj, protocol=5), nx=True, ex=REDIS_EXP)
+            results = pipe.execute()
+        except Exception:
+            logger.exception("Could not store objects")
+            raise
+        failed = [k for k, ok in zip(keys, results) if not ok]
+        if failed:
+            raise StoreWriteError(failed)
+        return keys
+
+    def get_many(self, object_keys):
+        """Fetch and unpickle several objects in ONE round trip (MGET).
+        """
+        if not object_keys:
+            return []
+        values = self.client.mget(object_keys)
+        out = []
+        for key, value in zip(object_keys, values):
+            if value is None:
+                logger.warning("Object {} cannot be found.".format(key))
+                raise ObjectNotFoundError(key)
+            out.append(pickle.loads(value))
+        return out
 
 class PlasmaStoreInterface(StoreInterface):
     """Basic interface for our specific data store implemented with apache arrow plasma
@@ -479,6 +525,15 @@ class CannotConnectToStoreInterfaceError(Exception):
         self.name = "CannotConnectToStoreInterfaceError"
 
         self.message = "Cannot connect to store at {}".format(str(store_loc))
+
+    def __str__(self):
+        return self.message
+
+class StoreWriteError(Exception):
+    def __init__(self, keys=None):
+        super().__init__()
+        self.keys = keys
+        self.message = "Store did not accept writes for keys {}".format(keys)
 
     def __str__(self):
         return self.message
