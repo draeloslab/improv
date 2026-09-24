@@ -1,0 +1,43 @@
+# MediaPipe hand tracking on a recorded video (no cameras, no calibration).
+#
+#   Generator0 ─┬─> ProcessorBatch3D ──> VideoScreen3D.preds_in
+#               └─> VideoScreen3D.images0_in
+#
+# Generator0 plays config/config.yaml's video_path_0 (today's 12:38 cam 3
+# recording, already 960x540 so camera_prescaled: true is correct). The pose
+# backend comes from config.yaml's batch3d_backend, set to "mediapipe" there.
+# triangulate: false, so only the 2D keypoints are drawn on the view; the
+# angle and 3D panels stay empty.
+#
+# Run: fes-run.sh mediapipe_gen.yaml   (env: FES_CONDA_ENV=improvPytorchJarvis)
+
+actors:
+  GUI:
+    package: actors.video_screen_3d
+    class: Visual3D
+    visual: VideoScreen3D
+
+  VideoScreen3D:
+    package: actors.video_screen_3d
+    class: VideoScreen3D
+    num_active_cameras: 1
+
+  Generator0:
+    package: actors.generator
+    class: Generator
+
+  ProcessorBatch3D:
+    package: actors.processor_batch3d
+    class: ProcessorBatch3D
+    num_cameras: 1
+    camera_nums: [0]
+    pred_active: True
+    triangulate: false
+    method: spawn
+
+connections:
+  Generator0.q_out: [VideoScreen3D.images0_in, ProcessorBatch3D.frames0_in]
+  ProcessorBatch3D.q_out: [VideoScreen3D.preds_in]
+
+redis_config:
+  port: 6379

@@ -71,7 +71,10 @@ class CameraReader(ManagedActor):
         logger.info(f'Opening device: {camera_config}')
 
         self.camera_interface = TIS(self.camera_name, self.client, self.q_out)
-        self.camera_interface.open_device(camera_config['serial_id'], shared_frame, self.frame_w, self.frame_h, self.fps, SinkFormats.RGB, showvideo=False, out_width=self.stream_w, out_height=self.stream_h)
+        # appsink queue depth: 5 while recording (a stalled reader loses no frame), 1 for
+        # live tracking (only the newest frame, same latency on every camera).
+        max_buffers = int(camera_params.get('appsink_max_buffers', 5))
+        self.camera_interface.open_device(camera_config['serial_id'], shared_frame, self.frame_w, self.frame_h, self.fps, SinkFormats.RGB, showvideo=False, out_width=self.stream_w, out_height=self.stream_h, max_buffers=max_buffers)
         
         logger.info(f'Device {self.camera_name} opened')
 
@@ -134,6 +137,16 @@ class CameraReader(ManagedActor):
                     f'cameras to confirm the stagger took effect')
         if ret_sp:
             logger.info(f'Device {self.camera_name} pipeline started')
+            # Fixed exposure/gain/white balance (camera_params.camera_settings, with any
+            # per-camera `settings:` override). Left on the cameras' own auto modes, the
+            # exposure drifts with the scene and can outrun the frame period, which
+            # drops that camera's frame rate (cam0 measured 29.53 fps vs 30).
+            settings = dict(camera_params.get('camera_settings') or {})
+            settings.update(camera_config.get('settings') or {})
+            if settings:
+                self.camera_interface.apply_settings(settings)
+            else:
+                logger.info(f'Camera {self.camera_name}: no camera_settings configured, leaving the camera on its own defaults')
         else:
             # tcambin will happily "open" a camera that is not attached, so a failure to
             # reach PLAYING is the first point at which a missing device is detectable.

@@ -26,6 +26,29 @@ camera_params:
   #
   # Turn this OFF once the cameras are hardware-triggered: sync and stagger are
   # opposite goals, and triangulation needs sync. See MULTICAM_3D_PLAN.md.
+  # appsink queue depth per camera. 5 = a briefly stalled reader loses no frame (use
+  # this when RECORDING: the saver shares these frames). 1 = only the newest frame is
+  # ever delivered, so every camera has the same latency (use this for LIVE tracking).
+  appsink_max_buffers: 5
+
+  # Camera controls applied to every camera once its pipeline is PLAYING (tcam property
+  # names -> values, in this order; put each *Auto before its manual value). Left on the
+  # cameras' own auto modes the exposure drifts with the scene: in dim light it pegs at
+  # one frame period and the frame rate sags (cam0 ran 29.53 fps, front_right 29.72),
+  # and brightness/colour differ from camera to camera. Exposure must stay under one
+  # frame period (33333 us at 30 fps).
+  # TUNE ExposureTime/Gain under the real experiment lighting: watch the GUI and
+  # aim for a bright hand without saturated pixels. Shorter exposure = less motion
+  # blur but a darker image (compensate with Gain). Remove the block (or set it to
+  # {}) to leave the cameras untouched. A per-camera `settings:` mapping under an
+  # active_cameras entry overrides these.
+  camera_settings:
+    ExposureAuto: "Off"
+    ExposureTime: 10000
+    GainAuto: "Off"
+    Gain: 15.0
+    BalanceWhiteAuto: "Off"
+
   capture_stagger:
     enabled: false
     slots: 4

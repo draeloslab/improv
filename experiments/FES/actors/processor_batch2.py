@@ -137,8 +137,8 @@ class ProcessorBatch2(Actor):
                     msg = link.get_nowait()
                 except Exception:
                     break
-            if len(msg) == 3:
-                frame_ids[slot], starts[slot], fnums[slot] = msg
+            if len(msg) >= 3:
+                frame_ids[slot], starts[slot], fnums[slot] = msg[:3]
             elif len(msg) == 2:
                 frame_ids[slot], starts[slot] = msg
         return frame_ids, starts, fnums

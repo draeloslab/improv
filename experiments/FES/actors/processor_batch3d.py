@@ -198,6 +198,11 @@ class ProcessorBatch3D(Actor):
         # therefore to the right calibration entry.
         self.camera_nums = kwargs.get('camera_nums', list(range(self.num_cameras)))
         self.pred_active = kwargs.get('pred_active', True)
+        # A camera whose frame was captured more than this many ms before the newest
+        # frame in the step is left out of that step's triangulation (its 2D keypoints
+        # are still shown). None = never drop. Uses the cameras' driver capture
+        # timestamps, so it does nothing for a camera that sends none (e.g. Generator).
+        self.max_frame_skew_ms = kwargs.get('max_frame_skew_ms', None)
         # False = 2D-only: run pose estimation and hand the per-camera keypoints
         # to the GUI, but skip calibration, triangulation and joint angles. For
         # runs without a usable calibration.
@@ -298,6 +303,11 @@ class ProcessorBatch3D(Actor):
         self.timestamps = []
         self.frame_nums_received = []
         self.frame_skew = []           # max-min frame_num across cameras, per step
+        # Real time spread of the frames in each step (ms, from the cameras' capture
+        # timestamps; NaN if <2 cameras stamped). Unlike frame_skew, this is not
+        # affected by when each camera actor happened to start counting.
+        self.time_skew_ms = []
+        self.stale_cameras = []        # slots left out of triangulation by max_frame_skew_ms, per step
         self.cameras_present = []      # how many cameras contributed each step
 
         self.queue_wait_latencies = []
@@ -334,6 +344,14 @@ class ProcessorBatch3D(Actor):
 
         model_path = config['mediapipe_model_path']
         num_hands = int(config.get('mediapipe_num_hands', 1))
+        # Both hands: 42 keypoints, right_* rows then left_* rows (the same
+        # layout as the two-hand DLC models, so joint/skeleton setup and the GUI
+        # need nothing special). Each row block is filled from the detection
+        # MediaPipe labels with that handedness.
+        self.mp_both_hands = bool(config.get('mediapipe_both_hands', False))
+        self.mp_swap_handedness = bool(config.get('mediapipe_swap_handedness', False))
+        if self.mp_both_hands:
+            num_hands = max(num_hands, 2)
         min_conf = float(config.get('mediapipe_min_hand_detection_confidence', 0.5))
         delegate_name = str(config.get('mediapipe_delegate', 'CPU')).upper()
         delegate = getattr(mp_python.BaseOptions.Delegate, delegate_name)
@@ -351,9 +369,14 @@ class ProcessorBatch3D(Actor):
 
         self.mp_executor = ThreadPoolExecutor(max_workers=self.num_cameras,
                                               thread_name_prefix="mediapipe")
-        self.bodyparts = list(MEDIAPIPE_LANDMARK_NAMES)
+        if self.mp_both_hands:
+            self.bodyparts = ([_prefixed_hand_names("right")[n] for n in MEDIAPIPE_LANDMARK_NAMES]
+                              + [_prefixed_hand_names("left")[n] for n in MEDIAPIPE_LANDMARK_NAMES])
+        else:
+            self.bodyparts = list(MEDIAPIPE_LANDMARK_NAMES)
         self.n_keypoints = len(self.bodyparts)
-        logger.info(f"mediapipe: {model_path}, delegate={delegate_name}, "
+        logger.info(f"mediapipe: both_hands={self.mp_both_hands}, "
+                    f"swap_handedness={self.mp_swap_handedness}, mediapipe: {model_path}, delegate={delegate_name}, "
                     f"{self.num_cameras} landmarker instances, min_hand_detection_confidence={min_conf}")
 
     def _setup_dlc(self, config):
@@ -500,6 +523,7 @@ class ProcessorBatch3D(Actor):
         frame_ids = [None] * self.num_cameras
         starts = [None] * self.num_cameras
         fnums = [-1] * self.num_cameras
+        caps = [None] * self.num_cameras     # wall-clock capture time (driver timestamp), if the camera sent one
 
         for slot in range(self.num_cameras):
             link = self.links.get(f"frames{slot}_in")
@@ -516,13 +540,14 @@ class ProcessorBatch3D(Actor):
                     msg = link.get_nowait()
                 except Exception:
                     break
-            if len(msg) == 3:
-                frame_ids[slot], starts[slot], fnums[slot] = msg
+            if len(msg) >= 3:
+                frame_ids[slot], starts[slot], fnums[slot] = msg[:3]
+                if len(msg) >= 4: caps[slot] = msg[3]
             elif len(msg) == 2:
                 frame_ids[slot], starts[slot] = msg
 
         present = [i for i, fid in enumerate(frame_ids) if fid is not None]
-        return frame_ids, starts, fnums, present
+        return frame_ids, starts, fnums, present, caps
 
     def runStep(self):
         if not self.pred_active:
@@ -532,7 +557,7 @@ class ProcessorBatch3D(Actor):
 
         # --- 1. one newest frame per camera ---
         t0 = time.perf_counter()
-        frame_ids, starts, fnums, present = self._gather_frames()
+        frame_ids, starts, fnums, present, caps = self._gather_frames()
         self.queue_wait_latencies.append(time.perf_counter() - t0)
 
         if not present:
@@ -573,6 +598,15 @@ class ProcessorBatch3D(Actor):
         valid_fnums = [fnums[s] for s in batch_slots if fnums[s] >= 0]
         self.frame_skew.append(max(valid_fnums) - min(valid_fnums) if len(valid_fnums) > 1 else 0)
 
+        stamped = {s: caps[s] for s in batch_slots if caps[s] is not None and np.isfinite(caps[s])}
+        self.time_skew_ms.append((max(stamped.values()) - min(stamped.values())) * 1e3
+                                 if len(stamped) > 1 else float('nan'))
+        stale = set()
+        if self.max_frame_skew_ms is not None and len(stamped) > 1:
+            newest = max(stamped.values())
+            stale = {s for s, t in stamped.items() if (newest - t) * 1e3 > self.max_frame_skew_ms}
+        self.stale_cameras.append(sorted(stale))
+
         # --- 3. pose estimation: N cameras through ONE model, ONE step ---
         # DLC: a literal batched tensor forward pass. mediapipe: N landmarker
         # instances run concurrently on a thread pool (see _infer_mediapipe) --
@@ -602,7 +636,7 @@ class ProcessorBatch3D(Actor):
 
         for slot in batch_slots:
             row = self.calib_row[slot]
-            if row is None or self.cgroup is None:
+            if row is None or self.cgroup is None or slot in stale:
                 continue
 
             pred = raw_2d[slot]
@@ -643,7 +677,7 @@ class ProcessorBatch3D(Actor):
             n3d = int(np.sum(np.isfinite(points_3d[:, 0]))) if points_3d is not None else 0
             logger.info(f"frame {self.frame_num}: {round(self.frames_log / elapsed, 2)} fps, "
                         f"{len(batch_slots)} cams, {n3d}/{self.n_keypoints} keypoints in 3D, "
-                        f"frame skew {self.frame_skew[-1]}, "
+                        f"frame skew {self.frame_skew[-1]}, time skew {np.nanmedian(self.time_skew_ms[-self.frames_log:]):.1f} ms, "
                         f"infer {np.median(self.inference_latencies[-self.frames_log:])*1000:.1f} ms, "
                         f"tri {np.median(self.triangulate_latencies[-self.frames_log:])*1000:.2f} ms, "
                         f"ang {np.median(self.angle_latencies[-self.frames_log:])*1000:.2f} ms")
@@ -741,14 +775,34 @@ class ProcessorBatch3D(Actor):
         for slot, result in self.mp_executor.map(detect_one, batch_slots):
             if not result.hand_landmarks:
                 continue
-            hand = result.hand_landmarks[0]
-            score = (result.handedness[0][0].score if result.handedness else 1.0)
             h, w = frames[slot].shape[:2]
-            pred = np.empty((self.n_keypoints, 3), dtype=float)
-            pred[:, 0] = [lm.x * w for lm in hand]
-            pred[:, 1] = [lm.y * h for lm in hand]
-            pred[:, 2] = score
-            raw_2d[slot] = pred
+
+            def hand_rows(i):
+                hand = result.hand_landmarks[i]
+                score = (result.handedness[i][0].score if result.handedness else 1.0)
+                pred = np.empty((len(hand), 3), dtype=float)
+                pred[:, 0] = [lm.x * w for lm in hand]
+                pred[:, 1] = [lm.y * h for lm in hand]
+                pred[:, 2] = score
+                return pred, score
+
+            if not self.mp_both_hands:
+                raw_2d[slot] = hand_rows(0)[0]
+                continue
+
+            # Route each detection into its handedness block; if two detections
+            # claim the same side, the more confident one wins.
+            best = {}
+            for i in range(len(result.hand_landmarks)):
+                label = result.handedness[i][0].category_name.lower() if result.handedness else "right"
+                if self.mp_swap_handedness:
+                    label = "left" if label == "right" else "right"
+                pred, score = hand_rows(i)
+                if label not in best or score > best[label][1]:
+                    best[label] = (pred, score)
+            for label, (pred, _) in best.items():
+                off = 0 if label == "right" else 21
+                raw_2d[slot, off:off + 21] = pred
         return raw_2d
 
     # ------------------------------------------------------------------- math
@@ -826,6 +880,8 @@ class ProcessorBatch3D(Actor):
             np.save(self.out_folder / "batch3d_bodyparts.npy", np.asarray(self.bodyparts))
             np.save(self.out_folder / "batch3d_timestamps.npy", np.asarray(self.timestamps))
             np.save(self.out_folder / "batch3d_frame_skew.npy", np.asarray(self.frame_skew))
+            np.save(self.out_folder / "batch3d_time_skew_ms.npy", np.asarray(self.time_skew_ms))
+            np.save(self.out_folder / "batch3d_stale_cameras.npy", np.asarray(self.stale_cameras, dtype=object), allow_pickle=True)
             np.save(self.out_folder / "batch3d_cameras_present.npy", np.asarray(self.cameras_present))
 
             np.save(self.out_folder / "batch3d_lat_queue_wait.npy", np.asarray(self.queue_wait_latencies))

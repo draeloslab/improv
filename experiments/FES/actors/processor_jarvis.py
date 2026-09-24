@@ -260,8 +260,8 @@ class ProcessorJarvis(Actor):
                 #------------------------------
 
                 # Support both old [data_id, timestamp] and new [data_id, timestamp, frame_num] formats
-                if len(msg) == 3:
-                    frame_id, camera_start, gen_frame_num = msg
+                if len(msg) >= 3:
+                    frame_id, camera_start, gen_frame_num = msg[:3]
                 else:
                     frame_id, camera_start = msg
                     gen_frame_num = -1

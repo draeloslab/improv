@@ -47,7 +47,7 @@ jarvis_keypoint_weights_3: '/home/chesteklab/Desktop/hand-tracking-notebooks-jak
 #     pass (batch_size = num_cameras): 41.6 ms for 4 frames vs 75.6 ms
 #     sequential. Kept as a fallback / for comparison; not recommended given
 #     how weakly it's trained.
-batch3d_backend: "dlc"
+batch3d_backend: "mediapipe"
 
 # --- mediapipe backend ------------------------------------------------------
 # From hand-tracking-notebooks-jake-2026-08-17/mediapipe/hand_landmarker.task
@@ -55,6 +55,15 @@ batch3d_backend: "dlc"
 # that project's bodyparts list IS mediapipe's landmark order).
 mediapipe_model_path: '/home/chesteklab/Desktop/hand-tracking-notebooks-jake-2026-08-17/mediapipe/hand_landmarker.task'
 mediapipe_num_hands: 2
+# Track both hands: 42 keypoints (right_* then left_*, same layout as the
+# two-hand DLC models) instead of only the first hand MediaPipe returns. Each
+# detection goes to the side MediaPipe labels it. MediaPipe assumes a mirrored
+# (selfie) image, so on raw camera frames its "Left" is the subject's right
+# hand -- flip with mediapipe_swap_handedness if the names matter. The label
+# is a per-camera guess and can disagree between views (and on non-human
+# hands), which matters for triangulation.
+mediapipe_both_hands: true
+mediapipe_swap_handedness: false
 # HandLandmarker's own internal gate on whether it reports a hand at all --
 # separate from triangulation_likelihood_threshold below, which gates whether
 # a reported hand is confident enough to feed into THIS camera's triangulation.
@@ -135,7 +144,9 @@ jarvis_center_threshold: 40
 # Revert after that verification.
 # video_path_0: '/home/chesteklab/Desktop/FES_Fatigue Videos/FES_Fatigue_Rhodes/camera_video_0_0617_1211.mp4'
 # video_path_2: '/home/chesteklab/camera_video/2026-02-27/102051/camera_video_2_0227_1020.mp4'
-video_path_0: '/home/chesteklab/camera_video/2026-02-27/102051/camera_video_0_0227_1020.mp4'
+# video_path_0: '/home/chesteklab/camera_video/2026-02-27/102051/camera_video_0_0227_1020.mp4'
+# Generator0 plays this (graphs/mediapipe_gen.yaml): 09-23 12:38 run, cam 3 (960x540; MediaPipe finds a hand most often here).
+video_path_0: '/home/chesteklab/camera_video/2026-09-23/123800/camera_video_3_0923_1238.mp4'
 video_path: '/home/chesteklab/camera_video/2026-02-27/102051/camera_video_2_0227_1020.mp4'
 # video_path: '/home/chesteklab/Desktop/humanWristMP21-Jake-2026-08-14/videos/tcam-capture-45324230-aravis-rggb_1920x1080_30_1-20260812T095112_479.avi'
 # Confidence below which the GUI draws a keypoint hollow/orange instead of solid

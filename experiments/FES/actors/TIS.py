@@ -67,6 +67,7 @@ class TIS:
         self.camera_latencies = []
         self.camera_latenciesFull = []
         self.cameraStarts = []
+        self.captureTimes = []      # wall-clock capture time per frame (NaN if the buffer had no timestamp)
 
         # --- Timing logs ---
         self.frame_num = 0
@@ -88,7 +89,8 @@ class TIS:
                     showvideo: bool,
                     conversion: str = "",
                     out_width: int = None,
-                    out_height: int = None):
+                    out_height: int = None,
+                    max_buffers: int = 5):
         ''' Inialize a device, e.g. camera.
         :param serial: Serial number of the camera to be used.
         :param width: Width of the wanted video format (native capture)
@@ -101,6 +103,9 @@ class TIS:
             (defaults to `width`, i.e. no scaling)
         :param out_height: If given, GStreamer downscales to this height before appsink
             (defaults to `height`, i.e. no scaling)
+        :param max_buffers: appsink queue depth. 5 tolerates a briefly stalled reader (use it
+            when recording, so no frame is lost). 1 delivers only the newest frame, which keeps
+            the per-camera latency the same across cameras (use it for live tracking).
         :return: none
         '''
         if serial is None:
@@ -116,6 +121,7 @@ class TIS:
         # every single frame (see __convert_to_numpy).
         self.out_width = out_width if out_width is not None else width
         self.out_height = out_height if out_height is not None else height
+        self.max_buffers = int(max_buffers)
 
         if self.sinkformat == SinkFormats.GRAY8:
             self.bpp = 1
@@ -161,7 +167,7 @@ class TIS:
 
         # Query a pointer to the appsink, so we can assign the callback function.
         appsink = self.pipeline.get_by_name("sink")
-        appsink.set_property("max-buffers", 5)
+        appsink.set_property("max-buffers", self.max_buffers)
         appsink.set_property("drop", True)
         appsink.set_property("emit-signals", True)
         appsink.set_property("enable-last-sample", True)
@@ -206,8 +212,48 @@ class TIS:
         if cam_state[1] != Gst.State.PLAYING:
             logger.info("Error starting pipeline. {0}".format(cam_state[1]))
             return False
-        
+
+        # Map GStreamer buffer timestamps to wall-clock time. A buffer's PTS is
+        # relative to the pipeline's base time, so absolute clock time is
+        # base_time + PTS; the offset between that clock and time.time() is
+        # sampled once, here. This is the time the frame reached the driver, which
+        # is far closer to the exposure than time.time() at the moment Python pulls
+        # the frame (that one includes the appsink queue wait).
+        try:
+            clock = self.pipeline.get_clock()
+            self._clock_offset = time.time() - clock.get_time() / 1e9
+            self._base_time = self.pipeline.get_base_time()
+        except Exception as error:
+            logger.warning(f"[Camera {self.camera_name}] no pipeline clock, capture times disabled: {error}")
+            self._clock_offset = None
+
         return True
+
+    def _capture_time(self, buf):
+        """Wall-clock time this buffer was captured, or None if the buffer has no timestamp."""
+        if getattr(self, "_clock_offset", None) is None:
+            return None
+        pts = buf.pts
+        if pts is None or pts == Gst.CLOCK_TIME_NONE:
+            return None
+        return (self._base_time + pts) / 1e9 + self._clock_offset
+
+    def apply_settings(self, settings):
+        """Set camera properties (tcam names -> values), in order, and log what the camera took.
+
+        Order matters: put the *Auto entries before their manual values. A property the
+        camera rejects is logged and skipped, not fatal -- a camera model that lacks one
+        still runs.
+        """
+        applied = {}
+        for name, value in (settings or {}).items():
+            try:
+                self.set_property(name, value)
+                applied[name] = self.get_property(name)
+            except Exception as error:
+                logger.warning(f"[Camera {self.camera_name}] could not set {name}={value!r}: {error}")
+        logger.info(f"[Camera {self.camera_name}] camera settings applied (read back): {applied}")
+        return applied
     
     # starting sharing the frames received from the camera
     def start_sharing(self):
@@ -225,6 +271,8 @@ class TIS:
             buf = sample.get_buffer()
             camera_start = time.time()
             self.cameraStarts.append(camera_start)
+            capture_time = self._capture_time(buf)
+            self.captureTimes.append(capture_time if capture_time is not None else float('nan'))
 
             # --- Step 1: Convert GStreamer buffer to numpy ---
             # Dimensions are cached on self (out_width/out_height/bpp, set once in
@@ -249,7 +297,7 @@ class TIS:
 
                 # --- Step 4: Queue put (with frame_num for cross-actor correlation) ---
                 t0 = time.perf_counter()
-                self.q_out.put([data_id, camera_start, self.frame_num])
+                self.q_out.put([data_id, camera_start, self.frame_num, capture_time])
                 self.queue_put_latencies.append(time.perf_counter() - t0)
 
                 self.camera_latencies.append(time.perf_counter() - frame_time)
@@ -320,6 +368,7 @@ class TIS:
         np.save(self.out_folder / f"TIS_encode_{self.camera_name}.npy", self.encode_latencies)
         np.save(self.out_folder / f"TIS_store_put_{self.camera_name}.npy", self.store_put_latencies)
         np.save(self.out_folder / f"TIS_queue_put_{self.camera_name}.npy", self.queue_put_latencies)
+        np.save(self.out_folder / f"TIScapture_{self.camera_name}.npy", self.captureTimes)
 
         logger.info(f"TIS latencies saved to {self.out_folder}")
 
