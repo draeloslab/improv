@@ -22,6 +22,7 @@ class Generator(Actor):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.camera_num = kwargs.get('camera_num')
 
     def setup(self):
         logger.info(f"Beginning setup for {self.name}")
@@ -33,7 +34,12 @@ class Generator(Actor):
             config = yaml.safe_load(file)
 
         
-        if '0' in self.name:
+        # Optional `camera_num` (yaml kwarg) selects config['video_paths'][camera_num],
+        # so several Generators can play one recording per physical camera.
+        camera_num = getattr(self, 'camera_num', None)
+        if camera_num is not None:
+            self.video_path = config['video_paths'][camera_num]
+        elif '0' in self.name:
             self.video_path = config['video_path_0']
         elif '2' in self.name:
             self.video_path = config['video_path_2']

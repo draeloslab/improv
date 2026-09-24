@@ -153,16 +153,16 @@ else
     echo "== GPU clocks: no nvidia-smi found, skipping"
 fi
 
-if command -v nmcli >/dev/null 2>&1; then
-    if [[ "$MODE" == "on" ]]; then
-        nmcli radio wifi off 2>/dev/null && echo "== Wi-Fi radio off (cameras/xPC link are wired, unaffected)" \
-            || echo "== Wi-Fi radio: could not turn off (already off, or no Wi-Fi hardware)"
-    else
-        nmcli radio wifi on 2>/dev/null && echo "== Wi-Fi radio back on" || true
-    fi
-else
-    echo "== Wi-Fi radio: nmcli not found, skipping"
-fi
+# if command -v nmcli >/dev/null 2>&1; then
+#     if [[ "$MODE" == "on" ]]; then
+#         nmcli radio wifi off 2>/dev/null && echo "== Wi-Fi radio off (cameras/xPC link are wired, unaffected)" \
+#             || echo "== Wi-Fi radio: could not turn off (already off, or no Wi-Fi hardware)"
+#     else
+#         nmcli radio wifi on 2>/dev/null && echo "== Wi-Fi radio back on" || true
+#     fi
+# else
+#     echo "== Wi-Fi radio: nmcli not found, skipping"
+# fi
 
 echo "== Background timers"
 for t in "${QUIET_TIMERS[@]}"; do

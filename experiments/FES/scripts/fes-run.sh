@@ -37,7 +37,7 @@ export MALLOC_MMAP_THRESHOLD_="${MALLOC_MMAP_THRESHOLD_:-33554432}"
 export MALLOC_TRIM_THRESHOLD_="${MALLOC_TRIM_THRESHOLD_:--1}"
 
 FES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONDA_ENV="${FES_CONDA_ENV:-improvPytorch2}"
+CONDA_ENV="${FES_CONDA_ENV:-improvPytorchJarvis}"
 DEFAULT_YAML="graphs/latency_benchmarking.yaml"
 
 AUTO=0

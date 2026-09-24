@@ -246,6 +246,11 @@ class ProcessorBatch3D(Actor):
         # per keypoint and returns NaN for the rest. (With the mediapipe
         # backend this is a per-camera whole-hand gate, not per-keypoint --
         # see _setup_mediapipe / _infer_mediapipe.)
+        # Temporal cleanup of the 3D output (both off by default): frames to hold
+        # a lost keypoint, and EMA weight on the previous value (0 = no smoothing).
+        self.hold_3d = int(config.get('triangulation_hold_frames', 0))
+        self.smooth_3d = float(config.get('triangulation_smooth_alpha', 0.0))
+        self._last_3d = None
         self.likelihood_threshold = float(config.get('triangulation_likelihood_threshold', 0.3))
         self.min_cameras = int(config.get('triangulation_min_cameras', 2))
 
@@ -353,6 +358,18 @@ class ProcessorBatch3D(Actor):
         if self.mp_both_hands:
             num_hands = max(num_hands, 2)
         min_conf = float(config.get('mediapipe_min_hand_detection_confidence', 0.5))
+        # VIDEO mode carries a tracker between frames, so a hand found once is
+        # followed instead of re-detected from scratch every frame (IMAGE mode).
+        # It needs strictly increasing timestamps per landmarker (see detect_one).
+        self.mp_video_mode = str(config.get('mediapipe_running_mode', 'image')).lower() == 'video'
+        self._mp_ts_ms = 0
+        self._mp_step_ms = max(1, int(round(1000.0 / float(config.get('fps', 30)))))
+        track_conf = float(config.get('mediapipe_min_tracking_confidence', 0.5))
+        presence_conf = float(config.get('mediapipe_min_hand_presence_confidence', 0.5))
+        # Keep a lost hand's last 2D keypoints for this many frames instead of
+        # blanking them at once (0 = off).
+        self.mp_hold_frames = int(config.get('mediapipe_hold_frames', 0))
+        self._mp_held = {}   # (slot, block offset) -> [pred, age]
         delegate_name = str(config.get('mediapipe_delegate', 'CPU')).upper()
         delegate = getattr(mp_python.BaseOptions.Delegate, delegate_name)
 
@@ -361,9 +378,12 @@ class ProcessorBatch3D(Actor):
             base_options = mp_python.BaseOptions(model_asset_path=model_path, delegate=delegate)
             options = mp_vision.HandLandmarkerOptions(
                 base_options=base_options,
-                running_mode=mp_vision.RunningMode.IMAGE,
+                running_mode=(mp_vision.RunningMode.VIDEO if self.mp_video_mode
+                              else mp_vision.RunningMode.IMAGE),
                 num_hands=num_hands,
                 min_hand_detection_confidence=min_conf,
+                min_hand_presence_confidence=presence_conf,
+                min_tracking_confidence=track_conf,
             )
             self.landmarkers.append(mp_vision.HandLandmarker.create_from_options(options))
 
@@ -658,7 +678,7 @@ class ProcessorBatch3D(Actor):
 
         # --- 5. triangulate ---
         t0 = time.perf_counter()
-        points_3d = self._triangulate(points_2d)
+        points_3d = self._smooth_3d(self._triangulate(points_2d))
         self.triangulate_latencies.append(time.perf_counter() - t0)
 
         # --- 6. joint angles ---
@@ -769,7 +789,12 @@ class ProcessorBatch3D(Actor):
             # QImage.Format_RGB888). No cv2.cvtColor here -- swapping channels
             # on an already-RGB frame would hand mediapipe a blue-tinted image.
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frames[slot])
+            if self.mp_video_mode:
+                return slot, self.landmarkers[slot].detect_for_video(mp_image, ts_ms)
             return slot, self.landmarkers[slot].detect(mp_image)
+
+        self._mp_ts_ms += self._mp_step_ms
+        ts_ms = self._mp_ts_ms
 
         raw_2d = np.full((self.num_cameras, self.n_keypoints, 3), np.nan)
         for slot, result in self.mp_executor.map(detect_one, batch_slots):
@@ -803,9 +828,48 @@ class ProcessorBatch3D(Actor):
             for label, (pred, _) in best.items():
                 off = 0 if label == "right" else 21
                 raw_2d[slot, off:off + 21] = pred
+        if self.mp_hold_frames > 0:
+            self._hold_2d(raw_2d, batch_slots)
         return raw_2d
 
+    def _hold_2d(self, raw_2d, batch_slots):
+        """Fill a hand block that vanished for a few frames with its last value."""
+        for slot in batch_slots:
+            for off in range(0, self.n_keypoints, 21):
+                block = raw_2d[slot, off:off + 21]
+                key = (slot, off)
+                if np.isfinite(block[:, 0]).any():
+                    self._mp_held[key] = [block.copy(), 0]
+                elif key in self._mp_held:
+                    held = self._mp_held[key]
+                    held[1] += 1
+                    if held[1] <= self.mp_hold_frames:
+                        raw_2d[slot, off:off + 21] = held[0]
+                    else:
+                        del self._mp_held[key]
+
     # ------------------------------------------------------------------- math
+
+    def _smooth_3d(self, pts):
+        """Optional temporal cleanup of the triangulated keypoints: hold the last
+        good value through short dropouts, then EMA-blend into the new one."""
+        if self.hold_3d <= 0 and self.smooth_3d <= 0:
+            return pts
+        if self._last_3d is None:
+            self._last_3d = np.full_like(pts, np.nan)
+            self._age_3d = np.zeros(len(pts), dtype=int)
+        fresh = np.isfinite(pts).all(axis=1)
+        out = pts.copy()
+        self._age_3d = np.where(fresh, 0, self._age_3d + 1)
+        prev_ok = np.isfinite(self._last_3d).all(axis=1)
+        blend = fresh & prev_ok
+        if self.smooth_3d > 0:
+            a = self.smooth_3d
+            out[blend] = a * self._last_3d[blend] + (1 - a) * pts[blend]
+        hold = ~fresh & prev_ok & (self._age_3d <= self.hold_3d)
+        out[hold] = self._last_3d[hold]
+        self._last_3d = out.copy()
+        return out
 
     def _triangulate(self, points_2d):
         """aniposelib DLT over every camera that kept a given keypoint.

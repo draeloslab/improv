@@ -1,13 +1,12 @@
-# MediaPipe hand tracking on a recorded video (no cameras, no calibration).
+# MediaPipe hand tracking + triangulation on six recorded videos (no cameras).
 #
-#   Generator0 ─┬─> ProcessorBatch3D ──> VideoScreen3D.preds_in
-#               └─> VideoScreen3D.images0_in
+#   Generator{N} ─┬─> ProcessorBatch3D ──> VideoScreen3D.preds_in
+#                 └─> VideoScreen3D.images{N}_in
 #
-# Generator0 plays config/config.yaml's video_path_0 (today's 12:38 cam 3
-# recording, already 960x540 so camera_prescaled: true is correct). The pose
-# backend comes from config.yaml's batch3d_backend, set to "mediapipe" there.
-# triangulate: false, so only the 2D keypoints are drawn on the view; the
-# angle and 3D panels stay empty.
+# Each Generator plays config.yaml's video_paths[camera_num] (09-23 12:38 run,
+# 960x540). Triangulation uses config.yaml's calibration_toml (2026-09-23/124500),
+# which covers cams 3,4,5,6 only; cams 0 and 2 get 2D keypoints but no rays.
+# The videos are not frame-synced (2-3 frame offsets), so expect some noise.
 #
 # Run: fes-run.sh mediapipe_gen.yaml   (env: FES_CONDA_ENV=improvPytorchJarvis)
 
@@ -20,23 +19,60 @@ actors:
   VideoScreen3D:
     package: actors.video_screen_3d
     class: VideoScreen3D
-    num_active_cameras: 1
+    num_active_cameras: 5
 
   Generator0:
     package: actors.generator
     class: Generator
+    camera_num: 0
+
+  Generator1:
+    package: actors.generator
+    class: Generator
+    camera_num: 1
+
+  # Generator2:
+  #   package: actors.generator
+  #   class: Generator
+  #   camera_num: 2
+
+  Generator3:
+    package: actors.generator
+    class: Generator
+    camera_num: 3
+
+  Generator4:
+    package: actors.generator
+    class: Generator
+    camera_num: 4
+
+  # Generator5:
+  #   package: actors.generator
+  #   class: Generator
+  #   camera_num: 5
+
+  Generator6:
+    package: actors.generator
+    class: Generator
+    camera_num: 6
 
   ProcessorBatch3D:
     package: actors.processor_batch3d
     class: ProcessorBatch3D
-    num_cameras: 1
-    camera_nums: [0]
+    num_cameras: 5
+    camera_nums: [0, 1, 3, 4, 6]
     pred_active: True
-    triangulate: false
+    triangulate: true
     method: spawn
 
 connections:
   Generator0.q_out: [VideoScreen3D.images0_in, ProcessorBatch3D.frames0_in]
+  Generator1.q_out: [VideoScreen3D.images1_in, ProcessorBatch3D.frames1_in]
+  # Generator2.q_out: [VideoScreen3D.images2_in, ProcessorBatch3D.frames2_in]
+  Generator3.q_out: [VideoScreen3D.images3_in, ProcessorBatch3D.frames3_in]
+  Generator4.q_out: [VideoScreen3D.images4_in, ProcessorBatch3D.frames4_in]
+  # Generator5.q_out: [VideoScreen3D.images5_in, ProcessorBatch3D.frames5_in]
+  Generator6.q_out: [VideoScreen3D.images6_in, ProcessorBatch3D.frames6_in]
   ProcessorBatch3D.q_out: [VideoScreen3D.preds_in]
 
 redis_config:
