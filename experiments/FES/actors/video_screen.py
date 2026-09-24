@@ -104,6 +104,7 @@ class VideoScreen(ManagedActor):
         self.videoStarts = []
         self.pred_latencies = []
         self.frame_count = 0
+        self.frames_skipped = {}   # camera_id -> frames dropped because the GUI was behind
 
         self.out_folder = run_folder()
         logger.info(f"Output folder set to {self.out_folder}")
@@ -129,7 +130,18 @@ class VideoScreen(ManagedActor):
         self.videoStarts.append(time.time())
         frame_start = time.perf_counter()    
         try:
-            msg = self.links[f"images{camera_id}_in"].get(timeout=0.01)
+            # Show the NEWEST frame, not the oldest queued one. Taking one message per
+            # timer tick only works if a tick takes under one frame period; with several
+            # cameras it does not, so the backlog grows and the display falls further
+            # behind the longer the run goes. Drain to the latest and drop the rest.
+            link = self.links[f"images{camera_id}_in"]
+            msg = link.get(timeout=0.003)
+            while True:
+                try:
+                    msg = link.get_nowait()
+                    self.frames_skipped[camera_id] = self.frames_skipped.get(camera_id, 0) + 1
+                except Exception:
+                    break
             frame_id = msg[0]
             camera_start = msg[1]
             # frame_start = time.perf_counter()
@@ -168,7 +180,13 @@ class VideoScreen(ManagedActor):
 
         try:
             pred_start = time.perf_counter()
-            element = self.links[f"preds{camera_id}_in"].get(timeout=0.01)
+            link = self.links[f"preds{camera_id}_in"]
+            element = link.get(timeout=0.003)
+            while True:                      # latest prediction only, same reason as the frames above
+                try:
+                    element = link.get_nowait()
+                except Exception:
+                    break
 
             # Support [pred, angle], [pred, angle, camera_start, frame_num], and
             # [pred, angle, camera_start, frame_num, camera_num] formats.

@@ -187,6 +187,12 @@ class CameraStreamWidget(QWidget):
                 # Use cached angle if current one is None
                 display_angle = angle if angle is not None else self.last_angles[camera_id]
 
+                # Nothing new for this camera: the label already shows it. Re-scaling a
+                # 960x540 pixmap for every idle camera on every tick is what makes a
+                # many-camera GUI fall behind.
+                if frame is None and predictions is None and angle is None and self.last_frame[camera_id] is not None:
+                    continue
+
                 self.display_frame(self.last_frame[camera_id], display_predictions, self.camera_labels[camera_id], display_angle, camera_id)
 
                 # Update the angle plot if an angle is provided. Keyed by real

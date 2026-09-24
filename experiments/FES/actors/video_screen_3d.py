@@ -106,7 +106,13 @@ class VideoScreen3D(ManagedActor):
         self.videoStarts.append(time.time())
         frame_start = time.perf_counter()
         try:
-            msg = self.links[f"images{camera_id}_in"].get(timeout=0.005)
+            link = self.links[f"images{camera_id}_in"]
+            msg = link.get(timeout=0.003)
+            while True:              # newest frame only: one message per tick lets the backlog grow without bound
+                try:
+                    msg = link.get_nowait()
+                except Exception:
+                    break
             frame_id = msg[0]
             if frame_id is None:
                 return None

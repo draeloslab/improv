@@ -1,94 +1,67 @@
 camera_params:
+  # Native sensor capture format.
   resolution:
-    width: 1920 #1280   640
-    height: 1080 #720   480
-  # Frames are captured at `resolution` (native sensor format) but downscaled
-  # by GStreamer's videoscale element before they ever reach numpy/the object
-  # store/the model — cuts the JPEG-round-trip + cv2.resize cost that used to
-  # run on the full 1080p frame. Consumers that read frames back out of the
-  # store (Processor, VideoSaver, VideoScreen) should size against this, not
-  # `resolution` above.
-  # stream_resolution:
+    width: 1920
+    height: 1080
+  # GStreamer downscales to this before frames reach numpy / the object store /
+  # the model. Consumers reading frames back from the store (Processor,
+  # VideoSaver, VideoScreen) size against this, not `resolution`.
+  stream_resolution:
     width: 960
     height: 540
   fps: "30/1"
-  # Start each free-running camera one Nth of a frame period after the last, so
-  # their inference requests reach the GPU spread out instead of bunched. In
-  # 20260804-1432 three of four cameras submitted within 4.2 ms of each other
-  # and all four blocked until the GPU drained the pile; the earliest submitter
-  # measured 22.13 ms of "inference" for 5.4 ms of actual GPU work.
-  # corr(submission phase, measured inference time) was -0.999.
-  #
-  # `slots` is how many phase slots to divide the period into; defaults to
-  # config.yaml's max_camera_slots. Over-estimating is harmless (the slots are
-  # just narrower than they need to be), under-estimating re-creates the
-  # collision.
-  #
-  # Turn this OFF once the cameras are hardware-triggered: sync and stagger are
-  # opposite goals, and triangulation needs sync. See MULTICAM_3D_PLAN.md.
-  # appsink queue depth per camera. 5 = a briefly stalled reader loses no frame (use
-  # this when RECORDING: the saver shares these frames). 1 = only the newest frame is
-  # ever delivered, so every camera has the same latency (use this for LIVE tracking).
+
+  # appsink queue depth per camera.
+  #   5 = a briefly stalled reader loses no frame (use when RECORDING).
+  #   1 = only the newest frame is delivered, so all cameras share the same
+  #       latency (use for LIVE tracking).
   appsink_max_buffers: 5
 
-  # Camera controls applied to every camera once its pipeline is PLAYING (tcam property
-  # names -> values, in this order; put each *Auto before its manual value). Left on the
-  # cameras' own auto modes the exposure drifts with the scene: in dim light it pegs at
-  # one frame period and the frame rate sags (cam0 ran 29.53 fps, front_right 29.72),
-  # and brightness/colour differ from camera to camera. Exposure must stay under one
-  # frame period (33333 us at 30 fps).
-  # TUNE ExposureTime/Gain under the real experiment lighting: watch the GUI and
-  # aim for a bright hand without saturated pixels. Shorter exposure = less motion
-  # blur but a darker image (compensate with Gain). Remove the block (or set it to
-  # {}) to leave the cameras untouched. A per-camera `settings:` mapping under an
+  # tcam properties applied to every camera once its pipeline is PLAYING, in
+  # order (put each *Auto before its manual value). Auto modes drift with the
+  # scene: exposure pegs at one frame period in dim light, frame rate sags, and
+  # colour differs between cameras. Exposure must stay under one frame period
+  # (33333 us at 30 fps). Tune ExposureTime/Gain under real experiment lighting
+  # (shorter exposure = less blur but darker; compensate with Gain). Set to {}
+  # to leave cameras untouched. A per-camera `settings:` mapping under an
   # active_cameras entry overrides these.
   camera_settings:
     ExposureAuto: "Off"
     ExposureTime: 10000
     GainAuto: "Off"
     Gain: 0
-    # White balance: valid BalanceWhiteAuto values are "Off" and "Continuous" ("On" is rejected).
-    # Off with no gains set leaves red/blue at 1.0 and the image comes out GREEN (the Bayer sensor
-    # needs about R 1.27 / B 3.3), so the gains are set explicitly. These are what all seven
-    # cameras converged to under the lab lights on 2026-09-24 (spread 1.20-1.33 / 3.2-3.45); with
-    # them every camera reads neutral (R/G and B/G within 5% of 1). Re-measure if the lighting
-    # changes a lot (set BalanceWhiteAuto to "Continuous" briefly and read BalanceWhiteRed/Blue).
+    # BalanceWhiteAuto accepts "Off" or "Continuous". With Off and no gains the
+    # image is green (Bayer sensor needs ~R 1.27 / B 3.3), so gains are explicit.
+    # Values converged to by all 7 cameras under lab lights on 2026-09-24
+    # (spread R 1.20-1.33, B 3.2-3.45). Re-measure if lighting changes a lot:
+    # set "Continuous" briefly and read BalanceWhiteRed/Blue.
     BalanceWhiteAuto: "Off"
     BalanceWhiteRed: 1.27
     BalanceWhiteGreen: 1.0
     BalanceWhiteBlue: 3.34
 
+  # Offsets each free-running camera by 1/`slots` of a frame period so GPU
+  # inference requests spread out instead of bunching (run 20260804-1432:
+  # corr(submission phase, inference time) = -0.999). `slots` defaults to
+  # config.yaml's max_camera_slots; over-estimating is harmless, under-
+  # estimating brings the collisions back. Turn OFF once cameras are hardware
+  # triggered: triangulation needs sync (see MULTICAM_3D_PLAN.md).
   capture_stagger:
     enabled: false
     slots: 4
     lead_seconds: 2.0
+
 zmq_config:
   ip: "localhost"
-active_cameras:
-  - camera:
-      name: "top"  #check
-      serial_id: "49320579-aravis"
-  - camera:
-      name: "bottom_left" #check
-      serial_id: "45324224-aravis"
-  - camera:
-      name: "front_left"  #check
-      serial_id: "45324225-aravis"
-  - camera:
-      name: "front_right" #check
-      serial_id: "14624029-aravis"
-  - camera:
-      name: "back_left" #check
-      serial_id: "25625241-aravis"
-  - camera:
-      name: "bottom_right"  #check
-      serial_id: "25625243-aravis"
-  - camera:
-      name: "back_right"  #check
-      serial_id: "25625242-aravis"
 
+active_cameras:
+  - camera: {name: "top",          serial_id: "49320579-aravis"}
+  - camera: {name: "bottom_left",  serial_id: "45324224-aravis"}
+  - camera: {name: "front_left",   serial_id: "45324225-aravis"}
+  - camera: {name: "front_right",  serial_id: "14624029-aravis"}
+  - camera: {name: "back_left",    serial_id: "25625241-aravis"}
+  - camera: {name: "bottom_right", serial_id: "25625243-aravis"}
+  - camera: {name: "back_right",   serial_id: "25625242-aravis"}
 
 inactive_cameras:
-  - camera:
-      name: "back_right"
-      serial_id: "45324230-aravis"
+  - camera: {name: "back_right", serial_id: "45324230-aravis"}
