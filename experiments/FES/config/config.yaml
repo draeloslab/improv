@@ -49,7 +49,7 @@ model_snapshot_1: "snapshot-best-010.pt"
 
 # Confidence below which the GUI draws a keypoint hollow/orange instead of
 # solid red. Does not hide keypoints.
-threshold: 0
+threshold: 0.6   # THE confidence threshold. Below it a keypoint is Kalman-estimated (hollow red circle in the GUI); at/above it, measured (solid)
 # Swap the model's PartAffinityFieldPredictor for HeatmapPredictor at load time.
 # Models are trained with num_animals=1, so PAF grouping is meaningless and its
 # assembly step blanks keypoints to NaN/-1. Heatmap argmax returns every
@@ -80,7 +80,7 @@ mediapipe_num_hands: 2
 mediapipe_both_hands: true
 mediapipe_swap_handedness: false
 # HandLandmarker's own gate on reporting a hand at all (distinct from
-# triangulation_likelihood_threshold below).
+# `threshold` at the top).
 mediapipe_min_hand_detection_confidence: 0.3
 mediapipe_min_hand_presence_confidence: 0.3
 mediapipe_min_tracking_confidence: 0.3
@@ -88,7 +88,7 @@ mediapipe_min_tracking_confidence: 0.3
 # which re-detects from scratch every frame).
 mediapipe_running_mode: "video"
 # Frames a lost hand's 2D keypoints stay on screen / in triangulation.
-mediapipe_hold_frames: 5
+mediapipe_hold_frames: 0   # superseded by kalman_enabled
 # CPU measured as fast as GPU here and more consistent; leave on CPU.
 mediapipe_delegate: "CPU"
 
@@ -99,6 +99,20 @@ mediapipe_delegate: "CPU"
 batch3d_model_path: '/home/chesteklab/improv/HandTrackingVideo1Aug7-trainset80shuffle12/train'
 batch3d_model_snapshot: "snapshot-best-100.pt"
 batch3d_detector_snapshot: "snapshot-detector-best-170.pt"
+
+# --- Kalman smoothing of the 2D keypoints (actors/kalmanfilter.py) ---
+# One DLC KalmanFilterPredictor per camera. A keypoint whose likelihood is below
+# `threshold` (or missing) is ESTIMATED by the filter instead of dropped, so
+# 2D, 3D and joint angles stay continuous. Estimated keypoints carry likelihood 0. Tuning: raise kalman_measurement_var / lower process_var for
+# smoother-but-laggier; raise `threshold` to trust MediaPipe less.
+kalman_enabled: true
+kalman_max_coast_frames: 15   # give up (drop the keypoint) after this many estimated frames
+# 1 = position+velocity (~4 ms/camera); 2 adds acceleration (~12 ms/camera, priors needs 2 entries)
+kalman_nderiv: 1
+kalman_priors: [1]
+kalman_initial_var: 10
+kalman_process_var: 1
+kalman_measurement_var: 10
 
 # ============================================================================
 # 3D triangulation
@@ -116,13 +130,12 @@ calibration_camera_names: {}
 # Keypoints below this confidence are set NaN per camera before triangulation.
 # With mediapipe this gates on the per-hand handedness score (all 21 keypoints
 # or none); real detections measure 0.97-1.0, so 0.3 is generous.
-triangulation_likelihood_threshold: 0.3
 # Minimum cameras that must retain a keypoint. 2 is the geometric minimum.
 triangulation_min_cameras: 2
 # 3D temporal cleanup: hold a lost keypoint N frames; EMA weight on the previous
 # frame (0 = off, 0.5 = moderate).
-triangulation_hold_frames: 5
-triangulation_smooth_alpha: 0.4
+triangulation_hold_frames: 0
+triangulation_smooth_alpha: 0.0
 
 # ============================================================================
 # ProcessorJarvis (actors/processor_jarvis.py)

@@ -1,7 +1,7 @@
 # MediaPipe hand tracking + triangulation on six recorded videos (no cameras).
 #
-#   Generator{N} ─┬─> ProcessorBatch3D ──> VideoScreen3D.preds_in
-#                 └─> VideoScreen3D.images{N}_in
+#   Generator{slot} ─┬─> ProcessorBatch3D ──> VideoScreen3D.preds_in
+#                 └─> VideoScreen3D.images{slot}_in
 #
 # Each Generator plays config.yaml's video_paths[camera_num] (09-23 12:38 run,
 # 960x540). Triangulation uses config.yaml's calibration_toml (2026-09-23/124500),
@@ -19,7 +19,7 @@ actors:
   VideoScreen3D:
     package: actors.video_screen_3d
     class: VideoScreen3D
-    num_active_cameras: 5
+    num_active_cameras: 4
 
   Generator0:
     package: actors.generator
@@ -29,38 +29,25 @@ actors:
   Generator1:
     package: actors.generator
     class: Generator
-    camera_num: 1
-
-  # Generator2:
-  #   package: actors.generator
-  #   class: Generator
-  #   camera_num: 2
-
-  Generator3:
-    package: actors.generator
-    class: Generator
     camera_num: 3
 
-  Generator4:
+  Generator2:
     package: actors.generator
     class: Generator
     camera_num: 4
 
-  # Generator5:
-  #   package: actors.generator
-  #   class: Generator
-  #   camera_num: 5
-
-  Generator6:
+  Generator3:
     package: actors.generator
     class: Generator
     camera_num: 6
 
+  # Slots (Generator{i} -> frames{i}_in / images{i}_in) must be 0..N-1 in
+  # order; camera_nums maps each slot to its physical camera. the 12:38 run has no cam1 video and cam5 is uncalibrated.
   ProcessorBatch3D:
     package: actors.processor_batch3d
     class: ProcessorBatch3D
-    num_cameras: 5
-    camera_nums: [0, 1, 3, 4, 6]
+    num_cameras: 4
+    camera_nums: [0, 3, 4, 6]
     pred_active: True
     triangulate: true
     method: spawn
@@ -68,11 +55,8 @@ actors:
 connections:
   Generator0.q_out: [VideoScreen3D.images0_in, ProcessorBatch3D.frames0_in]
   Generator1.q_out: [VideoScreen3D.images1_in, ProcessorBatch3D.frames1_in]
-  # Generator2.q_out: [VideoScreen3D.images2_in, ProcessorBatch3D.frames2_in]
+  Generator2.q_out: [VideoScreen3D.images2_in, ProcessorBatch3D.frames2_in]
   Generator3.q_out: [VideoScreen3D.images3_in, ProcessorBatch3D.frames3_in]
-  Generator4.q_out: [VideoScreen3D.images4_in, ProcessorBatch3D.frames4_in]
-  # Generator5.q_out: [VideoScreen3D.images5_in, ProcessorBatch3D.frames5_in]
-  Generator6.q_out: [VideoScreen3D.images6_in, ProcessorBatch3D.frames6_in]
   ProcessorBatch3D.q_out: [VideoScreen3D.preds_in]
 
 redis_config:

@@ -37,6 +37,7 @@ adapting to a per-frame realtime call.
 """
 
 import os
+import faulthandler
 # Limit numpy/BLAS threading to avoid contention with PyTorch in multiprocessing
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
@@ -71,6 +72,7 @@ except ImportError:
 # only one backend doesn't need the other's dependencies installed.
 
 from . import cpu_affinity
+from .kalmanfilter import KalmanHandSmoother
 from .run_paths import get_logger, run_folder
 
 logger = get_logger(__name__, "processor_batch3d.log")
@@ -248,10 +250,27 @@ class ProcessorBatch3D(Actor):
         # see _setup_mediapipe / _infer_mediapipe.)
         # Temporal cleanup of the 3D output (both off by default): frames to hold
         # a lost keypoint, and EMA weight on the previous value (0 = no smoothing).
+        self._wd_file = None
+        self.kalman_on = bool(config.get('kalman_enabled', False))
+        self._kalman = {}
+        self._kalman_cfg = dict(
+            fps=config.get('fps', 30),
+            lik_thresh=float(config['threshold']),
+            coast_lik=0.0,
+            max_coast=int(config.get('kalman_max_coast_frames', 15)),
+            nderiv=int(config.get('kalman_nderiv', 1)),
+            priors=tuple(config.get('kalman_priors', [1])),
+            initial_var=float(config.get('kalman_initial_var', 10)),
+            process_var=float(config.get('kalman_process_var', 1)),
+            dlc_var=float(config.get('kalman_measurement_var', 10)))
+        self.points_2d_raw_log = []
         self.hold_3d = int(config.get('triangulation_hold_frames', 0))
         self.smooth_3d = float(config.get('triangulation_smooth_alpha', 0.0))
         self._last_3d = None
-        self.likelihood_threshold = float(config.get('triangulation_likelihood_threshold', 0.3))
+        # One threshold (config `threshold`). With the Kalman filter on it has already
+        # replaced sub-threshold keypoints by estimates (likelihood 0), so the gate
+        # here must not drop them again.
+        self.likelihood_threshold = -1.0 if self.kalman_on else float(config['threshold'])
         self.min_cameras = int(config.get('triangulation_min_cameras', 2))
 
         # ---------------- pose estimator ----------------
@@ -570,6 +589,17 @@ class ProcessorBatch3D(Actor):
         return frame_ids, starts, fnums, present, caps
 
     def runStep(self):
+        # Watchdog: if one step takes >10 s (a hang, not a slow frame), dump every
+        # thread's stack into the processor log so the stall can be located.
+        if self._wd_file is None:
+            self._wd_file = open(self.out_folder / "logs" / "batch3d_watchdog.log", "a")
+        faulthandler.dump_traceback_later(10, repeat=True, file=self._wd_file)
+        try:
+            self._run_step()
+        finally:
+            faulthandler.cancel_dump_traceback_later()
+
+    def _run_step(self):
         if not self.pred_active:
             return
 
@@ -743,8 +773,24 @@ class ProcessorBatch3D(Actor):
         """Dispatch to the configured backend. Returns (num_cameras, K, 3) --
         x, y, likelihood per camera slot, NaN for any slot not in batch_slots."""
         if self.backend == 'mediapipe':
-            return self._infer_mediapipe(frames, batch_slots)
-        return self._infer_dlc(frames, batch_slots)
+            raw = self._infer_mediapipe(frames, batch_slots)
+        else:
+            raw = self._infer_dlc(frames, batch_slots)
+        if not self.kalman_on:
+            return raw
+        # One Kalman filter per camera slot: measured keypoints are smoothed,
+        # missing / low-confidence ones are estimated, so everything downstream
+        # (2D overlay, triangulation, joint angles) sees a continuous stream.
+        self.points_2d_raw_log.append(raw.copy())
+        for slot in batch_slots:
+            self._kalman.setdefault(slot, KalmanHandSmoother(**self._kalman_cfg))
+        # Dense 168x168 matrix maths per camera: ~4 ms each, so run them in
+        # parallel (BLAS releases the GIL) instead of adding 4x to the step.
+        work = lambda sl: (sl, self._kalman[sl].process(raw[sl]))
+        pool = self.mp_executor.map if self.backend == 'mediapipe' else map
+        for slot, out in list(pool(work, batch_slots)):
+            raw[slot] = out
+        return raw
 
     def _infer_dlc(self, frames, batch_slots):
         batch = [frames[s] for s in batch_slots]
@@ -789,16 +835,23 @@ class ProcessorBatch3D(Actor):
             # QImage.Format_RGB888). No cv2.cvtColor here -- swapping channels
             # on an already-RGB frame would hand mediapipe a blue-tinted image.
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frames[slot])
-            if self.mp_video_mode:
-                return slot, self.landmarkers[slot].detect_for_video(mp_image, ts_ms)
-            return slot, self.landmarkers[slot].detect(mp_image)
+            # mediapipe occasionally raises while unpacking a result (seen:
+            # AttributeError: Landmark from world-landmark conversion); treat that
+            # frame as "no hand" rather than failing the whole batch.
+            try:
+                if self.mp_video_mode:
+                    return slot, self.landmarkers[slot].detect_for_video(mp_image, ts_ms)
+                return slot, self.landmarkers[slot].detect(mp_image)
+            except Exception as e:
+                logger.warning(f"slot {slot}: mediapipe detect failed ({e!r}); no hand this frame")
+                return slot, None
 
         self._mp_ts_ms += self._mp_step_ms
         ts_ms = self._mp_ts_ms
 
         raw_2d = np.full((self.num_cameras, self.n_keypoints, 3), np.nan)
         for slot, result in self.mp_executor.map(detect_one, batch_slots):
-            if not result.hand_landmarks:
+            if result is None or not result.hand_landmarks:
                 continue
             h, w = frames[slot].shape[:2]
 
@@ -938,6 +991,8 @@ class ProcessorBatch3D(Actor):
 
         try:
             np.save(self.out_folder / "batch3d_points_2d.npy", np.asarray(self.points_2d_log))
+            if self.points_2d_raw_log:
+                np.save(self.out_folder / "batch3d_points_2d_raw.npy", np.asarray(self.points_2d_raw_log))
             np.save(self.out_folder / "batch3d_points_3d.npy", np.asarray(self.points_3d_log))
             np.save(self.out_folder / "batch3d_joint_angles.npy", np.asarray(self.angles_log))
             np.save(self.out_folder / "batch3d_joint_names.npy", np.asarray(self.joint_names))

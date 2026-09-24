@@ -64,10 +64,12 @@ class Generator(Actor):
         self.store_put_latencies = []  # client.put
         self.queue_put_latencies = []  # q_out.put
 
+        self.done = True    # stays True unless the video opens below
+        self.out_folder = run_folder()
         self.cap = cv2.VideoCapture(self.video_path)
         if not self.cap.isOpened():
-            logger.error("Error opening video file")
-            return 
+            logger.error(f"Error opening video file: {self.video_path}")
+            return
         total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
 

@@ -172,6 +172,14 @@ class Camera3DWidget(QWidget):
             self.plot3d_widget.setBackground('k')
             self.plot3d_widget.setTitle("3D Hand Skeleton", color='w')
             self.plot3d_widget.setAspectLocked(True)
+            # Locked view: a fixed window (mm) around a slowly-tracked centre, so
+            # the skeleton neither rescales nor jitters as keypoints come and go.
+            self._view_half = float(config.get('view_half_range_mm', 400))
+            self._view_centre = None
+            self.plot3d_widget.getPlotItem().setMouseEnabled(x=False, y=False)
+            self.plot3d_widget.getPlotItem().disableAutoRange()
+            self.plot3d_widget.setRange(xRange=(-self._view_half, self._view_half),
+                                        yRange=(-self._view_half, self._view_half), padding=0)
             self.plot3d_widget.showGrid(x=True, y=True, alpha=0.2)
             self.plot3d_widget.getPlotItem().hideAxis('left')
             self.plot3d_widget.getPlotItem().hideAxis('bottom')
@@ -275,10 +283,13 @@ class Camera3DWidget(QWidget):
                 x = x / self.resize
                 y = y / self.resize
                 drawn[i] = (x, y)
-                confident = likelihood > self.threshold
-                colour = QColor(255, 0, 0) if confident else QColor(255, 165, 0)
-                painter.setBrush(QBrush(colour))
-                painter.setPen(QPen(colour, 1))
+                if likelihood >= self.threshold:      # measured: solid, slightly transparent
+                    colour = QColor(255, 0, 0, 170)
+                    painter.setBrush(QBrush(colour))
+                    painter.setPen(QPen(colour, 1))
+                else:                                 # Kalman estimate: hollow
+                    painter.setBrush(Qt.NoBrush)
+                    painter.setPen(QPen(QColor(255, 0, 0), 2))
                 painter.drawEllipse(int(x) - radius, int(y) - radius, radius * 2, radius * 2)
 
             painter.setPen(QPen(QColor(255, 255, 255), 2))
@@ -350,7 +361,12 @@ class Camera3DWidget(QWidget):
         # Recentre on the hand so it stays in view regardless of where the rig's
         # origin ended up -- the calibration origin is camera 0, which can be a
         # metre away.
-        centre = points_3d[finite].mean(axis=0)
+        target = points_3d[finite].mean(axis=0)
+        if self._view_centre is None:
+            self._view_centre = target
+        else:
+            self._view_centre = 0.98 * self._view_centre + 0.02 * target   # slow drift only
+        centre = self._view_centre
         centred = points_3d - centre
         proj = self._project(centred)   # (K, 2), NaN rows where not finite
 

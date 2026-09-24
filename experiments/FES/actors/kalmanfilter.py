@@ -142,3 +142,75 @@ class KalmanFilterPredictor():
 
             self.last_pose_time = time.time()
             return future_pose
+
+
+class KalmanHandSmoother:
+    """Continuous 2D keypoints from a stream that drops out, built on the DLC
+    KalmanFilterPredictor above.
+
+    Per frame, each keypoint is either MEASURED (finite and likelihood >=
+    lik_thresh) or ESTIMATED (the filter's own prediction, which coasts and, via
+    the DLC priors, decays its velocity so a lost hand settles rather than
+    flying off). Estimated keypoints come back with likelihood `coast_lik`, so
+    the GUI can colour them and the downstream gates keep them. After
+    `max_coast` estimated frames in a row a keypoint is dropped (NaN) and the
+    next measurement re-seeds it.
+
+    Unlike KalmanFilterPredictor.process() this does NOT extrapolate forward in
+    time (that is latency compensation, not smoothing), and a keypoint that comes
+    back after being lost snaps to the measurement instead of being dragged
+    there by the gain.
+    """
+
+    def __init__(self, fps=30, lik_thresh=0.6, coast_lik=0.5, max_coast=15,
+                 priors=(1, 1), initial_var=10, process_var=1, dlc_var=10, nderiv=2):
+        self.kf = KalmanFilterPredictor(
+            adapt=False, forward=0.0, fps=fps, nderiv=nderiv, priors=list(priors),
+            initial_var=initial_var, process_var=process_var, dlc_var=dlc_var,
+            lik_thresh=lik_thresh)
+        self.lik_thresh = lik_thresh
+        self.coast_lik = coast_lik
+        self.max_coast = max_coast
+        self.age = None        # frames since each keypoint was last measured
+
+    def process(self, pose):
+        """pose: (K, 3) x, y, likelihood, NaN where nothing was found."""
+        kf = self.kf
+        pose = np.asarray(pose, dtype=float)
+        K = len(pose)
+        measured = (np.isfinite(pose[:, :2]).all(axis=1)
+                    & (np.nan_to_num(pose[:, 2], nan=0.0) >= self.lik_thresh))
+
+        if not kf.is_initialized:
+            seed = pose.copy()
+            seed[~np.isfinite(seed)] = 0.0
+            kf._init_kf(seed)
+            kf.last_pose_time = time.time()
+            self.age = np.full(K, self.max_coast + 1)   # nothing seen yet
+
+        reseed = measured & (self.age > 0)              # new or returning keypoint
+        if reseed.any():
+            for k in np.flatnonzero(reseed):
+                kf.X[2 * k:2 * k + 2, 0] = pose[k, :2]
+                for d in range(1, kf.nderiv + 1):
+                    kf.X[2 * K * d + 2 * k:2 * K * d + 2 * k + 2, 0] = 0.0
+
+        # Unmeasured keypoints feed the filter its own last estimate at lik 0, so
+        # _update() keeps the prediction for them.
+        feed = pose.copy()
+        est = kf.X[:2 * K, 0].reshape(K, 2)
+        feed[~measured, :2] = est[~measured]
+        feed[~measured, 2] = 0.0
+
+        kf._predict()
+        kf._get_residuals(feed)
+        kf._update(kf._get_state_likelihood(feed))
+        kf.last_pose_time = time.time()
+
+        self.age = np.where(measured, 0, np.minimum(self.age + 1, self.max_coast + 1))
+        out = np.full((K, 3), np.nan)
+        state = kf.X[:2 * K, 0].reshape(K, 2)
+        alive = self.age <= self.max_coast
+        out[alive, :2] = state[alive]
+        out[alive, 2] = np.where(measured[alive], pose[alive, 2], self.coast_lik)
+        return out
