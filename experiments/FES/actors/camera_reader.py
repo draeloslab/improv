@@ -155,7 +155,7 @@ class CameraReader(ManagedActor):
                    f"serial {camera_config['serial_id']}) pipeline could not be started - "
                    f'is the camera plugged in?')
             logger.error(msg)
-            raise RuntimeError(msg)
+            # raise RuntimeError(msg)
 
     def runStep(self):
         if not self.start_camera_read:
