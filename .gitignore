@@ -160,5 +160,7 @@ output_*
 *.log
 experiments/FES/scripts/setup-xpc-link.sh
 
+calibration
+
 experiments/FES/actors/xpc_link.py
 experiments/FES/calibration_20260903/_gen_nb.py

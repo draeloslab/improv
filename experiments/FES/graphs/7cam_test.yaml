@@ -8,7 +8,7 @@ actors:
   VideoScreen:
     package: actors.video_screen
     class: VideoScreen
-    num_active_cameras: 6
+    num_active_cameras: 7
 
 
   Generator0:
@@ -16,10 +16,10 @@ actors:
     class: CameraReader
     camera_num: 0
 
-  # Generator1:
-  #   package: actors.camera_reader
-  #   class: CameraReader
-  #   camera_num: 1
+  Generator1:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 1
 
   Generator2:
     package: actors.camera_reader
@@ -52,11 +52,11 @@ actors:
     camera_num: 0
     method: spawn
 
-  # VideoSaver1:
-  #   package: actors.video_saver
-  #   class: VideoSaver
-  #   camera_num: 1
-  #   method: spawn
+  VideoSaver1:
+    package: actors.video_saver
+    class: VideoSaver
+    camera_num: 1
+    method: spawn
 
   VideoSaver2:
     package: actors.video_saver
@@ -96,7 +96,7 @@ actors:
 
 connections:
   Generator0.q_out: [VideoScreen.images0_in , VideoSaver0.q_in]
-  # Generator1.q_out: [VideoScreen.images1_in ] #, VideoSaver1.q_in]
+  Generator1.q_out: [VideoScreen.images1_in , VideoSaver1.q_in]
   Generator2.q_out: [VideoScreen.images2_in , VideoSaver2.q_in]
   Generator3.q_out: [VideoScreen.images3_in , VideoSaver3.q_in]
   Generator4.q_out: [VideoScreen.images4_in , VideoSaver4.q_in]

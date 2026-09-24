@@ -46,8 +46,17 @@ camera_params:
     ExposureAuto: "Off"
     ExposureTime: 10000
     GainAuto: "Off"
-    Gain: 15.0
+    Gain: 0
+    # White balance: valid BalanceWhiteAuto values are "Off" and "Continuous" ("On" is rejected).
+    # Off with no gains set leaves red/blue at 1.0 and the image comes out GREEN (the Bayer sensor
+    # needs about R 1.27 / B 3.3), so the gains are set explicitly. These are what all seven
+    # cameras converged to under the lab lights on 2026-09-24 (spread 1.20-1.33 / 3.2-3.45); with
+    # them every camera reads neutral (R/G and B/G within 5% of 1). Re-measure if the lighting
+    # changes a lot (set BalanceWhiteAuto to "Continuous" briefly and read BalanceWhiteRed/Blue).
     BalanceWhiteAuto: "Off"
+    BalanceWhiteRed: 1.27
+    BalanceWhiteGreen: 1.0
+    BalanceWhiteBlue: 3.34
 
   capture_stagger:
     enabled: false
