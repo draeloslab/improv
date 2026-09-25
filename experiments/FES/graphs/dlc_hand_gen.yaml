@@ -1,0 +1,56 @@
+# Stimulated-hand 3D from recorded video with the two-hand DLC model (no cameras).
+#
+#   Generator{slot} -> ProcessorBatch3D (backend dlc, hand_association region) -> VideoScreen3D
+#
+# 2026-09-16 11:53 FES run (War Machine), cams 1 and 2 (the two that see the held hand; frame numbers
+# match between them). Calibration: 09-11 112900 with cam1's small rotation corrected
+# (analysis/stim_1153/stim_analysis_walkthrough.ipynb step 3). The hand's place is learned in the first
+# 10 s, then the left_* joint angles are the stimulated hand.
+#
+# Run: FES_CONDA_ENV=improvDLC3 fes-run dlc_hand_gen.yaml      (DLC 3.0.2 is only in improvDLC3)
+
+actors:
+  GUI:
+    package: actors.video_screen_3d
+    class: Visual3D
+    visual: VideoScreen3D
+
+  VideoScreen3D:
+    package: actors.video_screen_3d
+    class: VideoScreen3D
+    num_active_cameras: 2
+
+  Generator0:
+    package: actors.generator
+    class: Generator
+    camera_num: 1
+    video_path: '/home/chesteklab/camera_video/2026-09-16/115300/camera_video_1_0916_1153.mp4'
+
+  Generator1:
+    package: actors.generator
+    class: Generator
+    camera_num: 2
+    video_path: '/home/chesteklab/camera_video/2026-09-16/115300/camera_video_2_0916_1153.mp4'
+
+  ProcessorBatch3D:
+    package: actors.processor_batch3d
+    class: ProcessorBatch3D
+    num_cameras: 2
+    camera_nums: [1, 2]
+    pred_active: True
+    triangulate: true
+    align_frames: true
+    compute_cores: 4
+    config_overrides:
+      batch3d_backend: dlc
+      hand_association: region
+      calibration_toml: 'analysis/stim_1153/walkthrough_out/calibration_corrected.toml'
+    method: spawn
+
+connections:
+  Generator0.q_out: [VideoScreen3D.images0_in, ProcessorBatch3D.frames0_in]
+  Generator1.q_out: [VideoScreen3D.images1_in, ProcessorBatch3D.frames1_in]
+  ProcessorBatch3D.q_out: [VideoScreen3D.preds_in]
+
+redis_config:
+  port: 6379

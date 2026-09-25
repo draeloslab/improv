@@ -73,6 +73,8 @@ except ImportError:
 
 from . import cpu_affinity
 from .kalmanfilter import KalmanHandSmoother
+from .hand_assoc3d import HandTracker3D, glove_mask
+from .held_hand3d import HeldHandTracker
 from .run_paths import get_logger, run_folder
 
 logger = get_logger(__name__, "processor_batch3d.log")
@@ -205,6 +207,19 @@ class ProcessorBatch3D(Actor):
         # are still shown). None = never drop. Uses the cameras' driver capture
         # timestamps, so it does nothing for a camera that sends none (e.g. Generator).
         self.max_frame_skew_ms = kwargs.get('max_frame_skew_ms', None)
+        # Replay only: process the newest frame NUMBER every camera has reached,
+        # instead of each camera's newest frame, so all views are the same instant
+        # even when this actor can't keep up (it then skips the same frames on
+        # every camera). Needs sources whose frame_num counts the same video frame
+        # (actors.generator); free-running cameras' counters are not comparable.
+        self.align_frames = bool(kwargs.get('align_frames', False))
+        self.config_overrides = kwargs.get('config_overrides') or {}
+        self._fbuf = {}
+        self._fseen = {}     # slot -> wall time its last message arrived
+        self._last_target = -1
+        # P-cores to claim (default: one per camera). More helps mediapipe a little
+        # (4 cams: 31.7 ms on 4 cores, 29.2 on 7); E-cores make it slower.
+        self.compute_cores = kwargs.get('compute_cores', None)
         # False = 2D-only: run pose estimation and hand the per-camera keypoints
         # to the GUI, but skip calibration, triangulation and joint angles. For
         # runs without a usable calibration.
@@ -216,6 +231,12 @@ class ProcessorBatch3D(Actor):
         source_folder = Path(__file__).resolve().parent.parent
         with open(f'{source_folder}/config/config.yaml', 'r') as file:
             config = yaml.safe_load(file)
+        # A graph can override config.yaml keys for this actor only (e.g. backend, calibration_toml,
+        # hand_association), so one config.yaml serves several graphs.
+        overrides = self.config_overrides or {}
+        config.update(overrides)
+        if overrides:
+            logger.info(f"config overrides from the graph: {overrides}")
         self.config = config
 
         # Claim P-core(s) before anything spins up CUDA/TFLite helper threads --
@@ -230,6 +251,8 @@ class ProcessorBatch3D(Actor):
         # original one-core pin.
         backend = config.get('batch3d_backend', 'mediapipe')
         n_slots = self.num_cameras if (self.pred_active and backend == 'mediapipe') else 1
+        if self.compute_cores:
+            n_slots = int(self.compute_cores)
         cpu_affinity.pin_actor(cpu_affinity.COMPUTE, slot=0, label="ProcessorBatch3D",
                                n_slots=n_slots)
 
@@ -252,6 +275,9 @@ class ProcessorBatch3D(Actor):
         # a lost keypoint, and EMA weight on the previous value (0 = no smoothing).
         self._wd_file = None
         self.kalman_on = bool(config.get('kalman_enabled', False))
+        self.threshold = float(config['threshold'])
+        self.assoc_errors = []
+        self.det_log = []
         self._kalman = {}
         self._kalman_cfg = dict(
             fps=config.get('fps', 30),
@@ -296,6 +322,47 @@ class ProcessorBatch3D(Actor):
         else:
             self.cgroup = None
             logger.info("triangulate=False: 2D keypoints only, no 3D / joint angles")
+
+        # ---------------- cross-camera hand association ----------------
+        # "label": match hands across cameras by MediaPipe's handedness label
+        # (old behaviour, + optional 2D Kalman). "geometric": actors/hand_assoc3d.py
+        # -- a hand exists in 3D only where cameras agree geometrically.
+        self.association = str(config.get('hand_association', 'label')).lower()
+        self.hand_tracker = None
+        if self.association == 'geometric':
+            if self.backend != 'mediapipe' or self.cgroup is None:
+                logger.warning("hand_association: geometric needs the mediapipe backend and a "
+                               "calibration -- falling back to label association")
+                self.association = 'label'
+            else:
+                g = config.get('geometric_association') or {}
+                smooth = g.get('smooth', {'min_cutoff': 1.0, 'beta': 0.05})
+                self.hand_tracker = HandTracker3D(
+                    self.cgroup, tol_px=float(g.get('tol_px', 15.0)),
+                    size_mm=tuple(g.get('hand_size_mm', [20, 200])),
+                    gate_mm=float(g.get('gate_mm', 100.0)), max_miss=int(g.get('max_miss', 10)),
+                    smooth=smooth if smooth else False, fps=float(config.get('fps', 30)))
+                gl = g.get('reject_gloves') or {}
+                self.glove_teal = tuple(gl['teal']) if gl.get('teal') else None
+                self.glove_white = tuple(gl['white']) if gl.get('white') else None
+                logger.info(f"hand association: geometric, {g}")
+        self.held_tracker = None
+        if self.association == 'region':
+            if self.backend != 'dlc' or self.cgroup is None:
+                logger.warning("hand_association: region needs the dlc backend and a calibration -- falling back to label")
+                self.association = 'label'
+            else:
+                h = dict(config.get('held_hand') or {})
+                order_cam = h.pop('order_camera', None)
+                side = h.pop('side', 'left')
+                order_row = None
+                if order_cam is not None and order_cam in self.camera_nums:
+                    order_row = self.calib_row[self.camera_nums.index(order_cam)]
+                self.held_tracker = HeldHandTracker(self.cgroup, order_row=order_row, fps=float(config.get('fps', 30)), **h)
+                self.held_offset = 0 if side == 'right' else 21
+                logger.info(f"hand association: region (one held hand -> {side} block), {config.get('held_hand')}")
+        if self.association in ('geometric', 'region') and self.kalman_on:
+            logger.info("kalman_enabled ignored: geometric association smooths in 3D instead")
 
         # ---------------- joint angles ----------------
         self.joints, self.skeleton = _hand_layouts(self.bodyparts)
@@ -374,8 +441,10 @@ class ProcessorBatch3D(Actor):
         # MediaPipe labels with that handedness.
         self.mp_both_hands = bool(config.get('mediapipe_both_hands', False))
         self.mp_swap_handedness = bool(config.get('mediapipe_swap_handedness', False))
-        if self.mp_both_hands:
-            num_hands = max(num_hands, 2)
+        # num_hands is how many hands MediaPipe tracks per camera, independent of the
+        # 42-keypoint two-hand layout (both_hands): with geometric association a single
+        # tracked hand per camera still fills either block. Not forced to >= 2 any more,
+        # so num_hands: 1 really runs 1 (20 ms vs 30 ms per step for 4 cameras).
         min_conf = float(config.get('mediapipe_min_hand_detection_confidence', 0.5))
         # VIDEO mode carries a tracker between frames, so a hand found once is
         # followed instead of re-detected from scratch every frame (IMAGE mode).
@@ -549,6 +618,82 @@ class ProcessorBatch3D(Actor):
     # ------------------------------------------------------------------- step
 
     def _gather_frames(self):
+        if self.align_frames:
+            return self._gather_aligned()
+        return self._gather_newest()
+
+    def _gather_aligned(self):
+        """align_frames: buffer every camera's messages and return, for each, the
+        frame whose frame_num is the newest one ALL cameras have reached."""
+        from collections import deque
+        frame_ids = [None] * self.num_cameras
+        starts = [None] * self.num_cameras
+        fnums = [-1] * self.num_cameras
+        caps = [None] * self.num_cameras
+        wired = []
+        for slot in range(self.num_cameras):
+            link = self.links.get(f"frames{slot}_in")
+            if link is None:
+                continue
+            wired.append(slot)
+            buf = self._fbuf.setdefault(slot, deque(maxlen=60))
+            got = 0
+            if not buf or buf[-1][2] <= self._last_target:
+                try:
+                    buf.append(link.get(timeout=0.002)); got += 1
+                except Exception:
+                    pass
+            while True:
+                try:
+                    buf.append(link.get_nowait()); got += 1
+                except Exception:
+                    break
+            if got:
+                self._fseen[slot] = time.time()
+        live = [s for s in wired if self._fbuf.get(s)]
+        if not live:
+            return frame_ids, starts, fnums, [], caps
+        # Wait for every camera that is still sending: a camera whose next frame just hasn't
+        # arrived yet must not be skipped (when this actor is faster than the cameras that
+        # happens every few steps). Only a camera silent for > 0.5 s is left out.
+        now = time.time()
+        sending = [s for s in wired if now - self._fseen.get(s, -1e9) < 0.5]
+        if getattr(self, '_align_started', False) and any(
+                not self._fbuf.get(s) or self._fbuf[s][-1][2] <= self._last_target for s in sending):
+            return frame_ids, starts, fnums, [], caps
+        live = [s for s in sending if self._fbuf.get(s)]
+        # Start only once every wired camera has produced a frame -- or 2 s after
+        # the first one did, so a dead source can't block the others forever.
+        if not hasattr(self, '_align_t0'):
+            self._align_t0 = time.time()
+            self._align_started = False
+        if not self._align_started:
+            if len(live) < len(wired) and time.time() - self._align_t0 < 2.0:
+                return frame_ids, starts, fnums, [], caps
+            self._align_started = True
+            if len(live) < len(wired):
+                logger.warning(f"align_frames: slots {sorted(set(wired) - set(live))} produced "
+                               f"nothing in 2 s -- continuing without them")
+        target = min(self._fbuf[s][-1][2] for s in live)
+        if target <= self._last_target:
+            return frame_ids, starts, fnums, [], caps       # nothing new on every camera yet
+        self._last_target = target
+        for slot in live:
+            buf = self._fbuf[slot]
+            # only the exact frame: a camera that skipped it sits this step out
+            # rather than contributing a view from a different instant
+            best = next((m for m in buf if m[2] == target), None)
+            while buf and buf[0][2] <= target:
+                buf.popleft()
+            if best is None:
+                continue
+            frame_ids[slot], starts[slot], fnums[slot] = best[:3]
+            if len(best) >= 4:
+                caps[slot] = best[3]
+        present = [i for i, fid in enumerate(frame_ids) if fid is not None]
+        return frame_ids, starts, fnums, present, caps
+
+    def _gather_newest(self):
         """Take the newest frame from every camera slot.
 
         Each slot is drained to its most recent message: a stale frame is worse
@@ -674,6 +819,16 @@ class ProcessorBatch3D(Actor):
             self._emit(None, {}, starts, fnums, batch_slots, raw_2d, step_start)
             return
 
+        if self.association in ('geometric', 'region'):
+            t0 = time.perf_counter()
+            if self.association == 'geometric':
+                points_3d, raw_2d = self._geometric_3d(frames, batch_slots, stale)
+            else:
+                points_3d, raw_2d = self._region_3d(raw_2d, frames, batch_slots, stale)
+            self.triangulate_latencies.append(time.perf_counter() - t0)
+            self._finish_step(points_3d, raw_2d, starts, fnums, batch_slots, step_start)
+            return
+
         # --- 4. per-camera 2D keypoints, in calibration camera order ---
         # points_2d rows are indexed by the CALIBRATION's camera order, not by
         # wiring slot; anything the calibration doesn't know about stays NaN and
@@ -713,6 +868,85 @@ class ProcessorBatch3D(Actor):
         points_3d = self._smooth_3d(self._triangulate(points_2d))
         self.triangulate_latencies.append(time.perf_counter() - t0)
 
+        self._finish_step(points_3d, raw_2d, starts, fnums, batch_slots, step_start)
+
+    def _geometric_3d(self, frames, batch_slots, stale):
+        """Steps 4-5 for hand_association: geometric. Returns (points_3d (42, 3),
+        raw_2d for the GUI: each camera's detections that went into the 3D hand,
+        placed in its right/left block)."""
+        dets, origin = [], []
+        for slot in batch_slots:
+            row = self.calib_row[slot]
+            if row is None or slot in stale:
+                continue
+            fh, fw = frames[slot].shape[:2]
+            size = self.calib_sizes[row]
+            sx, sy = (size[0] / fw, size[1] / fh) if size is not None else (1.0, 1.0)
+            hsv = None
+            for xy, label, score in getattr(self, '_mp_dets', {}).get(slot, []):
+                if score < self.threshold:
+                    continue
+                if self.glove_teal or self.glove_white:
+                    if hsv is None:
+                        hsv = cv2.cvtColor(frames[slot], cv2.COLOR_RGB2HSV)   # store frames are RGB
+                    if glove_mask(hsv, xy, self.glove_teal, self.glove_white):
+                        continue
+                dets.append((row, xy * [sx, sy], label, score))
+                origin.append((slot, xy, score))
+        # every detection the tracker saw this step (calibration pixels), so a run
+        # can be replayed offline through hand_assoc3d exactly
+        H = 4
+        dx = np.full((self.num_cameras, H, 21, 2), np.nan); dl = np.full((self.num_cameras, H), -1)
+        ds = np.zeros((self.num_cameras, H))
+        k_of = {}
+        for (row, xy, label, score), (slot, _, _) in zip(dets, origin):
+            k = k_of.get(slot, 0)
+            if k < H:
+                dx[slot, k], dl[slot, k], ds[slot, k] = xy, label, score
+            k_of[slot] = k + 1
+        self.det_log.append((dx, dl, ds))
+        points_3d, side_of_det = self.hand_tracker.step(dets)
+        raw_2d = np.full((self.num_cameras, self.n_keypoints, 3), np.nan)
+        for (slot, xy, score), side in zip(origin, side_of_det):
+            if side is not None:
+                raw_2d[slot, side * 21:side * 21 + 21, :2] = xy
+                raw_2d[slot, side * 21:side * 21 + 21, 2] = score
+        self.assoc_errors.append(np.median(self.hand_tracker.last_errors)
+                                 if self.hand_tracker.last_errors else np.nan)
+        return points_3d, raw_2d
+
+    def _region_3d(self, raw_2d, frames, batch_slots, stale):
+        """Steps 4-5 for hand_association: region (dlc backend): the one held hand.
+        Returns (points_3d (K, 3) with the hand in its block, raw_2d for the GUI = the 3D hand
+        projected back into each camera)."""
+        views, scale = {}, {}
+        for slot in batch_slots:
+            row = self.calib_row[slot]
+            if row is None or slot in stale:
+                continue
+            fh, fw = frames[slot].shape[:2]
+            size = self.calib_sizes[row]
+            sx, sy = (size[0] / fw, size[1] / fh) if size is not None else (1.0, 1.0)
+            v = raw_2d[slot].copy()
+            v[:, 0] *= sx
+            v[:, 1] *= sy
+            views[row] = v
+            scale[slot] = (sx, sy)
+        hand = self.held_tracker.step(time.time(), views)
+        points_3d = np.full((self.n_keypoints, 3), np.nan)
+        gui = np.full((self.num_cameras, self.n_keypoints, 3), np.nan)
+        if hand is not None:
+            o = self.held_offset
+            points_3d[o:o + 21] = hand
+            proj = self.cgroup.project(hand)
+            for slot, (sx, sy) in scale.items():
+                xy = proj[self.calib_row[slot]]
+                gui[slot, o:o + 21, 0] = xy[:, 0] / sx
+                gui[slot, o:o + 21, 1] = xy[:, 1] / sy
+                gui[slot, o:o + 21, 2] = np.where(np.isfinite(xy[:, 0]), 1.0, np.nan)
+        return points_3d, gui
+
+    def _finish_step(self, points_3d, raw_2d, starts, fnums, batch_slots, step_start):
         # --- 6. joint angles ---
         t0 = time.perf_counter()
         angles = self._joint_angles(points_3d)
@@ -778,7 +1012,7 @@ class ProcessorBatch3D(Actor):
             raw = self._infer_mediapipe(frames, batch_slots)
         else:
             raw = self._infer_dlc(frames, batch_slots)
-        if not self.kalman_on:
+        if not self.kalman_on or self.association != 'label':
             return raw
         # One Kalman filter per camera slot: measured keypoints are smoothed,
         # missing / low-confidence ones are estimated, so everything downstream
@@ -849,13 +1083,27 @@ class ProcessorBatch3D(Actor):
                 return slot, None
 
         self._mp_ts_ms += self._mp_step_ms
+        if self.align_frames and self._last_target >= 0:
+            # skipped frames: give mediapipe the real frame time, so its tracker
+            # and landmark smoothing see the true gap
+            self._mp_ts_ms = max(self._mp_ts_ms, self._last_target * self._mp_step_ms)
         ts_ms = self._mp_ts_ms
 
         raw_2d = np.full((self.num_cameras, self.n_keypoints, 3), np.nan)
+        self._mp_dets = {}      # slot -> [(xy (21, 2) frame px, label 0/1, score)], every hand
         for slot, result in self.mp_executor.map(detect_one, batch_slots):
             if result is None or not result.hand_landmarks:
                 continue
             h, w = frames[slot].shape[:2]
+            dets = []
+            for i, hand in enumerate(result.hand_landmarks):
+                cat = result.handedness[i][0] if result.handedness else None
+                label = 1 if (cat is not None and cat.category_name.lower() == 'left') else 0
+                if self.mp_swap_handedness:
+                    label = 1 - label
+                dets.append((np.array([[lm.x * w, lm.y * h] for lm in hand]), label,
+                             cat.score if cat is not None else 1.0))
+            self._mp_dets[slot] = dets
 
             def hand_rows(i):
                 hand = result.hand_landmarks[i]
@@ -993,6 +1241,15 @@ class ProcessorBatch3D(Actor):
 
         try:
             np.save(self.out_folder / "batch3d_points_2d.npy", np.asarray(self.points_2d_log))
+            np.save(self.out_folder / "batch3d_frame_nums.npy",
+                    np.asarray([f + [-1] * (self.num_cameras - len(f)) for f in self.frame_nums_received]))
+            if self.det_log:
+                np.savez_compressed(self.out_folder / "batch3d_detections.npz",
+                                    xy=np.asarray([d[0] for d in self.det_log]),
+                                    label=np.asarray([d[1] for d in self.det_log]),
+                                    score=np.asarray([d[2] for d in self.det_log]))
+            if self.assoc_errors:
+                np.save(self.out_folder / "batch3d_assoc_reproj_px.npy", np.asarray(self.assoc_errors))
             if self.points_2d_raw_log:
                 np.save(self.out_folder / "batch3d_points_2d_raw.npy", np.asarray(self.points_2d_raw_log))
             np.save(self.out_folder / "batch3d_points_3d.npy", np.asarray(self.points_3d_log))

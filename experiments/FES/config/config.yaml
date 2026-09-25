@@ -50,7 +50,7 @@ model_path_2: '/home/chesteklab/Desktop/rhodesEMG1DOF-jake-2026-09-21/dlc-models
 model_snapshot_2: "snapshot-best-010.pt"
 # Confidence below which the GUI draws a keypoint hollow/orange instead of
 # solid red. Does not hide keypoints.
-threshold: 0.1   # THE confidence threshold. Below it a keypoint is Kalman-estimated (hollow red circle in the GUI); at/above it, measured (solid)
+threshold: 0.3   # THE confidence threshold. geometric association: MediaPipe hands scoring below it are ignored. label association: below it a keypoint is Kalman-estimated (hollow red circle); at/above, measured (solid)
 # Swap the model's PartAffinityFieldPredictor for HeatmapPredictor at load time.
 # Models are trained with num_animals=1, so PAF grouping is meaningless and its
 # assembly step blanks keypoints to NaN/-1. Heatmap argmax returns every
@@ -73,7 +73,7 @@ batch3d_backend: "mediapipe"
 
 # --- mediapipe backend ---
 mediapipe_model_path: '/home/chesteklab/Desktop/hand-tracking-notebooks-jake-2026-08-17/mediapipe/hand_landmarker.task'
-mediapipe_num_hands: 2
+mediapipe_num_hands: 4   # 4 = most reliable live 3D (19.9 steps/s, 48 ms, cover 24%, boneCV 0.26). 1 = full 30 fps (27 ms) but with one slot MediaPipe latches onto different hands run to run (boneCV 0.18 vs 0.31 on two replays). See scripts/tune3d/tracking_3d_walkthrough.ipynb
 # Track both hands: 42 keypoints (right_* then left_*) instead of only the first.
 # MediaPipe assumes a mirrored image, so on raw frames its "Left" is the
 # subject's right hand -- flip with mediapipe_swap_handedness if names matter.
@@ -82,22 +82,22 @@ mediapipe_both_hands: true
 mediapipe_swap_handedness: false
 # HandLandmarker's own gate on reporting a hand at all (distinct from
 # `threshold` at the top).
-mediapipe_min_hand_detection_confidence: 0.1
-mediapipe_min_hand_presence_confidence: 0.1
-mediapipe_min_tracking_confidence: 0.1
+mediapipe_min_hand_detection_confidence: 0.02
+mediapipe_min_hand_presence_confidence: 0.02
+mediapipe_min_tracking_confidence: 0.02
 # "video" tracks a found hand between frames (far less dropout than "image",
 # which re-detects from scratch every frame).
 mediapipe_running_mode: "video"
 # Frames a lost hand's 2D keypoints stay on screen / in triangulation.
 mediapipe_hold_frames: 0   # superseded by kalman_enabled
 # CPU measured as fast as GPU here and more consistent; leave on CPU.
-mediapipe_delegate: "GPU"
+mediapipe_delegate: "CPU"   # GPU measured 2x slower (71 vs 32.5 ms/step, 4 cams, 09-25)
 
 # --- dlc backend (batch3d_backend: "dlc") ---
 # HandTrackingVideo1Aug7 shuffle 12: TOP-DOWN (method: td), 42 keypoints (right
 # hand then left, MP21 order, lowercase right_/left_ names). Top-down needs the
 # detector snapshot; leave batch3d_detector_snapshot unset for a bottom-up model.
-batch3d_model_path: '/home/chesteklab/improv/HandTrackingVideo1Aug7-trainset80shuffle12/train'
+batch3d_model_path: '/home/chesteklab/HandTrackingVideo1Aug7-trainset80shuffle12/train'   # needs DeepLabCut 3.0.2: env improvDLC3
 batch3d_model_snapshot: "snapshot-best-100.pt"
 batch3d_detector_snapshot: "snapshot-detector-best-170.pt"
 
@@ -106,7 +106,7 @@ batch3d_detector_snapshot: "snapshot-detector-best-170.pt"
 # `threshold` (or missing) is ESTIMATED by the filter instead of dropped, so
 # 2D, 3D and joint angles stay continuous. Estimated keypoints carry likelihood 0. Tuning: raise kalman_measurement_var / lower process_var for
 # smoother-but-laggier; raise `threshold` to trust MediaPipe less.
-kalman_enabled: true
+kalman_enabled: true   # label association only; geometric smooths in 3D
 kalman_max_coast_frames: 15   # give up (drop the keypoint) after this many estimated frames
 # 1 = position+velocity (~4 ms/camera); 2 adds acceleration (~12 ms/camera, priors needs 2 entries)
 kalman_nderiv: 1
@@ -133,6 +133,35 @@ calibration_camera_names: {}
 # or none); real detections measure 0.97-1.0, so 0.3 is generous.
 # Minimum cameras that must retain a keypoint. 2 is the geometric minimum.
 triangulation_min_cameras: 2
+
+# --- Cross-camera hand association (actors/hand_assoc3d.py) ---
+# "geometric": a hand exists in 3D only where cameras agree geometrically; tracked
+# frame to frame, right/left from accumulated handedness votes, One-Euro smoothed.
+# "label": old behaviour (match by MediaPipe's per-camera handedness label).
+# Tuned 2026-09-25 on 130900 (cams 0,1,3,5) with scripts/tune3d -- see RESULTS.md there.
+hand_association: geometric
+geometric_association:
+  tol_px: 8                 # reprojection tolerance to join a hand; 10-12 = more coverage, 3-5x the jumps
+  hand_size_mm: [20, 200]   # wrist -> middle MCP plausibility
+  gate_mm: 100              # frame-to-frame palm distance to stay the same track
+  max_miss: 10              # frames a track survives unseen
+  smooth: {min_cutoff: 1.0, beta: 0.05, hold_frames: 5, reset_mm: 60}   # One-Euro; ~20 ms delay. false = off
+  reject_gloves: {}         # e.g. {teal: [85, 112, 60]}; no measurable effect with geometric association
+
+# "region" (dlc backend): 3D of ONE hand that stays in one place -- the stimulated hand an experimenter
+# holds -- from the two-hand DLC model (actors/held_hand3d.py). Its place is learned during the first
+# warmup_s seconds (no output then) and fixed. Validated on 2026-09-16 11:53: MCP angles within
+# 1.1-1.5 deg of the offline analysis, 17.8 ms/step (analysis/stim_1153/stim_analysis_walkthrough.ipynb).
+held_hand:
+  likelihood: 0.3        # DLC keypoint likelihood to use a point
+  max_px: 15             # 3D point must reproject within this in every camera
+  warmup_s: 10           # learn the hand's place in this many seconds (before stimulation starts)
+  hand: 1                # which of the two hands: numbered left -> right in order_camera's image
+  order_camera: 2
+  radius_mm: 80          # 3D distance from its place
+  radius_px: 40          # 2D distance from its usual image position, every camera
+  side: left             # output block (left_* joints)
+  smooth: {min_cutoff: 1.0, beta: 0.05, max_gap: 5}
 # 3D temporal cleanup: hold a lost keypoint N frames; EMA weight on the previous
 # frame (0 = off, 0.5 = moderate).
 triangulation_hold_frames: 0

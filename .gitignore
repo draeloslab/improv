@@ -142,6 +142,8 @@ arrow
 improv/_version.py
 demos/FES/DLCLive/**
 demos/FES/dlc-models-pytorch/**
+experiments/FES/analysis/**
+experiments/FES/scripts/tune3d**
 
 benchmarks/**
 

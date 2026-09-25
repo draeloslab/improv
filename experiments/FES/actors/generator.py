@@ -23,6 +23,7 @@ class Generator(Actor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.camera_num = kwargs.get('camera_num')
+        self.video_path_kw = kwargs.get('video_path')     # graph-level override of config.yaml's video_paths
 
     def setup(self):
         logger.info(f"Beginning setup for {self.name}")
@@ -37,7 +38,9 @@ class Generator(Actor):
         # Optional `camera_num` (yaml kwarg) selects config['video_paths'][camera_num],
         # so several Generators can play one recording per physical camera.
         camera_num = getattr(self, 'camera_num', None)
-        if camera_num is not None:
+        if self.video_path_kw:
+            self.video_path = self.video_path_kw
+        elif camera_num is not None:
             self.video_path = config['video_paths'][camera_num]
         elif '0' in self.name:
             self.video_path = config['video_path_0']
@@ -46,8 +49,13 @@ class Generator(Actor):
         else:
             self.video_path = config['video_path']
 
+        # Replay actor: keep it off the P-cores the processor uses (and off the
+        # faulty core, via cpu_affinity.exclude_cpus).
+        from . import cpu_affinity
+        cpu_affinity.pin_actor(cpu_affinity.BACKGROUND, label=f"Generator {self.name}")
         self.cap = None
         self.frame_interval = 1.0 / config['fps']
+        self.next_due = None
         self.resize = config['resize']
         self.frame_num = 0
         
@@ -142,5 +150,12 @@ class Generator(Actor):
             self.frame_num += 1
             self.work_latencies.append(time.perf_counter() - perf_start)
 
-            time.sleep(self.frame_interval)
+            # Pace against a deadline, not a fixed sleep: sleeping a full period on
+            # top of the read/put work played at 27.5 fps instead of 30.
+            now = time.perf_counter()
+            self.next_due = (now if self.next_due is None else self.next_due) + self.frame_interval
+            if self.next_due > now:
+                time.sleep(self.next_due - now)
+            else:
+                self.next_due = now          # fell behind: don't try to catch up in a burst
             self.full_latencies.append(time.perf_counter() - perf_start)
