@@ -15,7 +15,7 @@ camera_params:
   #   5 = a briefly stalled reader loses no frame (use when RECORDING).
   #   1 = only the newest frame is delivered, so all cameras share the same
   #       latency (use for LIVE tracking).
-  appsink_max_buffers: 5
+  appsink_max_buffers: 1
 
   # tcam properties applied to every camera once its pipeline is PLAYING, in
   # order (put each *Auto before its manual value). Auto modes drift with the

@@ -34,7 +34,7 @@ actors:
   Generator1:
     package: actors.camera_reader
     class: CameraReader
-    camera_num: 6
+    camera_num: 1
 
   Generator2:
     package: actors.camera_reader
@@ -49,7 +49,7 @@ actors:
   Generator4:
     package: actors.camera_reader
     class: CameraReader
-    camera_num: 4
+    camera_num: 6
 
   Generator5:
     package: actors.camera_reader
@@ -62,7 +62,7 @@ actors:
     package: actors.processor_batch3d
     class: ProcessorBatch3D
     num_cameras: 6
-    camera_nums: [0, 6, 2, 3, 4, 5]
+    camera_nums: [0, 1, 2, 3, 6, 5]
     pred_active: True
     # false = 2D-only: skip calibration/triangulation/joint angles and just draw
     # the keypoints on each camera view (use when there is no calibration).
@@ -83,7 +83,7 @@ actors:
   VideoSaver1:
     package: actors.video_saver
     class: VideoSaver
-    camera_num: 6
+    camera_num: 1
     method: spawn
 
   VideoSaver2:
@@ -100,7 +100,7 @@ actors:
   VideoSaver4:
     package: actors.video_saver
     class: VideoSaver
-    camera_num: 4
+    camera_num: 6
     method: spawn
 
   VideoSaver5:

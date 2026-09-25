@@ -1,0 +1,55 @@
+# One camera -> DLC keypoint -> 1-DOF control signal over UDP.
+#
+#   CameraReader0 ─┬─> Processor0 ─┬─> SenderUDP.preds0_in  ──UDP──> brand-monkeyrig `vision` node
+#                  │               └─> VideoScreen.preds0_in
+#                  └─> VideoScreen.images0_in
+#
+# Processor (actors/processor.py) runs the per-camera DLC model
+# (config.yaml: model_path_0 / model_snapshot_0, the top-view DIP/PIP/MCP/WRIST
+# model) and emits ONE scalar per frame: the y pixel of keypoint index 1 (PIP),
+# divided by `resize` so it lives in native-resolution pixel space.
+#
+# SenderUDP sends [packet_n, {"0": <that scalar>}] to SENDER_UDP_IP:SENDER_UDP_PORT
+# (env vars; defaults 192.168.137.201:11115, the port the brand `vision` node
+# listens on). The brand side therefore sees vision_data.angles == {"0": y_px}
+# and angles_vec == [y_px]. It is RAW PIXELS, not degrees -- map it to the
+# task's 0..1 (or whatever) range in the brand-side node that consumes
+# vision_data (see the [min, max] the old Sender.normalize_to_range used:
+# 700..330 for cam 0).
+#
+# No VideoSaver here (live control only); add one back if you want the video.
+
+actors:
+  GUI:
+    package: actors.video_screen
+    class: Visual
+    visual: VideoScreen
+
+  VideoScreen:
+    package: actors.video_screen
+    class: VideoScreen
+    num_active_cameras: 1
+
+  CameraReader0:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 0
+
+  Processor0:
+    package: actors.processor
+    class: Processor
+    pred_active: True
+    camera_num: 0
+    method: spawn
+
+  SenderUDP:
+    package: actors.sender_udp
+    class: SenderUDP
+    method: spawn
+
+connections:
+  CameraReader0.q_out: [Processor0.q_in, VideoScreen.images0_in]
+  Processor0.q_out: [SenderUDP.preds0_in, VideoScreen.preds0_in]
+
+redis_config:
+  port: 6379

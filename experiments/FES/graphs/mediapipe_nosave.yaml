@@ -55,7 +55,7 @@ actors:
 
 connections:
   Generator0.q_out: [VideoScreen3D.images0_in, ProcessorBatch3D.frames0_in]
-  # Generator1.q_out: [VideoScreen3D.images1_in, ProcessorBatch3D.frames1_in]
+  Generator1.q_out: [VideoScreen3D.images1_in, ProcessorBatch3D.frames1_in]
   Generator2.q_out: [VideoScreen3D.images2_in, ProcessorBatch3D.frames2_in]
   Generator3.q_out: [VideoScreen3D.images3_in, ProcessorBatch3D.frames3_in]
   ProcessorBatch3D.q_out: [VideoScreen3D.preds_in]

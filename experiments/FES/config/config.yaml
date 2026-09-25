@@ -26,17 +26,17 @@ max_camera_slots: 4
 # ============================================================================
 # video_path_0: 09-23 12:38 run, cam 3 (960x540; MediaPipe finds a hand most
 # often here). See graphs/mediapipe_gen.yaml.
-video_path_0: '/home/chesteklab/camera_video/2026-09-23/123800/camera_video_3_0923_1238.mp4'
-# Per-camera playback for graphs/mediapipe_gen.yaml (Generator camera_num kwarg):
-# 09-23 12:38 run, all six cameras.
+video_path_0: '/home/chesteklab/camera_video/2026-09-24/130100/camera_video_0_0924_1301.mp4'
+# Per-camera playback for graphs/mediapipe_gen.yaml (Generator <camera_num> kwarg):
+# 09-24 13:01 run, all six cameras.
 video_paths:
-  0: '/home/chesteklab/camera_video/2026-09-23/123800/camera_video_0_0923_1238.mp4'
-  1: '/home/chesteklab/camera_video/2026-09-23/123800/camera_video_1_0923_1238.mp4'
-  2: '/home/chesteklab/camera_video/2026-09-23/123800/camera_video_2_0923_1238.mp4'
-  3: '/home/chesteklab/camera_video/2026-09-23/123800/camera_video_3_0923_1238.mp4'
-  4: '/home/chesteklab/camera_video/2026-09-23/123800/camera_video_4_0923_1238.mp4'
-  5: '/home/chesteklab/camera_video/2026-09-23/123800/camera_video_5_0923_1238.mp4'
-  6: '/home/chesteklab/camera_video/2026-09-23/123800/camera_video_6_0923_1238.mp4'
+  0: '/home/chesteklab/camera_video/2026-09-24/130100/camera_video_0_0924_1301.mp4'
+  1: '/home/chesteklab/camera_video/2026-09-24/130100/camera_video_1_0924_1301.mp4'
+  2: '/home/chesteklab/camera_video/2026-09-24/130100/camera_video_2_0924_1301.mp4'
+  3: '/home/chesteklab/camera_video/2026-09-24/130100/camera_video_3_0924_1301.mp4'
+  4: '/home/chesteklab/camera_video/2026-09-24/130100/camera_video_4_0924_1301.mp4'
+  5: '/home/chesteklab/camera_video/2026-09-24/130100/camera_video_5_0924_1301.mp4'
+  6: '/home/chesteklab/camera_video/2026-09-24/130100/camera_video_6_0924_1301.mp4'
 video_path: '/home/chesteklab/camera_video/2026-02-27/102051/camera_video_2_0227_1020.mp4'
 
 # ============================================================================
@@ -49,7 +49,7 @@ model_snapshot_1: "snapshot-best-010.pt"
 
 # Confidence below which the GUI draws a keypoint hollow/orange instead of
 # solid red. Does not hide keypoints.
-threshold: 0.6   # THE confidence threshold. Below it a keypoint is Kalman-estimated (hollow red circle in the GUI); at/above it, measured (solid)
+threshold: 0.1   # THE confidence threshold. Below it a keypoint is Kalman-estimated (hollow red circle in the GUI); at/above it, measured (solid)
 # Swap the model's PartAffinityFieldPredictor for HeatmapPredictor at load time.
 # Models are trained with num_animals=1, so PAF grouping is meaningless and its
 # assembly step blanks keypoints to NaN/-1. Heatmap argmax returns every
@@ -81,16 +81,16 @@ mediapipe_both_hands: true
 mediapipe_swap_handedness: false
 # HandLandmarker's own gate on reporting a hand at all (distinct from
 # `threshold` at the top).
-mediapipe_min_hand_detection_confidence: 0.3
-mediapipe_min_hand_presence_confidence: 0.3
-mediapipe_min_tracking_confidence: 0.3
+mediapipe_min_hand_detection_confidence: 0.1
+mediapipe_min_hand_presence_confidence: 0.1
+mediapipe_min_tracking_confidence: 0.1
 # "video" tracks a found hand between frames (far less dropout than "image",
 # which re-detects from scratch every frame).
 mediapipe_running_mode: "video"
 # Frames a lost hand's 2D keypoints stay on screen / in triangulation.
 mediapipe_hold_frames: 0   # superseded by kalman_enabled
 # CPU measured as fast as GPU here and more consistent; leave on CPU.
-mediapipe_delegate: "CPU"
+mediapipe_delegate: "GPU"
 
 # --- dlc backend (batch3d_backend: "dlc") ---
 # HandTrackingVideo1Aug7 shuffle 12: TOP-DOWN (method: td), 42 keypoints (right
@@ -120,7 +120,7 @@ kalman_measurement_var: 10
 # anipose calibration from 2026-09-23/124500 (cams 3,4,5,6 at 0.42 px; cams 0 and
 # 2 are uncalibrated and contribute no rays). Relative
 # paths resolve against experiments/FES/.
-calibration_toml: 'calibration/2026-09-24_080100/calibration.toml'
+calibration_toml: 'calibration/2026-09-24_130700/calibration.toml'
 # camera_num -> camera name inside calibration_toml. Defaults to "cam{N}".
 calibration_camera_names: {}
 # [width, height] the calibration was solved at; live frames are rescaled into
