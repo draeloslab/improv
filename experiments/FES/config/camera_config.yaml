@@ -1,8 +1,8 @@
 camera_params:
   # Native sensor capture format.
   resolution:
-    width: 576
-    height: 480
+    width: 960  
+    height: 720
   # GStreamer downscales to this before frames reach numpy / the object store /
   # the model. Consumers reading frames back from the store (Processor,
   # VideoSaver, VideoScreen) size against this, not `resolution`.

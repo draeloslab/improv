@@ -24,29 +24,29 @@ max_camera_slots: 4
 # ============================================================================
 # Video input (Generator0 playback)
 # ============================================================================
-# video_path_0: 09-23 12:38 run, cam 3 (960x540; MediaPipe finds a hand most
+# video_path_0: 09-25 13:09 run, cam 0 (960x540; MediaPipe finds a hand most
 # often here). See graphs/mediapipe_gen.yaml.
-video_path_0: '/home/chesteklab/camera_video/2026-09-24/130100/camera_video_0_0924_1301.mp4'
+video_path_0: '/home/chesteklab/camera_video/2026-09-25/130900/camera_video_0_0925_1309.mp4'
 # Per-camera playback for graphs/mediapipe_gen.yaml (Generator <camera_num> kwarg):
-# 09-24 13:01 run, all six cameras.
+# 09-25 13:09 run, all six cameras.
 video_paths:
-  0: '/home/chesteklab/camera_video/2026-09-24/130100/camera_video_0_0924_1301.mp4'
-  1: '/home/chesteklab/camera_video/2026-09-24/130100/camera_video_1_0924_1301.mp4'
-  2: '/home/chesteklab/camera_video/2026-09-24/130100/camera_video_2_0924_1301.mp4'
-  3: '/home/chesteklab/camera_video/2026-09-24/130100/camera_video_3_0924_1301.mp4'
-  4: '/home/chesteklab/camera_video/2026-09-24/130100/camera_video_4_0924_1301.mp4'
-  5: '/home/chesteklab/camera_video/2026-09-24/130100/camera_video_5_0924_1301.mp4'
-  6: '/home/chesteklab/camera_video/2026-09-24/130100/camera_video_6_0924_1301.mp4'
+  0: '/home/chesteklab/camera_video/2026-09-25/130900/camera_video_0_0925_1309.mp4'
+  1: '/home/chesteklab/camera_video/2026-09-25/130900/camera_video_1_0925_1309.mp4'
+  2: '/home/chesteklab/camera_video/2026-09-25/130900/camera_video_2_0925_1309.mp4'
+  3: '/home/chesteklab/camera_video/2026-09-25/130900/camera_video_3_0925_1309.mp4'
+  4: '/home/chesteklab/camera_video/2026-09-25/130900/camera_video_4_0925_1309.mp4'
+  5: '/home/chesteklab/camera_video/2026-09-25/130900/camera_video_5_0925_1309.mp4'
+  6: '/home/chesteklab/camera_video/2026-09-25/130900/camera_video_6_0925_1309.mp4'
 video_path: '/home/chesteklab/camera_video/2026-02-27/102051/camera_video_2_0227_1020.mp4'
 
 # ============================================================================
 # DLC per-camera models (actors/processor.py)
 # ============================================================================
-model_path_0: '/home/chesteklab/Desktop/rhodesEMG1DOF-jake-2026-09-21/dlc-models-pytorch/iteration-0/rhodesEMG1DOFSep21-trainset95shuffle1/train'
+model_path_0: '/home/chesteklab/Desktop/rhodesEMG1DOF-jake-2026-09-21/dlc-models-pytorch/iteration-0/rhodesEMG1DOFSep21-trainset95shuffle2/train'
 model_snapshot_0: "snapshot-best-010.pt"
 model_path_1: '/home/chesteklab/Downloads/all_videos_side_viewFeb8-trainset95shuffle5/train'
 model_snapshot_1: "snapshot-best-010.pt"
-model_path_2: '/home/chesteklab/Desktop/rhodesEMG1DOF-jake-2026-09-21/dlc-models-pytorch/iteration-0/rhodesEMG1DOFSep21-trainset95shuffle1/train'
+model_path_2: '/home/chesteklab/Desktop/rhodesEMG1DOF-jake-2026-09-21/dlc-models-pytorch/iteration-0/rhodesEMG1DOFSep21-trainset95shuffle2/train'
 model_snapshot_2: "snapshot-best-010.pt"
 # Confidence below which the GUI draws a keypoint hollow/orange instead of
 # solid red. Does not hide keypoints.
@@ -121,12 +121,12 @@ kalman_measurement_var: 10
 # anipose calibration from 2026-09-23/124500 (cams 3,4,5,6 at 0.42 px; cams 0 and
 # 2 are uncalibrated and contribute no rays). Relative
 # paths resolve against experiments/FES/.
-calibration_toml: 'calibration/2026-09-24_130700/calibration.toml'
+calibration_toml: 'calibration/2026-09-25_124900/calibration.toml'
 # camera_num -> camera name inside calibration_toml. Defaults to "cam{N}".
 calibration_camera_names: {}
 # [width, height] the calibration was solved at; live frames are rescaled into
 # it. Leave unset when they already match (960x540 today).
-# calibration_frame_size: [960, 540]
+# calibration_frame_size: removed -- the scale now comes from the calibration toml vs the live frame size
 
 # Keypoints below this confidence are set NaN per camera before triangulation.
 # With mediapipe this gates on the per-hand handedness score (all 21 keypoints
@@ -177,5 +177,11 @@ cpu_affinity:
   # Cores handed out last. cpu12/13 carry the xhci USB interrupt for the cameras
   # (IRQ 132); scripts/setup_realtime.sh moves it to cpu31.
   avoid_cpus: [12, 13]
+  # Never used, by any actor. Physical core 0 (cpu0/cpu1) of this i9-14900K is
+  # faulty: 22/60 and 11/60 runs of a fixed numpy computation crashed or gave
+  # wrong results on cpu0/cpu1 vs 0/60 on other cores (tested 2026-09-25) --
+  # the Raptor Lake degradation. It caused the random import errors and likely
+  # the ProcessorBatch3D freeze. fes-run.sh also launches everything off these.
+  exclude_cpus: [0, 1]
   # Per-actor override keyed by the log label, e.g. {"Processor cam3": [14, 15]}
   overrides: {}

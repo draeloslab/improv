@@ -19,7 +19,7 @@ actors:
   VideoScreen3D:
     package: actors.video_screen_3d
     class: VideoScreen3D
-    num_active_cameras: 4
+    num_active_cameras: 5
 
   Generator0:
     package: actors.camera_reader
@@ -41,13 +41,18 @@ actors:
     class: CameraReader
     camera_num: 6
 
+  Generator4:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 6
+
   # Slots (Generator{i} -> frames{i}_in / images{i}_in) must be 0..N-1 in
   # order; camera_nums maps each slot to its physical camera. Keep it in sync
   # with the Generator and VideoSaver camera_nums.
   ProcessorBatch3D:
     package: actors.processor_batch3d
     class: ProcessorBatch3D
-    num_cameras: 4
+    num_cameras: 5
     camera_nums: [0, 3, 4, 6]
     pred_active: True
     triangulate: true
@@ -77,11 +82,19 @@ actors:
     camera_num: 6
     method: spawn
 
+  VideoSaver4:
+    package: actors.video_saver
+    class: VideoSaver
+    camera_num: 6
+    method: spawn
+    
 connections:
   Generator0.q_out: [VideoScreen3D.images0_in, ProcessorBatch3D.frames0_in, VideoSaver0.q_in]
   Generator1.q_out: [VideoScreen3D.images1_in, ProcessorBatch3D.frames1_in, VideoSaver1.q_in]
   Generator2.q_out: [VideoScreen3D.images2_in, ProcessorBatch3D.frames2_in, VideoSaver2.q_in]
   Generator3.q_out: [VideoScreen3D.images3_in, ProcessorBatch3D.frames3_in, VideoSaver3.q_in]
+  Generator4.q_out: [VideoScreen3D.images4_in, ProcessorBatch3D.frames4_in, VideoSaver4.q_in]
+
   ProcessorBatch3D.q_out: [VideoScreen3D.preds_in]
 
 redis_config:

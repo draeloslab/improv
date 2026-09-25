@@ -196,10 +196,14 @@ printf 'y\n' | improv cleanup 2>&1 | sed 's/^/  /'
 
 # ----------------------------------------------------------------------- run
 
+# Keep every process (including unpinned ones) off faulty cores; see
+# cpu_affinity.exclude_cpus in config.yaml. FES_CPUS overrides.
+FES_CPUS="${FES_CPUS:-2-$(( $(nproc --all) - 1 ))}"
 echo
+echo "[fes] CPUs: $FES_CPUS (cpu0/cpu1 excluded: faulty core)"
 if [ "$AUTO" -eq 1 ]; then
     echo "[fes] launching $YAML (headless)"
-    python "$FES_DIR/scripts/improv_drive.py" \
+    taskset -c "$FES_CPUS" python "$FES_DIR/scripts/improv_drive.py" \
         --config "$YAML" \
         --actor-path "$FES_DIR" \
         --logfile "$GLOBAL_LOG" \
@@ -208,7 +212,7 @@ if [ "$AUTO" -eq 1 ]; then
 else
     echo "[fes] launching $YAML"
     echo "[fes] in the improv console: setup -> (wait for ready) -> run -> stop -> quit"
-    improv run -a "$FES_DIR" -f "$GLOBAL_LOG" "$YAML"
+    taskset -c "$FES_CPUS" improv run -a "$FES_DIR" -f "$GLOBAL_LOG" "$YAML"
     status=$?
 fi
 

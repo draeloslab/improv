@@ -29,22 +29,22 @@ actors:
   Generator1:
     package: actors.generator
     class: Generator
-    camera_num: 2
+    camera_num: 1
 
   Generator2:
     package: actors.generator
     class: Generator
-    camera_num: 3
+    camera_num: 2
 
   Generator3:
     package: actors.generator
     class: Generator
-    camera_num: 4
+    camera_num: 3
 
   Generator4:
     package: actors.generator
     class: Generator
-    camera_num: 6
+    camera_num: 5
 
   # Slots (Generator{i} -> frames{i}_in / images{i}_in) must be 0..N-1 in
   # order; camera_nums maps each slot to its physical camera. the 12:38 run has no cam1 video and cam5 is uncalibrated.
@@ -52,7 +52,7 @@ actors:
     package: actors.processor_batch3d
     class: ProcessorBatch3D
     num_cameras: 5
-    camera_nums: [0, 2, 3, 4, 6]  # [0, 3, 4, 6]  
+    camera_nums: [0, 1, 2, 3, 5]  # [0, 3, 4, 6]  
     pred_active: True
     triangulate: true
     method: spawn

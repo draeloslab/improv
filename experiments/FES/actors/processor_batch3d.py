@@ -496,7 +496,8 @@ class ProcessorBatch3D(Actor):
         self.calib_row = [None] * self.num_cameras
         # Set here, not only on the success path: every early return below would
         # otherwise leave the attribute undefined.
-        self.calib_scale = None
+        self.calib_sizes = [None] * self.num_cameras
+        self._scale_logged = set()
 
         toml_path = config.get('calibration_toml')
         if not toml_path:
@@ -537,17 +538,13 @@ class ProcessorBatch3D(Actor):
             logger.error(f"only {n_linked} calibrated camera(s) among the wired ones -- "
                          f"triangulation needs at least 2 and will return all-NaN")
 
-        # The calibration was solved at some frame size; live frames must be
-        # expressed in those same pixel units. Both are 960x540 today, so this
-        # is a no-op, but it stops a silent, hard-to-spot error if a calibration
-        # made at 1920x1080 is ever dropped in.
-        calib_size = config.get('calibration_frame_size')
-        if calib_size:
-            cw, ch = float(calib_size[0]), float(calib_size[1])
-            live = self.cgroup.cameras[0].get_size()
-            if live is not None and (abs(live[0] - cw) > 1 or abs(live[1] - ch) > 1):
-                self.calib_scale = (cw / live[0], ch / live[1])
-                logger.info(f"scaling live 2D points by {self.calib_scale} into calibration space")
+        # Each camera was calibrated at the frame size stored in the toml; live
+        # 2D points are rescaled into it per camera, from the ACTUAL frame size
+        # (see runStep). The old config key compared the toml against itself.
+        if config.get('calibration_frame_size'):
+            logger.warning("config calibration_frame_size is ignored: the scale now comes "
+                           "from the calibration file vs the live frame size")
+        self.calib_sizes = [cam.get_size() for cam in self.cgroup.cameras]
 
     # ------------------------------------------------------------------- step
 
@@ -701,9 +698,14 @@ class ProcessorBatch3D(Actor):
             bad = (~np.isfinite(xy).all(axis=1)) | (lik < self.likelihood_threshold) \
                   | (xy[:, 0] < -1.5) | (xy[:, 1] < -1.5)
             xy[bad] = np.nan
-            if self.calib_scale is not None:
-                xy[:, 0] *= self.calib_scale[0]
-                xy[:, 1] *= self.calib_scale[1]
+            size = self.calib_sizes[row]
+            fh, fw = frames[slot].shape[:2]
+            if size is not None and (abs(size[0] - fw) > 1 or abs(size[1] - fh) > 1):
+                if (slot, fw, fh) not in self._scale_logged:
+                    self._scale_logged.add((slot, fw, fh))
+                    logger.info(f"slot {slot}: {fw}x{fh} frames, calibration {size[0]}x{size[1]} -- rescaling")
+                xy[:, 0] *= size[0] / fw
+                xy[:, 1] *= size[1] / fh
             points_2d[row] = xy
 
         # --- 5. triangulate ---

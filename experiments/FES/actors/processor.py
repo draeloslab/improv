@@ -142,7 +142,7 @@ class Processor(Actor):
 
             # Initializing Kalman Filter with smoother parameters
             self.kalman_filter = KalmanFilterPredictor(
-                adapt=True,
+                adapt=False,
                 forward=0.002,
                 fps=30,  
                 nderiv=2,
@@ -150,7 +150,7 @@ class Processor(Actor):
                 initial_var=10,    
                 process_var=1,     
                 dlc_var=10,        
-                lik_thresh=0.6    
+                lik_thresh=0.2    
             )
             logger.info(f'Kalman filter initialized for camera {self.camera_num}')
 
@@ -384,7 +384,7 @@ class Processor(Actor):
                         angle = smoothed_prediction[1][1] # Just take the y value of the PIP joint as a proxy for angle, since actual angle calc is noisy
                     else:
                         logger.debug(f"Camera {self.camera_num}: Prediction shape insufficient for angle calculation: {smoothed_prediction.shape}")
-                        angle = smoothed_prediction[0][0]  # Just treat the x value as angle for queue
+                        angle = smoothed_prediction[0][1]  # Just treat the x value as angle for queue
 
                     # Only feed real numbers into the smoothing window. A single NaN
                     # used to poison np.mean for the whole 15-frame deque, which is

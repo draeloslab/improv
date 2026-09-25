@@ -152,14 +152,18 @@ def topology():
     return [cpus for _, _, cpus in p_cores], sorted(e_cores)
 
 
-def _core_pool(avoid_cpus):
+def _core_pool(avoid_cpus, exclude_cpus=None):
     """Physical P-cores in claim order, with any core touching `avoid_cpus` last.
 
     Cores are demoted rather than dropped so that a machine with fewer cores
     than actors still gets a usable (if shared) assignment instead of an empty
-    pool.
+    pool. `exclude_cpus` is different: any core touching it is dropped entirely
+    (for hardware that computes wrong answers, not just for busy cores).
     """
     p_cores, e_cores = topology()
+    exclude = set(exclude_cpus or ())
+    p_cores = [c for c in p_cores if not exclude.intersection(c)]
+    e_cores = [c for c in e_cores if c not in exclude]
     avoid = set(avoid_cpus or ())
     clean = [c for c in p_cores if not avoid.intersection(c)]
     dirty = [c for c in p_cores if avoid.intersection(c)]
@@ -204,7 +208,7 @@ def pin_actor(role, slot=0, config=None, label=None, n_slots=1):
 
     n_compute = int(settings.get("compute_slots",
                                  config.get("max_camera_slots", 4)))
-    pool, e_cores = _core_pool(settings.get("avoid_cpus"))
+    pool, e_cores = _core_pool(settings.get("avoid_cpus"), settings.get("exclude_cpus"))
 
     if role == COMPUTE and n_slots > 1:
         if not pool:
