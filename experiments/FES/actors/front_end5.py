@@ -29,7 +29,7 @@ logging.getLogger('matplotlib.font_manager').setLevel(logging.WARNING)
 # original circle_d=50/font_pt=50 would heavily overlap between fingers.
 _KEYPOINT_SCHEMES = {
     1: {  # DLC single-point model (camera_num == 2's old subsetting)
-        "labels": ["MRS"],
+        "labels": ["PIP"],
         "skeleton": None,
         "circle_d": 50,
         "font_pt": 50,
@@ -99,6 +99,7 @@ class CameraStreamWidget(QWidget):
 
             self.resize = config['resize']
             self.threshold = config['threshold']
+            self.camera_prescaled = config.get('camera_prescaled', False)
 
             # Set up GUI layout
             self.setWindowTitle('Camera Streams')
@@ -252,6 +253,12 @@ class CameraStreamWidget(QWidget):
                 circle_d, font_pt = 30, 30
                 skeleton_idx = None
 
+            # circle_d / font_pt are sized for a 1920-wide frame; scale them to the
+            # frame actually displayed so markers stay proportionate at lower resolution.
+            marker_scale = width / 1920.0
+            circle_d = max(4, int(round(circle_d * marker_scale)))
+            font_pt = max(6, int(round(font_pt * marker_scale)))
+
             # Pass 1: draw every keypoint the model returns, regardless of
             # confidence. Only genuinely undrawable values (NaN from a failed
             # PAF assembly, or the -1/-2 "no detection" sentinel both DLC and
@@ -265,8 +272,13 @@ class CameraStreamWidget(QWidget):
                 x, y, likelihood = point
                 if not (np.isfinite(x) and np.isfinite(y)) or x < -1.5 or y < -1.5:
                     continue
-                x = x/self.resize
-                y = y/self.resize
+                # Predictions are in the coordinates of the frame the model saw. When
+                # the camera already delivers pre-scaled frames (camera_prescaled) that
+                # IS the displayed frame, so no un-scaling; otherwise the processor
+                # cv2.resize'd a native frame and we map back up.
+                if not self.camera_prescaled:
+                    x = x/self.resize
+                    y = y/self.resize
                 points_px[i] = (x, y)
                 confident = likelihood > self.threshold
                 colour = QColor(255, 0, 0) if confident else QColor(255, 165, 0)

@@ -42,11 +42,12 @@ video_path: '/home/chesteklab/camera_video/2026-02-27/102051/camera_video_2_0227
 # ============================================================================
 # DLC per-camera models (actors/processor.py)
 # ============================================================================
-model_path_0: '/home/chesteklab/Downloads/all_videos_top_viewFeb4-trainset95shuffle2/train'
-model_snapshot_0: "snapshot-best-040.pt"
+model_path_0: '/home/chesteklab/Desktop/rhodesEMG1DOF-jake-2026-09-21/dlc-models-pytorch/iteration-0/rhodesEMG1DOFSep21-trainset95shuffle1/train'
+model_snapshot_0: "snapshot-best-010.pt"
 model_path_1: '/home/chesteklab/Downloads/all_videos_side_viewFeb8-trainset95shuffle5/train'
 model_snapshot_1: "snapshot-best-010.pt"
-
+model_path_2: '/home/chesteklab/Desktop/rhodesEMG1DOF-jake-2026-09-21/dlc-models-pytorch/iteration-0/rhodesEMG1DOFSep21-trainset95shuffle1/train'
+model_snapshot_2: "snapshot-best-010.pt"
 # Confidence below which the GUI draws a keypoint hollow/orange instead of
 # solid red. Does not hide keypoints.
 threshold: 0.1   # THE confidence threshold. Below it a keypoint is Kalman-estimated (hollow red circle in the GUI); at/above it, measured (solid)

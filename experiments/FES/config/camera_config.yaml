@@ -1,14 +1,14 @@
 camera_params:
   # Native sensor capture format.
   resolution:
-    width: 1920
-    height: 1080
+    width: 576
+    height: 480
   # GStreamer downscales to this before frames reach numpy / the object store /
   # the model. Consumers reading frames back from the store (Processor,
   # VideoSaver, VideoScreen) size against this, not `resolution`.
-  stream_resolution:
-    width: 960
-    height: 540
+  # stream_resolution:
+  #   width: 960
+  #   height: 540
   fps: "30/1"
 
   # appsink queue depth per camera.
@@ -27,7 +27,7 @@ camera_params:
   # active_cameras entry overrides these.
   camera_settings:
     ExposureAuto: "Off"
-    ExposureTime: 10000
+    ExposureTime: 2000
     GainAuto: "Off"
     Gain: 0
     # BalanceWhiteAuto accepts "Off" or "Continuous". With Off and no gains the

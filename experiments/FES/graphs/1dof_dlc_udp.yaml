@@ -2,7 +2,8 @@
 #
 #   CameraReader0 ─┬─> Processor0 ─┬─> SenderUDP.preds0_in  ──UDP──> brand-monkeyrig `vision` node
 #                  │               └─> VideoScreen.preds0_in
-#                  └─> VideoScreen.images0_in
+#                  ├─> VideoScreen.images0_in
+#                  └─> VideoSaver2.q_in
 #
 # Processor (actors/processor.py) runs the per-camera DLC model
 # (config.yaml: model_path_0 / model_snapshot_0, the top-view DIP/PIP/MCP/WRIST
@@ -17,7 +18,8 @@
 # vision_data (see the [min, max] the old Sender.normalize_to_range used:
 # 700..330 for cam 0).
 #
-# No VideoSaver here (live control only); add one back if you want the video.
+# VideoSaver2 records camera 2's frames (camera_num indexes active_cameras in
+# camera_config.yaml, so it must match CameraReader0's camera_num).
 
 actors:
   GUI:
@@ -33,13 +35,19 @@ actors:
   CameraReader0:
     package: actors.camera_reader
     class: CameraReader
-    camera_num: 0
+    camera_num: 2
 
   Processor0:
     package: actors.processor
     class: Processor
     pred_active: True
-    camera_num: 0
+    camera_num: 2
+    method: spawn
+
+  VideoSaver2:
+    package: actors.video_saver
+    class: VideoSaver
+    camera_num: 2
     method: spawn
 
   SenderUDP:
@@ -48,7 +56,7 @@ actors:
     method: spawn
 
 connections:
-  CameraReader0.q_out: [Processor0.q_in, VideoScreen.images0_in]
+  CameraReader0.q_out: [Processor0.q_in, VideoScreen.images0_in, VideoSaver2.q_in]
   Processor0.q_out: [SenderUDP.preds0_in, VideoScreen.preds0_in]
 
 redis_config:
