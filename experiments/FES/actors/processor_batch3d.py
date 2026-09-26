@@ -75,6 +75,7 @@ from . import cpu_affinity
 from .kalmanfilter import KalmanHandSmoother
 from .hand_assoc3d import HandTracker3D, glove_mask
 from .held_hand3d import HeldHandTracker
+from .continuity import ContinuousPose
 from .run_paths import get_logger, run_folder
 
 logger = get_logger(__name__, "processor_batch3d.log")
@@ -390,6 +391,9 @@ class ProcessorBatch3D(Actor):
 
         self.points_2d_log = []
         self.points_3d_log = []
+        self.points_3d_raw_log = []
+        cont = config.get('continuity')
+        self.continuity = ContinuousPose(self.n_keypoints, **cont) if cont else None
         self.angles_log = []
         self.timestamps = []
         self.frame_nums_received = []
@@ -947,6 +951,10 @@ class ProcessorBatch3D(Actor):
         return points_3d, gui
 
     def _finish_step(self, points_3d, raw_2d, starts, fnums, batch_slots, step_start):
+        # --- 5b. continuity: hold through gaps, glide back (config `continuity`) ---
+        if self.continuity is not None and points_3d is not None:
+            self.points_3d_raw_log.append(points_3d.copy())
+            points_3d = self.continuity.step(points_3d)
         # --- 6. joint angles ---
         t0 = time.perf_counter()
         angles = self._joint_angles(points_3d)
@@ -1253,6 +1261,8 @@ class ProcessorBatch3D(Actor):
             if self.points_2d_raw_log:
                 np.save(self.out_folder / "batch3d_points_2d_raw.npy", np.asarray(self.points_2d_raw_log))
             np.save(self.out_folder / "batch3d_points_3d.npy", np.asarray(self.points_3d_log))
+            if self.points_3d_raw_log:        # before continuity (what was actually measured)
+                np.save(self.out_folder / "batch3d_points_3d_raw.npy", np.asarray(self.points_3d_raw_log))
             np.save(self.out_folder / "batch3d_joint_angles.npy", np.asarray(self.angles_log))
             np.save(self.out_folder / "batch3d_joint_names.npy", np.asarray(self.joint_names))
             np.save(self.out_folder / "batch3d_bodyparts.npy", np.asarray(self.bodyparts))

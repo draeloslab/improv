@@ -73,7 +73,7 @@ batch3d_backend: "mediapipe"
 
 # --- mediapipe backend ---
 mediapipe_model_path: '/home/chesteklab/Desktop/hand-tracking-notebooks-jake-2026-08-17/mediapipe/hand_landmarker.task'
-mediapipe_num_hands: 4   # 4 = most reliable live 3D (19.9 steps/s, 48 ms, cover 24%, boneCV 0.26). 1 = full 30 fps (27 ms) but with one slot MediaPipe latches onto different hands run to run (boneCV 0.18 vs 0.31 on two replays). See scripts/tune3d/tracking_3d_walkthrough.ipynb
+mediapipe_num_hands: 2   # 4 = most reliable live 3D (19.9 steps/s, 48 ms, cover 24%, boneCV 0.26). 1 = full 30 fps (27 ms) but with one slot MediaPipe latches onto different hands run to run (boneCV 0.18 vs 0.31 on two replays). See scripts/tune3d/tracking_3d_walkthrough.ipynb
 # Track both hands: 42 keypoints (right_* then left_*) instead of only the first.
 # MediaPipe assumes a mirrored image, so on raw frames its "Left" is the
 # subject's right hand -- flip with mediapipe_swap_handedness if names matter.
@@ -147,6 +147,12 @@ geometric_association:
   max_miss: 10              # frames a track survives unseen
   smooth: {min_cutoff: 1.0, beta: 0.05, hold_frames: 5, reset_mm: 60}   # One-Euro; ~20 ms delay. false = off
   reject_gloves: {}         # e.g. {teal: [85, 112, 60]}; no measurable effect with geometric association
+
+# Continuous output (actors/continuity.py): every keypoint holds its last value through a gap and glides
+# back (~glide_frames, glide_alpha per frame) when re-found or after a jump > jump_mm, so angles, GUI and
+# the UDP stream have no gaps or steps. Causal. Raw points are still saved (batch3d_points_3d_raw.npy).
+# Remove the block (or set to null) to output raw.
+continuity: {glide_frames: 20, glide_alpha: 0.15, jump_mm: 40}   # ~0.7 s glide
 
 # "region" (dlc backend): 3D of ONE hand that stays in one place -- the stimulated hand an experimenter
 # holds -- from the two-hand DLC model (actors/held_hand3d.py). Its place is learned during the first
