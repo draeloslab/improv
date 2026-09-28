@@ -11,6 +11,7 @@ from improv.actor import Actor
 from . import cpu_affinity
 
 from .run_paths import get_logger, run_folder
+from .brand_link import link_settings
 
 logger = get_logger(__name__, "sender_udp.log")
 
@@ -57,6 +58,13 @@ class SenderUDP(Actor):
     angles win the payload from the first joint message onward -- the two key
     spaces cannot be merged without ambiguity, and 3D joint angles are the more
     specific signal. Per-camera angles keep being recorded to disk either way.
+    Stimulation requests (closed-loop BO, actors/bayes_opt.py)
+    --------------------------------------------------------
+    When a `stim_in` link is wired, every dict on it is sent as-is (JSON) to
+    (SENDER_UDP_IP, brand_link.stim_port), a separate port so the joint-angle
+    stream above is untouched. Requests are never dropped or merged. Protocol:
+    actors/brand_link.py.
+
     Joint angles are in degrees, deviation from
     straight (0 = fully extended), from dlc2kinematics. A joint that could not
     be triangulated this frame (fewer than two confident views) is sent as
@@ -93,7 +101,6 @@ class SenderUDP(Actor):
 
         # Create UDP socket
         self.sock_send = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        print(f"UDP socket created for sending to {resolved_ip}:{self.UDP_PORT_send}")
 
         # Load the configuration file
         source_folder = Path(__file__).resolve().parent.parent
@@ -138,6 +145,10 @@ class SenderUDP(Actor):
 
         self.send_timestamps = []
         self.step_latencies = []
+
+        # --- stimulation requests (only used when `stim_in` is wired) ---
+        self.stim_port = link_settings()['stim_port']
+        self.stim_sent = []          # (time sent, request dict)
 
         # Percentiles for robust min/max (filters outliers)
         self.min_percentile = 1
@@ -210,6 +221,21 @@ class SenderUDP(Actor):
         self._pending_joint_frame = msg.get('frame_num', -1)
         return msg
 
+    def _send_stims(self):
+        """Forward every pending stimulation request to BRAND (none dropped)."""
+        link = self.links.get("stim_in")
+        while link is not None:
+            try:
+                req = link.get_nowait()
+            except Exception:
+                return
+            try:
+                self.sock_send.sendto(json.dumps(req).encode('utf-8'), (self.UDP_IP_send, self.stim_port))
+                self.stim_sent.append((time.time(), req))
+                logger.info("stim request %s sent to %s:%d", req.get('id'), self.UDP_IP_send, self.stim_port)
+            except Exception as e:
+                logger.error(f"could not send stim request {req!r}: {e}")
+
     def runStep(self):
         """Poll every wired preds{N}_in slot; send ONLY if at least one camera
         produced a fresh prediction this step."""
@@ -218,12 +244,16 @@ class SenderUDP(Actor):
 
         # --- 3D joint angles, if this yaml wires ProcessorBatch3D ---
         fresh_joints = self._poll_joints()
+        self._send_stims()
 
         for slot in range(self.max_camera_slots):
+            link = self.links.get(f"preds{slot}_in")
+            if link is None:
+                continue  # slot not wired this run
             try:
-                element = self.links[f"preds{slot}_in"].get(timeout=0.0001)
+                element = link.get_nowait()
             except Exception:
-                continue  # slot not wired this run, or nothing new -- either way, skip
+                continue  # nothing new
 
             # Current format: [pred, angle, camera_start, frame_num, camera_num].
             # Falls back gracefully for older/shorter messages, using the slot
@@ -291,8 +321,8 @@ class SenderUDP(Actor):
         try:
             data_bytes = json.dumps(payload).encode('utf-8')
             self.sock_send.sendto(data_bytes, (self.UDP_IP_send, self.UDP_PORT_send))
-            logger.debug(f"Sent {len(data_bytes)} bytes via UDP to "
-                         f"{self.UDP_IP_send}:{self.UDP_PORT_send}: {payload}")
+            logger.debug("Sent %d bytes via UDP to %s:%d: %s", len(data_bytes),
+                         self.UDP_IP_send, self.UDP_PORT_send, payload)   # lazy: formatted only when DEBUG is on
         except Exception as e:
             logger.error(f"Error sending UDP data: {e}")
             return
@@ -389,6 +419,12 @@ class SenderUDP(Actor):
                                     f"measured {good.sum()}/{len(col)} packets")
                     else:
                         logger.info(f"  {name}: never triangulated")
+
+        if self.stim_sent:
+            with open(self.out_folder / "sender_stim_requests.jsonl", "w") as f:
+                for t, req in self.stim_sent:
+                    f.write(json.dumps({**req, 't_socket': t}) + "\n")
+            logger.info(f"stim requests sent: {len(self.stim_sent)}")
 
         # Legacy file names for backward compatibility with tooling that
         # assumed a single primary camera (camera_num 0).

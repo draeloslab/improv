@@ -1,0 +1,86 @@
+# Closed-loop Bayesian optimisation of the stimulation, live cameras.
+#
+#   CameraReader1..6 ─┬─> ProcessorBatch3D ─┬─> SenderUDP.joints_in ──> BRAND :11115 (joint angles, as before)
+#                     │   (dlc, held hand)  ├─> VideoScreen3D.preds_in
+#                     │                     └─> BayesOptStim.joints_in
+#                     ├─> VideoScreen3D.images{N}_in
+#                     └─> VideoSaver{N}.q_in
+#   BayesOptStim.q_out ──> SenderUDP.stim_in ──> BRAND :11116 (stim requests)
+#   BRAND :11117 ──> BrandReceiver ──> BayesOptStim.feedback_in (stim_on / stim_off / target)
+#
+# Needs the BRAND side to answer the protocol in actors/brand_link.py (a node that takes stim requests,
+# drives the cerestim node, and reports stim_on/stim_off from cerestim_output plus the virtual hand's
+# target). Settings: config.yaml `bayes_opt` and `brand_link`.
+#
+# BEFORE RUNNING: set camera_nums to the cameras in the new layout, and calibration_toml to the calibration
+# made for it (the 09-16 file below only covers cams 1 and 2).
+#
+# Run: FES_CONDA_ENV=improvDLC3 fes-run bo_stim_live.yaml      (the dlc backend needs DLC 3.0.2)
+
+actors:
+  GUI:
+    package: actors.video_screen_3d
+    class: Visual3D
+    visual: VideoScreen3D
+
+  VideoScreen3D:
+    package: actors.video_screen_3d
+    class: VideoScreen3D
+    num_active_cameras: 6
+
+  Generator0: {package: actors.camera_reader, class: CameraReader, camera_num: 1}
+  Generator1: {package: actors.camera_reader, class: CameraReader, camera_num: 2}
+  Generator2: {package: actors.camera_reader, class: CameraReader, camera_num: 3}
+  Generator3: {package: actors.camera_reader, class: CameraReader, camera_num: 4}
+  Generator4: {package: actors.camera_reader, class: CameraReader, camera_num: 5}
+  Generator5: {package: actors.camera_reader, class: CameraReader, camera_num: 6}
+
+  ProcessorBatch3D:
+    package: actors.processor_batch3d
+    class: ProcessorBatch3D
+    num_cameras: 6
+    camera_nums: [1, 2, 3, 4, 5, 6]      # physical camera on frames{i}_in, in slot order
+    pred_active: True
+    triangulate: true
+    compute_cores: 4
+    config_overrides:
+      batch3d_backend: dlc
+      hand_association: region
+      calibration_toml: 'analysis/stim_1153/walkthrough_out/calibration_corrected.toml'   # REPLACE with the new layout's
+    method: spawn
+
+  BayesOptStim:
+    package: actors.bayes_opt
+    class: BayesOptStim
+    method: spawn
+
+  BrandReceiver:
+    package: actors.brand_link
+    class: BrandReceiver
+    method: spawn
+
+  SenderUDP:
+    package: actors.sender_udp
+    class: SenderUDP
+    method: spawn
+
+  VideoSaver0: {package: actors.video_saver, class: VideoSaver, camera_num: 1, method: spawn}
+  VideoSaver1: {package: actors.video_saver, class: VideoSaver, camera_num: 2, method: spawn}
+  VideoSaver2: {package: actors.video_saver, class: VideoSaver, camera_num: 3, method: spawn}
+  VideoSaver3: {package: actors.video_saver, class: VideoSaver, camera_num: 4, method: spawn}
+  VideoSaver4: {package: actors.video_saver, class: VideoSaver, camera_num: 5, method: spawn}
+  VideoSaver5: {package: actors.video_saver, class: VideoSaver, camera_num: 6, method: spawn}
+
+connections:
+  Generator0.q_out: [VideoScreen3D.images0_in, ProcessorBatch3D.frames0_in, VideoSaver0.q_in]
+  Generator1.q_out: [VideoScreen3D.images1_in, ProcessorBatch3D.frames1_in, VideoSaver1.q_in]
+  Generator2.q_out: [VideoScreen3D.images2_in, ProcessorBatch3D.frames2_in, VideoSaver2.q_in]
+  Generator3.q_out: [VideoScreen3D.images3_in, ProcessorBatch3D.frames3_in, VideoSaver3.q_in]
+  Generator4.q_out: [VideoScreen3D.images4_in, ProcessorBatch3D.frames4_in, VideoSaver4.q_in]
+  Generator5.q_out: [VideoScreen3D.images5_in, ProcessorBatch3D.frames5_in, VideoSaver5.q_in]
+  ProcessorBatch3D.q_out: [SenderUDP.joints_in, VideoScreen3D.preds_in, BayesOptStim.joints_in]
+  BayesOptStim.q_out: [SenderUDP.stim_in]
+  BrandReceiver.q_out: [BayesOptStim.feedback_in]
+
+redis_config:
+  port: 6379
