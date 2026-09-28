@@ -313,14 +313,14 @@ class Processor(Actor):
                         frame = cv2.resize(frame, (int(frame.shape[1] * self.resize), int(frame.shape[0] * self.resize)))
                     self.resize_latencies.append(time.perf_counter() - t0)
 
-                    # Quick check: log color channel info periodically
-                    if self.frame_num % 100 == 0:
-                        avg_channels = np.mean(frame, axis=(0, 1))
-                        logger.debug(f"Frame shape: {frame.shape}, Average channel values: {avg_channels}")
-                        if avg_channels[0] < avg_channels[2]:
-                            logger.info(f"Frame from camera {self.camera_num} appears to be BGR format (channel 0 < channel 2)")
-                        else:
-                            logger.info(f"Frame from camera {self.camera_num} appears to be RGB format (channel 0 >= channel 2)")
+                    # Colour-order check, first frame only. It used to run every 100th
+                    # frame inside the timed step: np.mean over a 960x540 frame is ~6 ms,
+                    # which was the +6.7 ms spike every 3.3 s in run 20260917-1557.
+                    if self.frame_num == 1:
+                        avg_channels = frame[::8, ::8].reshape(-1, frame.shape[2]).mean(0)
+                        order = "BGR" if avg_channels[0] < avg_channels[2] else "RGB"
+                        logger.info(f"Frame from camera {self.camera_num}: {frame.shape}, looks {order} "
+                                    f"(channel means {np.round(avg_channels, 1)})")
 
                     # --- Step 4: DLC Inference ---
                     t0 = time.perf_counter()
