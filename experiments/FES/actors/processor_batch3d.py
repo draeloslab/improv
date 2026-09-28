@@ -14,7 +14,7 @@ The pipeline per step is:
                        ->  per-camera 2D keypoints + likelihood
                        ->  likelihood gate -> NaN
                        ->  aniposelib CameraGroup.triangulate  -> (K, 3) mm
-                       ->  dlc2kinematics jointangle_calc      -> {joint: deg}
+                       ->  joint angles (bone-to-bone angle)   -> {joint: deg}
                        ->  q_out
 
 `batch3d_backend` in config.yaml picks how that pose-estimation step works
@@ -30,10 +30,9 @@ The pipeline per step is:
     (batch_size = num_cameras): measured 41.6 ms for 4 frames vs 75.6 ms for
     four sequential calls (1.8x).
 
-Triangulation and joint angles both come from the libraries the rest of the lab
-uses (aniposelib, dlc2kinematics) rather than reimplementations -- see
-_triangulate() and _joint_angles() for the two places where their APIs needed
-adapting to a per-frame realtime call.
+Triangulation uses aniposelib, as the rest of the lab does (see _triangulate()).
+Joint angles are the same bone-to-bone angle dlc2kinematics computes, vectorised
+(see _joint_angles()).
 """
 
 import os
@@ -50,21 +49,19 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-import pandas as pd
 import yaml
 
 from improv.actor import Actor
 from improv.store import ObjectNotFoundError
 
-# Only needed for triangulation/joint angles. Tolerated as missing so a
-# `triangulate: false` (2D-only) run works in an env without them; the actor
-# raises in setup if 3D is requested and they are absent.
+# Only needed for triangulation. Tolerated as missing so a `triangulate: false`
+# (2D-only) run works in an env without it; the actor raises in setup if 3D is
+# requested and it is absent.
 try:
     from aniposelib.cameras import CameraGroup
-    from dlc2kinematics.utils import auxiliaryfunctions as d2k_aux
     _HAVE_3D_DEPS = True
 except ImportError:
-    CameraGroup = d2k_aux = None
+    CameraGroup = None
     _HAVE_3D_DEPS = False
 
 # torch/deeplabcut (the "dlc" backend) and mediapipe (the "mediapipe" backend)
@@ -77,6 +74,7 @@ from .hand_assoc3d import HandTracker3D, glove_mask
 from .held_hand3d import HeldHandTracker
 from .continuity import ContinuousPose
 from .run_paths import get_logger, run_folder
+from .chunk_log import ChunkLog
 
 logger = get_logger(__name__, "processor_batch3d.log")
 
@@ -214,6 +212,10 @@ class ProcessorBatch3D(Actor):
         # every camera). Needs sources whose frame_num counts the same video frame
         # (actors.generator); free-running cameras' counters are not comparable.
         self.align_frames = bool(kwargs.get('align_frames', False))
+        # Live cameras: how long a step waits, after its first frame, for the other cameras' frames (ms).
+        # 0 = take whatever has arrived. ~12 ms gathers all cameras when they are up to half a frame out
+        # of phase, at the cost of that much latency on the earliest frame.
+        self.gather_wait_ms = float(kwargs.get('gather_wait_ms', 12))
         self.config_overrides = kwargs.get('config_overrides') or {}
         self._fbuf = {}
         self._fseen = {}     # slot -> wall time its last message arrived
@@ -250,8 +252,12 @@ class ProcessorBatch3D(Actor):
         # backend's forward pass is GPU-bound and single-threaded on the CPU
         # side (torch.set_num_threads(1) in _setup_dlc), so it keeps the
         # original one-core pin.
+        # mediapipe: cpu_affinity.compute_slots physical P-cores (the thread pool needs several; 4 cameras
+        # measured 31.7 ms on 4 cores vs 29.2 on 7). Claiming one per camera took every P-core with 7
+        # cameras and left the CameraReaders sharing them. dlc: one core. compute_cores overrides both.
         backend = config.get('batch3d_backend', 'mediapipe')
-        n_slots = self.num_cameras if (self.pred_active and backend == 'mediapipe') else 1
+        compute_slots = int((config.get('cpu_affinity') or {}).get('compute_slots', 4))
+        n_slots = min(self.num_cameras, compute_slots) if (self.pred_active and backend == 'mediapipe') else 1
         if self.compute_cores:
             n_slots = int(self.compute_cores)
         cpu_affinity.pin_actor(cpu_affinity.COMPUTE, slot=0, label="ProcessorBatch3D",
@@ -272,13 +278,13 @@ class ProcessorBatch3D(Actor):
         # per keypoint and returns NaN for the rest. (With the mediapipe
         # backend this is a per-camera whole-hand gate, not per-keypoint --
         # see _setup_mediapipe / _infer_mediapipe.)
-        # Temporal cleanup of the 3D output (both off by default): frames to hold
-        # a lost keypoint, and EMA weight on the previous value (0 = no smoothing).
         self._wd_file = None
+        self.out_folder = run_folder()
+        L = lambda name: ChunkLog(self.out_folder, name)      # bounded memory, blocks written as the run goes
         self.kalman_on = bool(config.get('kalman_enabled', False))
         self.threshold = float(config['threshold'])
         self.assoc_errors = []
-        self.det_log = []
+        self.det_xy, self.det_label, self.det_score = L('det_xy'), L('det_label'), L('det_score')
         self._kalman = {}
         self._kalman_cfg = dict(
             fps=config.get('fps', 30),
@@ -290,10 +296,7 @@ class ProcessorBatch3D(Actor):
             initial_var=float(config.get('kalman_initial_var', 10)),
             process_var=float(config.get('kalman_process_var', 1)),
             dlc_var=float(config.get('kalman_measurement_var', 10)))
-        self.points_2d_raw_log = []
-        self.hold_3d = int(config.get('triangulation_hold_frames', 0))
-        self.smooth_3d = float(config.get('triangulation_smooth_alpha', 0.0))
-        self._last_3d = None
+        self.points_2d_raw_log = L('batch3d_points_2d_raw')
         # One threshold (config `threshold`). With the Kalman filter on it has already
         # replaced sub-threshold keypoints by estimates (likelihood 0), so the gate
         # here must not drop them again.
@@ -317,7 +320,7 @@ class ProcessorBatch3D(Actor):
         # ---------------- calibration ----------------
         if self.triangulate:
             if not _HAVE_3D_DEPS:
-                raise ImportError("aniposelib/dlc2kinematics are not installed in this env "
+                raise ImportError("aniposelib is not installed in this env "
                                   "(use improvPytorchJarvis, or set triangulate: false)")
             self._setup_calibration(config, source_folder)
         else:
@@ -379,6 +382,7 @@ class ProcessorBatch3D(Actor):
         # lookup per joint per frame for no reason.
         self.joint_idx = [tuple(self.bp_index[b] for b in self.joints[j])
                           for j in self.joint_names]
+        self._ja = np.array(self.joint_idx, dtype=int).reshape(-1, 3)
         self.skeleton_idx = [(self.bp_index[a], self.bp_index[b])
                              for a, b in self.skeleton
                              if a in self.bp_index and b in self.bp_index]
@@ -389,14 +393,14 @@ class ProcessorBatch3D(Actor):
         self.frames_log = 200
         self.time_start = time.perf_counter()
 
-        self.points_2d_log = []
-        self.points_3d_log = []
-        self.points_3d_raw_log = []
+        self.points_2d_log = L('batch3d_points_2d')
+        self.points_3d_log = L('batch3d_points_3d')
+        self.points_3d_raw_log = L('batch3d_points_3d_raw')
         cont = config.get('continuity')
         self.continuity = ContinuousPose(self.n_keypoints, **cont) if cont else None
-        self.angles_log = []
+        self.angles_log = L('batch3d_joint_angles')
         self.timestamps = []
-        self.frame_nums_received = []
+        self.frame_nums_received = L('batch3d_frame_nums')
         self.frame_skew = []           # max-min frame_num across cameras, per step
         # Real time spread of the frames in each step (ms, from the cameras' capture
         # timestamps; NaN if <2 cameras stamped). Unlike frame_skew, this is not
@@ -413,7 +417,6 @@ class ProcessorBatch3D(Actor):
         self.queue_put_latencies = []
         self.total_latencies = []
 
-        self.out_folder = run_folder()
         logger.info(f"Output folder set to {self.out_folder}")
         logger.info(f"likelihood threshold {self.likelihood_threshold}, "
                     f"min cameras per keypoint {self.min_cameras}")
@@ -458,10 +461,6 @@ class ProcessorBatch3D(Actor):
         self._mp_step_ms = max(1, int(round(1000.0 / float(config.get('fps', 30)))))
         track_conf = float(config.get('mediapipe_min_tracking_confidence', 0.5))
         presence_conf = float(config.get('mediapipe_min_hand_presence_confidence', 0.5))
-        # Keep a lost hand's last 2D keypoints for this many frames instead of
-        # blanking them at once (0 = off).
-        self.mp_hold_frames = int(config.get('mediapipe_hold_frames', 0))
-        self._mp_held = {}   # (slot, block offset) -> [pred, age]
         delegate_name = str(config.get('mediapipe_delegate', 'CPU')).upper()
         delegate = getattr(mp_python.BaseOptions.Delegate, delegate_name)
 
@@ -710,21 +709,36 @@ class ProcessorBatch3D(Actor):
         fnums = [-1] * self.num_cameras
         caps = [None] * self.num_cameras     # wall-clock capture time (driver timestamp), if the camera sent one
 
-        for slot in range(self.num_cameras):
-            link = self.links.get(f"frames{slot}_in")
-            if link is None:
-                continue
-            msg = None
-            try:
-                msg = link.get(timeout=0.005)
-            except Exception:
-                continue
-            # Drain to the newest available frame for this camera.
-            while True:
-                try:
-                    msg = link.get_nowait()
-                except Exception:
-                    break
+        # Drain every camera without waiting. If none had a frame, sleep once (5 ms) and look again. Then, so
+        # one step holds ALL the cameras and not whichever arrived first (cameras are up to half a frame out
+        # of phase, so a step started on the first frame got 1-2 of 3 cameras 40-70% of the time, and a
+        # 1-camera step cannot triangulate), wait up to gather_wait_ms more for the cameras that were sending
+        # a moment ago. A camera silent for 0.5 s no longer holds the step up.
+        wired = [(slot, self.links[f"frames{slot}_in"]) for slot in range(self.num_cameras)
+                 if f"frames{slot}_in" in self.links]
+        newest = {}
+
+        def drain():
+            for slot, link in wired:
+                while True:
+                    try:
+                        newest[slot] = link.get_nowait()
+                    except Exception:
+                        break
+                    self._fseen[slot] = time.time()
+
+        drain()
+        if not newest:
+            time.sleep(0.005)
+            drain()
+        if newest and self.gather_wait_ms > 0:
+            deadline = time.perf_counter() + self.gather_wait_ms / 1e3
+            now = time.time()
+            expect = {s for s, _ in wired if now - self._fseen.get(s, -1e9) < 0.5}
+            while not expect <= newest.keys() and time.perf_counter() < deadline:
+                time.sleep(0.001)
+                drain()
+        for slot, msg in newest.items():
             if len(msg) >= 3:
                 frame_ids[slot], starts[slot], fnums[slot] = msg[:3]
                 if len(msg) >= 4: caps[slot] = msg[3]
@@ -784,7 +798,7 @@ class ProcessorBatch3D(Actor):
         batch_slots = sorted(frames)
         self.frame_num += 1
         self.timestamps.append(time.time())
-        self.frame_nums_received.append([fnums[s] for s in batch_slots])
+        self.frame_nums_received.append([fnums[s] for s in batch_slots] + [-1] * (self.num_cameras - len(batch_slots)))
         self.cameras_present.append(len(batch_slots))
 
         # The cameras free-run, so "the same step" is not "the same instant".
@@ -869,7 +883,7 @@ class ProcessorBatch3D(Actor):
 
         # --- 5. triangulate ---
         t0 = time.perf_counter()
-        points_3d = self._smooth_3d(self._triangulate(points_2d))
+        points_3d = self._triangulate(points_2d)
         self.triangulate_latencies.append(time.perf_counter() - t0)
 
         self._finish_step(points_3d, raw_2d, starts, fnums, batch_slots, step_start)
@@ -908,7 +922,7 @@ class ProcessorBatch3D(Actor):
             if k < H:
                 dx[slot, k], dl[slot, k], ds[slot, k] = xy, label, score
             k_of[slot] = k + 1
-        self.det_log.append((dx, dl, ds))
+        self.det_xy.append(dx); self.det_label.append(dl); self.det_score.append(ds)
         points_3d, side_of_det = self.hand_tracker.step(dets)
         raw_2d = np.full((self.num_cameras, self.n_keypoints, 3), np.nan)
         for (slot, xy, score), side in zip(origin, side_of_det):
@@ -1139,48 +1153,9 @@ class ProcessorBatch3D(Actor):
             for label, (pred, _) in best.items():
                 off = 0 if label == "right" else 21
                 raw_2d[slot, off:off + 21] = pred
-        if self.mp_hold_frames > 0:
-            self._hold_2d(raw_2d, batch_slots)
         return raw_2d
 
-    def _hold_2d(self, raw_2d, batch_slots):
-        """Fill a hand block that vanished for a few frames with its last value."""
-        for slot in batch_slots:
-            for off in range(0, self.n_keypoints, 21):
-                block = raw_2d[slot, off:off + 21]
-                key = (slot, off)
-                if np.isfinite(block[:, 0]).any():
-                    self._mp_held[key] = [block.copy(), 0]
-                elif key in self._mp_held:
-                    held = self._mp_held[key]
-                    held[1] += 1
-                    if held[1] <= self.mp_hold_frames:
-                        raw_2d[slot, off:off + 21] = held[0]
-                    else:
-                        del self._mp_held[key]
-
     # ------------------------------------------------------------------- math
-
-    def _smooth_3d(self, pts):
-        """Optional temporal cleanup of the triangulated keypoints: hold the last
-        good value through short dropouts, then EMA-blend into the new one."""
-        if self.hold_3d <= 0 and self.smooth_3d <= 0:
-            return pts
-        if self._last_3d is None:
-            self._last_3d = np.full_like(pts, np.nan)
-            self._age_3d = np.zeros(len(pts), dtype=int)
-        fresh = np.isfinite(pts).all(axis=1)
-        out = pts.copy()
-        self._age_3d = np.where(fresh, 0, self._age_3d + 1)
-        prev_ok = np.isfinite(self._last_3d).all(axis=1)
-        blend = fresh & prev_ok
-        if self.smooth_3d > 0:
-            a = self.smooth_3d
-            out[blend] = a * self._last_3d[blend] + (1 - a) * pts[blend]
-        hold = ~fresh & prev_ok & (self._age_3d <= self.hold_3d)
-        out[hold] = self._last_3d[hold]
-        self._last_3d = out.copy()
-        return out
 
     def _triangulate(self, points_2d):
         """aniposelib DLT over every camera that kept a given keypoint.
@@ -1209,28 +1184,17 @@ class ProcessorBatch3D(Actor):
             return np.full((self.n_keypoints, 3), np.nan)
 
     def _joint_angles(self, points_3d):
-        """Joint angles via dlc2kinematics' own jointangle_calc.
-
-        dlc2kinematics' batch entry point (`compute_joint_angles`) takes a whole
-        DLC DataFrame and, with save=True, will silently read back a stale .h5
-        instead of computing -- neither is usable per frame. `jointangle_calc`
-        is the primitive underneath it and is what we call directly. It insists
-        on a pandas object (`pos.values` in jointquat_calc, despite the
-        docstring claiming ndarray is fine), hence the Series wrapper.
-
-        Returns degrees, deviation-from-straight: 0 = fully extended.
+        """Joint angles, degrees, deviation from straight (0 = fully extended): the angle between the
+        proximal bone (vertex - proximal) and the distal bone (distal - vertex). Identical to dlc2kinematics'
+        jointangle_calc (shortest-rotation quaternion angle; checked 0.0 deg apart on 500 random triplets),
+        vectorised: ~0.05 ms for all joints instead of ~0.1 ms per joint through a pandas Series.
         """
-        angles = {}
-        for name, (a, b, c) in zip(self.joint_names, self.joint_idx):
-            trip = points_3d[[a, b, c]]
-            if not np.isfinite(trip).all():
-                angles[name] = float('nan')
-                continue
-            try:
-                angles[name] = float(d2k_aux.jointangle_calc(pd.Series(trip.ravel())))
-            except Exception:
-                angles[name] = float('nan')
-        return angles
+        P = points_3d[self._ja]                                   # (J, 3 points, 3)
+        v1, v2 = P[:, 1] - P[:, 0], P[:, 2] - P[:, 1]
+        with np.errstate(all='ignore'):
+            c = (v1 * v2).sum(1) / (np.linalg.norm(v1, axis=1) * np.linalg.norm(v2, axis=1))
+            ang = np.degrees(np.arccos(np.clip(c, -1.0, 1.0)))
+        return {name: float(a) for name, a in zip(self.joint_names, ang)}
 
     # ------------------------------------------------------------------- stop
 
@@ -1248,22 +1212,17 @@ class ProcessorBatch3D(Actor):
                 logger.error(f"error closing mediapipe landmarkers: {traceback.format_exc()}")
 
         try:
-            np.save(self.out_folder / "batch3d_points_2d.npy", np.asarray(self.points_2d_log))
-            np.save(self.out_folder / "batch3d_frame_nums.npy",
-                    np.asarray([f + [-1] * (self.num_cameras - len(f)) for f in self.frame_nums_received]))
-            if self.det_log:
-                np.savez_compressed(self.out_folder / "batch3d_detections.npz",
-                                    xy=np.asarray([d[0] for d in self.det_log]),
-                                    label=np.asarray([d[1] for d in self.det_log]),
-                                    score=np.asarray([d[2] for d in self.det_log]))
+            always = (self.points_2d_log, self.points_3d_log, self.angles_log, self.frame_nums_received)
+            optional = (self.points_2d_raw_log, self.points_3d_raw_log)   # raw = before Kalman / continuity
+            for log in always + tuple(l for l in optional if l):
+                np.save(self.out_folder / f"{log.dir.name}.npy", log.array())
+            if self.det_xy:
+                np.savez_compressed(self.out_folder / "batch3d_detections.npz", xy=self.det_xy.array(),
+                                    label=self.det_label.array(), score=self.det_score.array())
+            for log in always + optional + (self.det_xy, self.det_label, self.det_score):
+                log.drop_parts()
             if self.assoc_errors:
                 np.save(self.out_folder / "batch3d_assoc_reproj_px.npy", np.asarray(self.assoc_errors))
-            if self.points_2d_raw_log:
-                np.save(self.out_folder / "batch3d_points_2d_raw.npy", np.asarray(self.points_2d_raw_log))
-            np.save(self.out_folder / "batch3d_points_3d.npy", np.asarray(self.points_3d_log))
-            if self.points_3d_raw_log:        # before continuity (what was actually measured)
-                np.save(self.out_folder / "batch3d_points_3d_raw.npy", np.asarray(self.points_3d_raw_log))
-            np.save(self.out_folder / "batch3d_joint_angles.npy", np.asarray(self.angles_log))
             np.save(self.out_folder / "batch3d_joint_names.npy", np.asarray(self.joint_names))
             np.save(self.out_folder / "batch3d_bodyparts.npy", np.asarray(self.bodyparts))
             np.save(self.out_folder / "batch3d_timestamps.npy", np.asarray(self.timestamps))
