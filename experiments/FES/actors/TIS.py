@@ -295,6 +295,12 @@ class TIS:
         self.sharing_on = True
 
         self.total_start_time = time.perf_counter()
+        # the FPS log counts from here, not from start_pipeline (setup + the wait for the run to start
+        # made it read 25 fps for a camera delivering 30.00)
+        self.start_time = time.perf_counter()
+        self.frame_count = 0
+        self.total_delay = 0
+        self.max_delay = 0
     
     # @profile
     def __on_new_buffer(self, appsink):

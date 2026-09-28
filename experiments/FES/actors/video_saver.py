@@ -160,6 +160,7 @@ class VideoSaver(ManagedActor):
             while not self.q_in.empty():          # drop frames queued before the run started
                 self.q_in.get_nowait()
             self.start_program = True
+            self.frame_count, self.time_start = 0, time.perf_counter()     # writer FPS counts from here, not from setup
             self.writer_thread.start()
             self.reader_thread.start()
             logger.info(f"[Camera {self.camera_name}] recording started")

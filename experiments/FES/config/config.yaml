@@ -16,9 +16,8 @@ resize: 0.5
 # (puts native-resolution frames).
 camera_prescaled: True
 
-# Number of preds{N}_in slots SenderUDP polls each step. Independent of how many
-# cameras a yaml wires in (unwired slots are skipped cheaply). Raise if a yaml
-# wires more than 4 Processor actors to the Sender.
+# Per-camera pipeline only (actors/processor.py graphs): how many preds{N}_in
+# slots SenderUDP checks. The batched 3D graphs send on joints_in and ignore it.
 max_camera_slots: 4
 
 # ============================================================================
@@ -88,8 +87,6 @@ mediapipe_min_tracking_confidence: 0.02
 # "video" tracks a found hand between frames (far less dropout than "image",
 # which re-detects from scratch every frame).
 mediapipe_running_mode: "video"
-# Frames a lost hand's 2D keypoints stay on screen / in triangulation.
-mediapipe_hold_frames: 0   # superseded by kalman_enabled
 # CPU measured as fast as GPU here and more consistent; leave on CPU.
 mediapipe_delegate: "CPU"   # GPU measured 2x slower (71 vs 32.5 ms/step, 4 cams, 09-25)
 
@@ -118,19 +115,16 @@ kalman_measurement_var: 10
 # ============================================================================
 # 3D triangulation
 # ============================================================================
-# anipose calibration from 2026-09-23/124500 (cams 3,4,5,6 at 0.42 px; cams 0 and
-# 2 are uncalibrated and contribute no rays). Relative
-# paths resolve against experiments/FES/.
+# anipose calibration from 2026-09-25 12:49 (cams 0, 1, 2, 3, 5 at 0.42 px; 4 and 6
+# uncalibrated, so they contribute no rays). Cams 1 and 5 were moved when the chair
+# came in afterwards: recalibrate for the new layout. Graphs can override this per run
+# (ProcessorBatch3D config_overrides). Relative paths resolve against experiments/FES/.
 calibration_toml: 'calibration/2026-09-25_124900/calibration.toml'
 # camera_num -> camera name inside calibration_toml. Defaults to "cam{N}".
 calibration_camera_names: {}
-# [width, height] the calibration was solved at; live frames are rescaled into
-# it. Leave unset when they already match (960x540 today).
-# calibration_frame_size: removed -- the scale now comes from the calibration toml vs the live frame size
-
-# Keypoints below this confidence are set NaN per camera before triangulation.
-# With mediapipe this gates on the per-hand handedness score (all 21 keypoints
-# or none); real detections measure 0.97-1.0, so 0.3 is generous.
+# Live 2D points are rescaled into each camera's calibrated frame size (from the toml)
+# automatically. Keypoints below `threshold` are dropped before triangulation (with
+# mediapipe that is the per-hand handedness score, 0.97-1.0 for real detections).
 # Minimum cameras that must retain a keypoint. 2 is the geometric minimum.
 triangulation_min_cameras: 2
 
@@ -168,31 +162,6 @@ held_hand:
   radius_px: 40          # 2D distance from its usual image position, every camera
   side: left             # output block (left_* joints)
   smooth: {min_cutoff: 1.0, beta: 0.05, max_gap: 5}
-# 3D temporal cleanup: hold a lost keypoint N frames; EMA weight on the previous
-# frame (0 = off, 0.5 = moderate).
-triangulation_hold_frames: 0
-triangulation_smooth_alpha: 0.0
-
-# ============================================================================
-# ProcessorJarvis (actors/processor_jarvis.py)
-# ============================================================================
-# Fine-tuned JARVIS EfficientTrack whole-hand 11-keypoint model (run
-# finetune_monkeyhand, see 02_jarvis_finetune.ipynb). The same weights are
-# repeated per camera_num on purpose.
-jarvis_model_size: 'medium'
-# Must match KEYPOINTDETECT.BOUNDING_BOX_SIZE used in the fine-tune (cfg_ft,
-# section 4); not a free tuning knob.
-jarvis_bbox_size: 512
-# CenterDetect heatmap peak must exceed this to count as a detection.
-jarvis_center_threshold: 40
-jarvis_center_weights_0: &jarvis_center '/home/chesteklab/Desktop/hand-tracking-notebooks-jake-2026-08-17/jarvis/JARVIS-HybridNet/projects/fisk_freebie_finetune/models/CenterDetect/finetune_monkeyhand/EfficientTrack-medium_final.pth'
-jarvis_keypoint_weights_0: &jarvis_keypoint '/home/chesteklab/Desktop/hand-tracking-notebooks-jake-2026-08-17/jarvis/JARVIS-HybridNet/projects/fisk_freebie_finetune/models/KeypointDetect/finetune_monkeyhand/EfficientTrack-medium_final.pth'
-jarvis_center_weights_1: *jarvis_center
-jarvis_keypoint_weights_1: *jarvis_keypoint
-jarvis_center_weights_2: *jarvis_center
-jarvis_keypoint_weights_2: *jarvis_keypoint
-jarvis_center_weights_3: *jarvis_center
-jarvis_keypoint_weights_3: *jarvis_keypoint
 
 # ============================================================================
 # CPU core placement (actors/cpu_affinity.py)
@@ -200,14 +169,15 @@ jarvis_keypoint_weights_3: *jarvis_keypoint
 # Hybrid CPU: cpu0-15 are SMT pairs of 8 P-cores, cpu16-31 are 16 E-cores. The
 # same inference measured 6.3-6.6 ms on a P-core vs 11.4-12.0 ms on an E-core
 # (1.72x), which showed up as a 1.79x per-camera spread in run 20260804-1432.
-# With 4 cameras: Processor cam0..3 -> cpu[8,9] [10,11] [0,1] [2,3];
-# CameraReader cam0..3 -> [4,5] [6,7] [14,15] [12,13]; VideoSaver / VideoScreen /
-# SenderUDP share E-cores 16-31. ProcessorBatch3D is one process, so it claims
-# all `compute_slots` P-cores itself. Set enabled: false to let the scheduler decide.
+# Placement (core 0 excluded, so 7 physical P-cores): ProcessorBatch3D claims the
+# first `compute_slots` P-cores ([8,9] [10,11] [2,3] [4,5]); CameraReaders take the
+# next ones in camera_num order ([6,7] [14,15] [12,13]) and any beyond that go to the
+# E-cores with the VideoSavers, GUI, sender and BO actors. Set enabled: false to let
+# the scheduler decide.
 cpu_affinity:
   enabled: true
-  # Physical P-cores reserved for Processors before CameraReaders claim any.
-  # Defaults to max_camera_slots.
+  # Physical P-cores for the processor(s) before CameraReaders claim any. ProcessorBatch3D
+  # (mediapipe) uses this many (4 cameras: 31.7 ms/step on 4 cores vs 29.2 on 7).
   compute_slots: 4
   # Cores handed out last. cpu12/13 carry the xhci USB interrupt for the cameras
   # (IRQ 132); scripts/setup_realtime.sh moves it to cpu31.

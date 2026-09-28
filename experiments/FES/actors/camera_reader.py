@@ -1,3 +1,4 @@
+import re
 import yaml
 import math
 import time
@@ -29,7 +30,12 @@ class CameraReader(ManagedActor):
         # native capture (camera_config resolution) and sit directly in the
         # end-to-end path, so they get a P-core when one is left after the
         # processor's; readers beyond that run on the E-cores (cpu_affinity).
-        cpu_affinity.pin_actor(cpu_affinity.CAPTURE, slot=self.camera_num,
+        # slot = wiring order (the N of GeneratorN in the graph), which is dense 0..k-1. The physical
+        # camera number is not: cameras 0, 2, 3 used slots 0, 2, 3, so camera 3 found no P-core left
+        # although three were free.
+        m = re.search(r"(\d+)$", str(self.name))
+        slot = int(m.group(1)) if m else self.camera_num
+        cpu_affinity.pin_actor(cpu_affinity.CAPTURE, slot=slot,
                                label=f"CameraReader cam{self.camera_num}")
 
         # store init
@@ -114,15 +120,7 @@ class CameraReader(ManagedActor):
             fps_val = float(str(self.fps).split('/')[0]) / float(
                 str(self.fps).split('/')[1]) if '/' in str(self.fps) else float(self.fps)
             period = 1.0 / fps_val
-            # mode "stagger": camera k starts k/slots of a frame late (spreads GPU work across independent
-            # per-camera processors). mode "align": every camera starts on the same clock edge, so their
-            # frames are in phase -- what triangulation wants. A free-running camera keeps the phase it
-            # started at, so without this the cross-camera skew was random per run (0.3 ms in run
-            # 20260928-1009, 16.8 ms in 1011: front_right was opened 184 ms later, i.e. half a frame).
-            if str(stagger_cfg.get('mode', 'stagger')).lower() == 'align':
-                offset = 0.0
-            else:
-                offset = (self.camera_num % max(n_slots, 1)) * period / max(n_slots, 1)
+            offset = (self.camera_num % max(n_slots, 1)) * period / max(n_slots, 1)
 
             # Align to a wall-clock epoch every reader computes identically, so
             # the offsets are relative to a shared origin rather than to each

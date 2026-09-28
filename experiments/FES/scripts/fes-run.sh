@@ -36,9 +36,21 @@ set -uo pipefail
 export MALLOC_MMAP_THRESHOLD_="${MALLOC_MMAP_THRESHOLD_:-33554432}"
 export MALLOC_TRIM_THRESHOLD_="${MALLOC_TRIM_THRESHOLD_:--1}"
 
+# Frames expire from the Redis store after this many seconds (improv/store.py; improv's default is 60).
+# Every consumer takes a frame within milliseconds -- the VideoSavers stream them to disk as they arrive --
+# so 15 s is ample and keeps ~6.5 GB of frames in RAM at 7 cameras instead of ~26 GB.
+export IMPROV_STORE_TTL_S="${IMPROV_STORE_TTL_S:-15}"
+
 FES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONDA_ENV="${FES_CONDA_ENV:-improvPytorchJarvis}"
 DEFAULT_YAML="graphs/latency_benchmarking.yaml"
+
+# Pin THIS script (and so everything it starts: the preflight checks, `improv cleanup`, improv) off the faulty
+# cores before anything runs. Only the final `improv run` used to be pinned, so `improv cleanup` ran on cpu0/1
+# and hit a kernel oops there at the start of every run (journalctl -k: "Comm: improv", CPU 0/1, seconds before
+# "new improv server session"). FES_CPUS overrides; cpu_affinity.exclude_cpus in config.yaml is the same list.
+FES_CPUS="${FES_CPUS:-2-$(( $(nproc --all) - 1 ))}"
+taskset -pc "$FES_CPUS" $$ >/dev/null 2>&1 || echo "[fes] warning: could not pin to CPUs $FES_CPUS" >&2
 
 AUTO=0
 CHECKS=1
