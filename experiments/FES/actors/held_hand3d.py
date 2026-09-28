@@ -2,12 +2,14 @@
 two-hand DLC model, frame by frame. `hand_association: region` in ProcessorBatch3D.
 
 Why not hand_assoc3d.py: DLC gives a keypoint-level likelihood and its right/left labels are unreliable
-across cameras, and the held hand is partly hidden, so whole-hand matching fails. Per step:
-  1. each camera's two DLC hands: every combination (one hand per camera) is triangulated, keypoints need
-     likelihood >= `likelihood` and must reproject within `max_px` in every camera that sees them;
-  2. keep the combination whose hand sits where the target hand lives: 3D centre within `radius_mm` of its
-     place AND, in every camera, 2D centre within `radius_px` of its usual image position (with only two
-     cameras a wrong match can reproject perfectly, e.g. the monkey's chin matched to the hand);
+across cameras, and the held hand is partly hidden, so whole-hand matching fails. Per step (after warm-up):
+  1. in each camera, of its two DLC hands take the one whose image centre (median of keypoints with
+     likelihood >= `likelihood`) is nearest the target hand's usual image position, within `radius_px`
+     (with only two cameras a wrong match can reproject perfectly, e.g. the monkey's chin, so the image
+     position matters); cameras with neither hand there sit the frame out;
+  2. triangulate that one assignment (keypoints must reproject within `max_px` in every camera that sees
+     them) and keep it if its 3D centre is within `radius_mm` of the hand's place. One triangulation per
+     step, whatever the number of cameras (it used to try every combination: 2^cameras);
   3. causal One-Euro filter per keypoint (missing keypoints keep their state; reset after `max_gap` frames).
 The place is learned from the first `warmup_s` seconds (both hands clustered, numbered left -> right in
 camera `order_camera`'s image, `hand` picks one) and then fixed. Nothing is output during warm-up.
@@ -56,25 +58,58 @@ class HeldHandTracker:
         self.warm = []
         self.centre = self.home = None
 
+    def _solve(self, views, pick):
+        """Triangulate the hands picked per camera ({calib_row: 0 or 21}). Keypoints need likelihood >= lik in
+        >= 2 cameras and must reproject within max_px in every camera that sees them. (21, 3) or None."""
+        pts = np.full((self.nrow, 21, 2), np.nan)
+        for r, off in pick.items():
+            h = views[r][off:off + 21]
+            ok = h[:, 2] >= self.lik
+            pts[r][ok] = h[ok, :2]
+        seen = np.isfinite(pts[..., 0]).sum(0) >= 2
+        if seen.sum() < 3:
+            return None
+        pts[:, ~seen] = np.nan
+        q = self.cg.triangulate(pts, progress=False)
+        e = np.linalg.norm(self.cg.project(q) - pts, axis=-1)
+        ok = (np.nanmax(np.where(np.isfinite(e), e, 0), axis=0) <= self.max_px) & seen
+        return np.where(ok[:, None], q, np.nan) if ok.sum() >= 3 else None
+
     def _candidates(self, views):
-        """views: {calib_row: (2 * 21, 3) x, y, likelihood}. Yields (3D (21, 3), used-rows)."""
-        rows = list(views)
+        """Warm-up only: every combination of one DLC hand per camera, over the (at most) 3 cameras with the
+        most confident keypoints -- 2^3 triangulations instead of 2^cameras. Yields (3D (21, 3), rows)."""
+        conf = {r: (v[:, 2] >= self.lik).sum() for r, v in views.items()}
+        rows = sorted(views, key=lambda r: -conf[r])[:3]
         for pick in itertools.product((0, 21), repeat=len(rows)):
-            pts = np.full((self.nrow, 21, 2), np.nan)
-            for r, off in zip(rows, pick):
-                h = views[r][off:off + 21]
-                ok = h[:, 2] >= self.lik
-                pts[r][ok] = h[ok, :2]
-            seen = np.isfinite(pts[..., 0]).sum(0) >= 2
-            if seen.sum() < 3:
-                continue
-            pts[:, ~seen] = np.nan
-            q = self.cg.triangulate(pts, progress=False)
-            e = np.linalg.norm(self.cg.project(q) - pts, axis=-1)
-            ok = np.nanmax(np.where(np.isfinite(e), e, 0), axis=0) <= self.max_px
-            ok &= seen
-            if ok.sum() >= 3:
-                yield np.where(ok[:, None], q, np.nan), rows
+            q = self._solve(views, dict(zip(rows, pick)))
+            if q is not None:
+                yield q, rows
+
+    def _hand_centre(self, h):
+        ok = h[:, 2] >= self.lik
+        return np.median(h[ok, :2], 0) if ok.sum() >= 3 else None
+
+    def _tracked(self, views):
+        """After warm-up: in each camera, the DLC hand whose image centre is nearest the held hand's usual
+        position (within radius_px), then ONE triangulation; the 3D centre must be within radius_mm of its place."""
+        pick = {}
+        for r, v in views.items():
+            best = None
+            for off in (0, 21):
+                c = self._hand_centre(v[off:off + 21])
+                if c is None:
+                    continue
+                d = np.linalg.norm(c - self.home[r])
+                if d < self.radius_px and (best is None or d < best[0]):
+                    best = (d, off)
+            if best is not None:
+                pick[r] = best[1]
+        if len(pick) < 2:
+            return None
+        q = self._solve(views, pick)
+        if q is None or np.linalg.norm(np.nanmean(q, 0) - self.centre) >= self.radius_mm:
+            return None
+        return q
 
     def _centre2d(self, q):
         return {r: np.nanmedian(self.cg.project(q)[r], 0) for r in range(self.nrow)}
@@ -83,21 +118,13 @@ class HeldHandTracker:
         """t: capture time (s); views: {calib_row: (42, 3)}. Returns (21, 3) mm or None."""
         if self.t0 is None:
             self.t0 = t
-        cands = list(self._candidates(views)) if len(views) >= 2 else []
         if self.centre is None:
-            self.warm += [q for q, _ in cands]
+            if len(views) >= 2:
+                self.warm += [q for q, _ in self._candidates(views)]
             if t - self.t0 >= self.warmup_s and len(self.warm) >= 20:
                 self._learn()
             return None
-        best = None
-        for q, rows in cands:
-            if np.linalg.norm(np.nanmean(q, 0) - self.centre) >= self.radius_mm:
-                continue
-            c2 = self._centre2d(q)
-            if any(np.linalg.norm(c2[r] - self.home[r]) >= self.radius_px for r in rows):
-                continue
-            if best is None or np.isfinite(q[:, 0]).sum() > np.isfinite(best[:, 0]).sum():
-                best = q
+        best = self._tracked(views) if len(views) >= 2 else None
         p = self.filter.step(best if best is not None else np.full((21, 3), np.nan))
         return p if np.isfinite(p[:, 0]).any() else None
 
