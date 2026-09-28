@@ -234,10 +234,14 @@ def pin_actor(role, slot=0, config=None, label=None, n_slots=1):
         return None
 
     index = slot if role == COMPUTE else n_compute + slot
+    if index >= len(pool) and role == CAPTURE and e_cores:
+        # No P-core left for this camera reader (7 cameras: 7 usable P-cores, compute_slots of them for
+        # the processor). Wrapping would put it on a processor core -- the processor is the latency-critical
+        # actor -- so it joins the E-cores instead. GStreamer's conversion there costs ~1 ms, not frames.
+        return _apply(e_cores, label, "background pool (no P-core left for capture)")
     if index >= len(pool):
         # More actors than physical cores. Wrap rather than fail; the placement
-        # is still deterministic, just shared. This is the >=5 camera regime,
-        # where the answer is crop+batch in one process, not more processes.
+        # is still deterministic, just shared.
         logger.warning(
             f"{label}: wants physical core #{index} but only {len(pool)} exist; "
             f"sharing core #{index % len(pool)}. Beyond {len(pool) - n_compute} "

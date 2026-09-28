@@ -1,3 +1,4 @@
+import threading
 import time
 import numpy as np
 import cv2
@@ -227,7 +228,41 @@ class TIS:
             logger.warning(f"[Camera {self.camera_name}] no pipeline clock, capture times disabled: {error}")
             self._clock_offset = None
 
+        self._last_frame_wall = time.time()
+        self._watch_stop = threading.Event()
+        threading.Thread(target=self._watch, daemon=True, name=f"tis-watch-{self.camera_name}").start()
         return True
+
+    #: A camera that delivers nothing for this long is reported (once, and again when it recovers).
+    STALL_S = 2.0
+
+    def _watch(self):
+        """Report pipeline errors (a USB camera dropping out posts one) and cameras that stop delivering
+        frames. Nothing else listens to the bus, so a disconnect used to leave a silent, frameless actor."""
+        bus = self.pipeline.get_bus()
+        kinds = Gst.MessageType.ERROR | Gst.MessageType.EOS | Gst.MessageType.WARNING
+        stalled = False
+        while not self._watch_stop.is_set():
+            msg = bus.timed_pop_filtered(500 * Gst.MSECOND, kinds)
+            if msg is not None:
+                if msg.type == Gst.MessageType.ERROR:
+                    err, dbg = msg.parse_error()
+                    logger.error(f"[Camera {self.camera_name}] pipeline ERROR: {err.message} ({dbg})")
+                elif msg.type == Gst.MessageType.WARNING:
+                    err, dbg = msg.parse_warning()
+                    logger.warning(f"[Camera {self.camera_name}] pipeline warning: {err.message}")
+                else:
+                    logger.error(f"[Camera {self.camera_name}] pipeline end-of-stream: camera gone?")
+            if not self.sharing_on:
+                continue
+            idle = time.time() - self._last_frame_wall
+            if not stalled and idle > self.STALL_S:
+                stalled = True
+                logger.error(f"[Camera {self.camera_name}] no frames for {idle:.1f} s (frame {self.frame_num}): "
+                             f"camera disconnected or stalled?")
+            elif stalled and idle < 0.5:
+                stalled = False
+                logger.warning(f"[Camera {self.camera_name}] frames again (frame {self.frame_num})")
 
     def _capture_time(self, buf):
         """Wall-clock time this buffer was captured, or None if the buffer has no timestamp."""
@@ -268,6 +303,7 @@ class TIS:
         sample = appsink.get_property('last-sample')
 
         if sample is not None and self.sharing_on:
+            self._last_frame_wall = time.time()
             buf = sample.get_buffer()
             camera_start = time.time()
             self.cameraStarts.append(camera_start)
@@ -347,6 +383,8 @@ class TIS:
 
         self.sharing_on = False
         self.stop_program = True
+        if hasattr(self, '_watch_stop'):
+            self._watch_stop.set()
         
         self.pipeline.set_state(Gst.State.PAUSED)
         self.pipeline.set_state(Gst.State.READY)

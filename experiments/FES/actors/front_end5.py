@@ -24,7 +24,7 @@ logging.getLogger('matplotlib.font_manager').setLevel(logging.WARNING)
 # connect (looked up to indices at draw time); None means "chain consecutive
 # points in list order" instead, which is what the two DLC schemes always did.
 # circle_d/font_pt are sized down for the 11-point JARVIS hand model
-# (actors/processor_jarvis.py), which packs far more keypoints into the same
+# (actors/processor_jarvis.py, removed 2026-09-26; in git history), which packs far more keypoints into the same
 # frame area than the old single-finger DLC models (1 or 4 points) did -- the
 # original circle_d=50/font_pt=50 would heavily overlap between fingers.
 _KEYPOINT_SCHEMES = {
@@ -40,7 +40,7 @@ _KEYPOINT_SCHEMES = {
         "circle_d": 50,
         "font_pt": 50,
     },
-    11: {  # JARVIS whole-hand fine-tune (processor_jarvis.py, fisk_freebie)
+    11: {  # JARVIS whole-hand fine-tune (processor_jarvis.py, removed; fisk_freebie)
         "labels": ["Wrist", "Thumb_Tip", "Thumb_IP", "Index_Tip", "Index_MCP",
                    "Middle_Tip", "Middle_MCP", "Ring_Tip", "Ring_MCP", "Small_Tip", "Small_MCP"],
         "skeleton": [
