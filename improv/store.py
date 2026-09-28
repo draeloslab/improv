@@ -22,6 +22,10 @@ import time
 
 REDIS_GLOBAL_TOPIC = "global_topic"
 
+
+#: Seconds a put() object lives in Redis (env IMPROV_STORE_TTL_S; experiments/FES/scripts/fes-run.sh sets 15).
+STORE_TTL_S = int(os.environ.get("IMPROV_STORE_TTL_S", "60"))
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
@@ -139,17 +143,12 @@ class RedisStoreInterface(StoreInterface):
             if pckl is None:
                 logger.error("Could not pickle object {}".format(object_key))
 
-            ret_val = self.client.set(object_key, pckl, nx=False, ex=60) # ex=60 # expire in 60 seconds
+            # Objects expire after IMPROV_STORE_TTL_S seconds (default 60). Nothing deletes them otherwise, so
+            # this bounds the store: at 7 cameras x 30 fps x 2 MB, 60 s is ~26 GB of frames in RAM.
+            self.client.set(object_key, pckl, nx=False, ex=STORE_TTL_S)
         except Exception:
             logger.error("Could not store object {}".format(object_key))
             logger.error(traceback.format_exc())
-
-        # if not ret_val: logger.error(f'Redis set returned {ret_val} for key {object_key}')
-        else: 
-            # logger.error(f'Redis set successfully returned {ret_val} for key {object_key}')
-            ttl = self.client.ttl(object_key)
-            # logger.debug(f"Key {object_key} TTL immediately after set: {ttl} seconds")
-
         return object_key
 
     def get(self, object_key):
