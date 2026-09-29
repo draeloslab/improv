@@ -679,9 +679,19 @@ class Nexus:
         # killing existing processes on the store port - otherwise Redis will not be able to start
         logger.info("Kill redis process function called")
 
+        port = int(self.store_port)
         try:
-            # Run the command without requiring a password
-            subprocess.run(f"sudo lsof -t -i :{self.store_port} | xargs sudo kill -9", shell=True)
+            # Our own leftover redis needs no privileges; only fall back to sudo (which can
+            # prompt for a password) if something else, e.g. the systemd redis-server, holds the port.
+            subprocess.run(f"lsof -t -i :{port} | xargs -r kill -9", shell=True)
+            time.sleep(0.2)
+            # ss sees every user's listeners; plain lsof only shows our own.
+            if subprocess.run(f"ss -ltn 'sport = :{port}' | tail -n +2", shell=True, capture_output=True).stdout.strip():
+                logger.warning(
+                    f"Port {port} is held by a process we can't kill (likely the system redis-server); "
+                    "using sudo. To avoid this: sudo systemctl disable --now redis-server"
+                )
+                subprocess.run(f"sudo lsof -t -i :{port} | xargs -r sudo kill -9", shell=True)
         except Exception as e:
             print(f"Error killing Redis process: {e}")
 
