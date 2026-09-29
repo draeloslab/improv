@@ -42,7 +42,7 @@ actors:
   #   package: actors.generator
   #   class: Generator
   #   camera_num: 2
-  #   video_path: '/home/chesteklab/camera_video/2026-09-25/115200/camera_video_2_0925_1152.mp4'
+  #   video_path: '/home/chesteklab/camera_video/2026-09-28/133300/camera_video_2_0928_1333.mp4'
 
   Processor0:
     package: actors.processor
