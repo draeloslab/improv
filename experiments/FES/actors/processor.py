@@ -384,7 +384,7 @@ class Processor(Actor):
                         angle = smoothed_prediction[1][1] # Just take the y value of the PIP joint as a proxy for angle, since actual angle calc is noisy
                     else:
                         logger.debug(f"Camera {self.camera_num}: Prediction shape insufficient for angle calculation: {smoothed_prediction.shape}")
-                        angle = smoothed_prediction[0][1]  # Just treat the x value as angle for queue
+                        angle = smoothed_prediction[0][1]  # the keypoint's y pixel (1-keypoint models), sent as the 'angle'
 
                     # Only feed real numbers into the smoothing window. A single NaN
                     # used to poison np.mean for the whole 15-frame deque, which is

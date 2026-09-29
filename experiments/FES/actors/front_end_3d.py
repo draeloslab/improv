@@ -172,9 +172,13 @@ class Camera3DWidget(QWidget):
             self.plot3d_widget.setBackground('k')
             self.plot3d_widget.setTitle("3D Hand Skeleton", color='w')
             self.plot3d_widget.setAspectLocked(True)
-            # Locked view: a fixed window (mm) around a slowly-tracked centre, so
-            # the skeleton neither rescales nor jitters as keypoints come and go.
-            self._view_half = float(config.get('view_half_range_mm', 400))
+            # Window (mm) around a slowly-tracked centre, fitted to the hand: it
+            # shrinks to the skeleton's projected extent + margin, never below
+            # view_half_range_mm, and changes slowly so it doesn't jitter as
+            # keypoints come and go. The old fixed 400 mm left a hand (~180 mm)
+            # a fifth of the panel.
+            self._view_half_min = float(config.get('view_half_range_mm', 120))
+            self._view_half = self._view_half_min
             self._view_centre = None
             self.plot3d_widget.getPlotItem().setMouseEnabled(x=False, y=False)
             self.plot3d_widget.getPlotItem().disableAutoRange()
@@ -369,6 +373,14 @@ class Camera3DWidget(QWidget):
         centre = self._view_centre
         centred = points_3d - centre
         proj = self._project(centred)   # (K, 2), NaN rows where not finite
+
+        # Fit the window to the skeleton (both hands when both are tracked):
+        # grow at once when something would leave the panel, shrink slowly.
+        # (capped at the old 400 mm so one mis-triangulated point can't shrink the hand to a dot)
+        need = min(400.0, max(self._view_half_min, 1.15 * float(np.abs(proj[finite]).max())))
+        self._view_half = need if need > self._view_half else 0.97 * self._view_half + 0.03 * need
+        self.plot3d_widget.setRange(xRange=(-self._view_half, self._view_half),
+                                    yRange=(-self._view_half, self._view_half), padding=0)
 
         self.kp_scatter.setData(pos=proj[finite])
 

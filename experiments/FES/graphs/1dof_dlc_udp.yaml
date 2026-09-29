@@ -7,15 +7,17 @@
 #
 # Processor (actors/processor.py) runs the per-camera DLC model
 # (config.yaml: model_path_2 / model_snapshot_2, a PIP-only model) and emits ONE
-# scalar per frame: the X pixel of the PIP keypoint (a 1-keypoint model falls
-# into processor.py's "<3 points -> take x" branch), Kalman-filtered and divided
-# by `resize`.
+# scalar per frame: the Y pixel of the PIP keypoint (a 1-keypoint model falls
+# into processor.py's "<3 points" branch, which takes prediction[0][1] = y),
+# Kalman-filtered and divided by `resize` (full-resolution pixels; ~930-1020 on
+# 09-28). Before the first detection of a run it is sent as null.
 #
 # SenderUDP sends [packet_n, {"2": <that scalar>}] to SENDER_UDP_IP:SENDER_UDP_PORT
 # (env vars; defaults 192.168.137.201:11115, the port the brand `vision` node
-# listens on). The brand side therefore sees vision_data.angles == {"2": x_px}
-# and angles_vec == [x_px]. It is RAW PIXELS, not degrees -- map it to the
-# task's range in the brand-side node that consumes vision_data.
+# listens on). The brand side therefore sees vision_data.angles == {"2": y_px}
+# and angles_vec == [y_px]. It is RAW PIXELS, not degrees -- vision_dofs's
+# angle_range is a pixel range [extended, flexed] (brand-monkeyrig
+# graphs/monkey/rhodes_1d_universal.yaml).
 #
 # VideoSaver2 records camera 2's frames (camera_num indexes active_cameras in
 # camera_config.yaml, so it must match CameraReader0's camera_num).
@@ -31,10 +33,16 @@ actors:
     class: VideoScreen
     num_active_cameras: 1
 
-  CameraReader0:
+  Generator0:
     package: actors.camera_reader
     class: CameraReader
     camera_num: 2
+
+  # Generator0:
+  #   package: actors.generator
+  #   class: Generator
+  #   camera_num: 2
+  #   video_path: '/home/chesteklab/camera_video/2026-09-25/115200/camera_video_2_0925_1152.mp4'
 
   Processor0:
     package: actors.processor
@@ -55,7 +63,7 @@ actors:
     method: spawn
 
 connections:
-  CameraReader0.q_out: [Processor0.q_in, VideoScreen.images0_in, VideoSaver2.q_in]
+  Generator0.q_out: [Processor0.q_in, VideoScreen.images0_in, VideoSaver2.q_in]
   Processor0.q_out: [SenderUDP.preds0_in, VideoScreen.preds0_in]
 
 redis_config:
