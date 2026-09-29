@@ -65,6 +65,20 @@ class SenderUDP(Actor):
     stream above is untouched. Requests are never dropped or merged. Protocol:
     actors/brand_link.py.
 
+    3D keypoints (hand-control task, BRAND hand3d node)
+    ---------------------------------------------------
+    With a `keypoint_port` kwarg (graph) and `joints_in` wired, every fresh
+    ProcessorBatch3D step also sends one hand's 21 keypoints (MediaPipe order,
+    mm, calibration frame; null = not triangulated) to
+    (SENDER_UDP_IP, keypoint_port):
+
+        {"type": "hand3d", "n": 812, "frame": 1523, "t_cam": 1759...,
+         "hand": "right", "names": ["WRIST", ..., "PINKY_TIP"],
+         "points": [[x, y, z] | null, ...21]}
+
+    keypoint_hand picks the block when both hands are tracked: "right" (rows
+    0-20), "left" (rows 21-41) or "auto" (whichever has more points this step).
+
     Joint angles are in degrees, deviation from
     straight (0 = fully extended), from dlc2kinematics. A joint that could not
     be triangulated this frame (fewer than two confident views) is sent as
@@ -72,8 +86,10 @@ class SenderUDP(Actor):
     measured" from "measured as 0", which is a perfectly normal extended joint.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, keypoint_port=None, keypoint_hand="auto", **kwargs):
         super().__init__(*args, **kwargs)
+        self.keypoint_port = int(keypoint_port) if keypoint_port else None
+        self.keypoint_hand = keypoint_hand
 
     def setup(self):
         logger.info("Beginning setup for SenderUDP")
@@ -150,6 +166,15 @@ class SenderUDP(Actor):
         self.stim_port = link_settings()['stim_port']
         self.stim_sent = []          # (time sent, request dict)
 
+        # --- 3D keypoints (only when keypoint_port is set) ---
+        self.keypoints_sent = 0
+        if self.keypoint_port:
+            if not (0 < self.keypoint_port < 65536):
+                raise ValueError(f"Invalid keypoint_port {self.keypoint_port}")
+            if self.keypoint_hand not in ("auto", "right", "left"):
+                raise ValueError(f"keypoint_hand must be auto/right/left, not {self.keypoint_hand!r}")
+            logger.info(f"3D keypoints ({self.keypoint_hand} hand) -> {resolved_ip}:{self.keypoint_port}")
+
         # Percentiles for robust min/max (filters outliers)
         self.min_percentile = 1
         self.max_percentile = 99
@@ -221,6 +246,36 @@ class SenderUDP(Actor):
         self._pending_joint_frame = msg.get('frame_num', -1)
         return msg
 
+    def _send_keypoints(self, msg):
+        """One hand's 21 keypoints -> BRAND's hand3d node (see class docstring)."""
+        pts = msg.get('points_3d')
+        if pts is None:
+            return
+        pts = np.asarray(pts, dtype=float).reshape(-1, 3)
+        names = list(msg.get('bodyparts') or [])
+        if len(pts) >= 42:
+            n_ok = [int(np.isfinite(pts[o:o + 21]).all(axis=1).sum()) for o in (0, 21)]
+            side = self.keypoint_hand
+            if side == "auto":
+                side = "right" if n_ok[0] >= n_ok[1] else "left"
+            o = 0 if side == "right" else 21
+        elif len(pts) == 21:
+            side, o = "single", 0
+        else:
+            return      # not an MP21 hand layout; nothing the hand3d node can use
+        block = pts[o:o + 21]
+        payload = {
+            "type": "hand3d", "n": self.keypoints_sent, "frame": int(msg.get('frame_num', -1)),
+            "t_cam": msg.get('camera_start'), "hand": side,
+            "names": names[o:o + 21] if len(names) >= o + 21 else None,
+            "points": [[round(float(v), 2) for v in p] if np.isfinite(p).all() else None for p in block],
+        }
+        try:
+            self.sock_send.sendto(json.dumps(payload).encode('utf-8'), (self.UDP_IP_send, self.keypoint_port))
+            self.keypoints_sent += 1
+        except Exception as e:
+            logger.error(f"could not send 3D keypoints: {e}")
+
     def _send_stims(self):
         """Forward every pending stimulation request to BRAND (none dropped)."""
         link = self.links.get("stim_in")
@@ -244,6 +299,8 @@ class SenderUDP(Actor):
 
         # --- 3D joint angles, if this yaml wires ProcessorBatch3D ---
         fresh_joints = self._poll_joints()
+        if fresh_joints is not None and self.keypoint_port:
+            self._send_keypoints(fresh_joints)
         self._send_stims()
 
         for slot in range(self.max_camera_slots):
@@ -295,7 +352,8 @@ class SenderUDP(Actor):
         for cam, (angle, _camera_start, frame_num) in fresh_this_step.items():
             self.last_angle[cam] = angle
             self.last_frame_num[cam] = frame_num
-            self.angle_history[cam].append(angle)
+            if angle is not None:
+                self.angle_history[cam].append(angle)
 
         if self.packet_n % 10000 == 0:
             logger.info(f"Sending angles: "
@@ -315,7 +373,9 @@ class SenderUDP(Actor):
                 for name, v in ((n, self.last_joint_angles.get(n)) for n in self.joint_names)
             }
         else:
-            angles_out = {str(cam): float(self.last_angle[cam]) for cam in sorted(self.last_angle)}
+            # None (no detection yet this run) / NaN -> null, as in 3D mode; float(None) used to raise here
+            angles_out = {str(cam): (float(a) if a is not None and np.isfinite(a) else None)
+                          for cam, a in ((c, self.last_angle[c]) for c in sorted(self.last_angle))}
         payload = [self.packet_n, angles_out]
 
         try:
@@ -433,6 +493,8 @@ class SenderUDP(Actor):
         np.save(self.out_folder / "senderStartTimes.npy", self.send_timestamps)
 
         logger.info(f"Total UDP packets sent: {self.packet_n}")
+        if self.keypoint_port:
+            logger.info(f"3D keypoint packets sent: {self.keypoints_sent}")
         logger.info(f"Steps skipped (no fresh data from any camera): {self.skipped_steps}")
         for cam in sorted(self.fresh):
             logger.info(f"Fresh cam{cam} predictions: {sum(self.fresh[cam])} / {len(self.fresh[cam])}")
