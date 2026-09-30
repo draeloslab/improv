@@ -118,10 +118,13 @@ kalman_measurement_var: 10
 # anipose calibration from 2026-09-25 12:49 (cams 0, 1, 2, 3, 5 at 0.42 px; 4 and 6
 # uncalibrated, so they contribute no rays). Cams 1 and 5 were moved when the chair
 # came in afterwards: recalibrate for the new layout. Graphs can override this per run
+
+
+calibration_frame_size: [960, 720]
 # (ProcessorBatch3D config_overrides). Relative paths resolve against experiments/FES/.
-calibration_toml: 'calibration/2026-09-25_124900/calibration.toml'
+calibration_toml: 'calibration/2026-09-29_124200/calibration.toml'
 # camera_num -> camera name inside calibration_toml. Defaults to "cam{N}".
-calibration_camera_names: {}
+calibration_camera_names: {6: cam2}   # 09-29 recording saved physical cam 6 as cam2
 # Live 2D points are rescaled into each camera's calibrated frame size (from the toml)
 # automatically. Keypoints below `threshold` are dropped before triangulation (with
 # mediapipe that is the per-hand handedness score, 0.97-1.0 for real detections).

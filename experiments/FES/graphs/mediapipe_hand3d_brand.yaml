@@ -12,7 +12,8 @@
 # SenderUDP picks one hand for BRAND: keypoint_hand auto = whichever block has more keypoints this step
 # (set right/left to pin it when a second person's hand is in view).
 #
-# Cameras: 0, 2, 3 are the ones the 2026-09-25 calibration still fits (1 and 5 moved that day). Add
+# Cameras: physical 0, 6, 3 are calibrated by 2026-09-29_124200. That recording (7cam_test) saved physical
+# cam 6 as "cam2", so config.yaml maps calibration_camera_names {6: cam2}. Add
 # cameras by adding a Generator/VideoSaver pair, its camera_num to camera_nums and the calibration.
 #
 # Run: SENDER_UDP_IP=<brand ip> fes-run.sh mediapipe_hand3d_brand.yaml   (env improvPytorchJarvis)
@@ -29,14 +30,16 @@ actors:
     num_active_cameras: 3
 
   Generator0: {package: actors.camera_reader, class: CameraReader, camera_num: 0}
-  Generator1: {package: actors.camera_reader, class: CameraReader, camera_num: 2}
+  Generator1: {package: actors.camera_reader, class: CameraReader, camera_num: 6}
   Generator2: {package: actors.camera_reader, class: CameraReader, camera_num: 3}
+
+  
 
   ProcessorBatch3D:
     package: actors.processor_batch3d
     class: ProcessorBatch3D
     num_cameras: 3
-    camera_nums: [0, 2, 3]
+    camera_nums: [0, 6, 3]
     pred_active: True
     triangulate: true
     config_overrides:
@@ -53,14 +56,14 @@ actors:
     keypoint_hand: auto
     method: spawn
 
-  VideoSaver0: {package: actors.video_saver, class: VideoSaver, camera_num: 0, method: spawn}
-  VideoSaver1: {package: actors.video_saver, class: VideoSaver, camera_num: 2, method: spawn}
-  VideoSaver2: {package: actors.video_saver, class: VideoSaver, camera_num: 3, method: spawn}
+  # VideoSaver0: {package: actors.video_saver, class: VideoSaver, camera_num: 0, method: spawn}
+  # VideoSaver1: {package: actors.video_saver, class: VideoSaver, camera_num: 6, method: spawn}
+  # VideoSaver2: {package: actors.video_saver, class: VideoSaver, camera_num: 3, method: spawn}
 
 connections:
-  Generator0.q_out: [VideoScreen3D.images0_in, ProcessorBatch3D.frames0_in, VideoSaver0.q_in]
-  Generator1.q_out: [VideoScreen3D.images1_in, ProcessorBatch3D.frames1_in, VideoSaver1.q_in]
-  Generator2.q_out: [VideoScreen3D.images2_in, ProcessorBatch3D.frames2_in, VideoSaver2.q_in]
+  Generator0.q_out: [VideoScreen3D.images0_in, ProcessorBatch3D.frames0_in]
+  Generator1.q_out: [VideoScreen3D.images1_in, ProcessorBatch3D.frames1_i]
+  Generator2.q_out: [VideoScreen3D.images2_in, ProcessorBatch3D.frames2_in]
   ProcessorBatch3D.q_out: [SenderUDP.joints_in, VideoScreen3D.preds_in]
 
 redis_config:

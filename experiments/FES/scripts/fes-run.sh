@@ -42,7 +42,7 @@ export MALLOC_TRIM_THRESHOLD_="${MALLOC_TRIM_THRESHOLD_:--1}"
 export IMPROV_STORE_TTL_S="${IMPROV_STORE_TTL_S:-15}"
 
 FES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONDA_ENV="${FES_CONDA_ENV:-improvPytorchJarvis}"
+CONDA_ENV="${FES_CONDA_ENV:-improvDLC3}"
 DEFAULT_YAML="graphs/latency_benchmarking.yaml"
 
 # Pin THIS script (and so everything it starts: the preflight checks, `improv cleanup`, improv) off the faulty
