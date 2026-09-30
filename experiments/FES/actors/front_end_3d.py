@@ -221,17 +221,24 @@ class Camera3DWidget(QWidget):
     def update_frames(self):
         # Camera images first -- these arrive on their own per-camera links and
         # are independent of whether a prediction landed this tick.
+        # All cameras come out of the store in one MGET (getLastFrames).
+        
+        # Fetches all at once before loop beings and then per camera fetch from that list
+        try:
+            frames = self.visual.getLastFrames()
+        except Exception:
+            logger.debug(f"frame fetch failed: {traceback.format_exc()}")
+            frames = [None] * self.visual.num_cameras
         for camera_id in range(self.visual.num_cameras):
             try:
-                frame = self.visual.getLastFrame(camera_id)
-                if frame is not None:
-                    self.last_frame[camera_id] = frame
+                if frames[camera_id] is not None:
+                    self.last_frame[camera_id] = frames[camera_id]
                 self.display_frame(self.last_frame[camera_id],
                                    self.last_points_2d[camera_id],
                                    self.camera_labels[camera_id],
                                    camera_id)
             except Exception:
-                logger.debug(f"no frame for camera {camera_id}")
+                logger.debug(f"could not draw camera {camera_id}")
 
         # Then the single prediction message covering all cameras at once.
         try:

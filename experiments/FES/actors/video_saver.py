@@ -63,6 +63,14 @@ class VideoSaver(ManagedActor):
                 self.frames_lost += 1
                 logger.error(f"[Camera {self.camera_name}] frame {self.total_frames} not saved: {e}")
                 continue
+            if frame is None:
+                # get() returns None (it does not raise) for an expired/missing frame.
+                # Passing it on might end the recording silently
+                # while this thread kept counting frames as saved.
+                self.frames_lost += 1
+                logger.error(f"[Camera {self.camera_name}] frame {self.total_frames} not saved: "
+                             f"not in the store (expired?)")
+                continue
             self.write_queue.put(frame)
             self.total_frames += 1
             self.frame_count += 1
@@ -164,6 +172,8 @@ class VideoSaver(ManagedActor):
             self.writer_thread.start()
             self.reader_thread.start()
             logger.info(f"[Camera {self.camera_name}] recording started")
+            return
+        time.sleep(0.05)
 
     def stop(self):
         self.stop_program = True

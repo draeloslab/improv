@@ -165,30 +165,36 @@ class RedisStoreInterface(StoreInterface):
             ObjectNotFoundError: If the key is not found
         """
 
-        try:
-            key_exists = self.client.exists(object_key)
-            if key_exists == 0:
-                logger.error(f'This key {object_key} does not exist')
-        except Exception:
-            pass
+        # we don't need this because GET already checks for existence.
+
+        # try:
+        #     key_exists = self.client.exists(object_key)
+        #     if key_exists == 0:
+        #         logger.error(f'This key {object_key} does not exist')
+        # except Exception:
+        #     pass
 
         try:
             object_value = self.client.get(object_key)
             # logger.error(f'Got an object using key {object_key} from the store')
         except Exception as e:
             logger.error(f"Could not get object {object_key} - error: {e}")
+            raise
 
-        if object_value:
-            # buffers would also go here to force out-of-band deserialization
-            try:
-                pckl = pickle.loads(object_value)
-                # logger.error('we loaded the pickle')
-                return pckl
-            except Exception as e:
-                logger.error(f"Could not deserialize object {object_key} - error: {e}")
-        else:
-            logger.error(f'Got object {object_value} from redis store')
-            return object_value
+        if object_value is None:
+            # Missing or expired key.
+            logger.error(f"Object {object_key} not found in store (missing or expired)")
+            return None            
+        try:
+            pckl = pickle.loads(object_value)
+            # logger.error('we loaded the pickle')
+            return pckl
+        except Exception as e:
+            logger.error(f"Could not deserialize object {object_key} - error: {e}")
+            return None
+        # else:
+        #     logger.error(f'Got object {object_value} from redis store')
+        #     return object_value
 
         # logger.warning("This is a problem: Object {} cannot be found.".format(object_key))
         # raise ObjectNotFoundError(object_key)
@@ -220,6 +226,36 @@ class RedisStoreInterface(StoreInterface):
             list of the objects
         """
         return self.client.mget(ids)
+
+    def get_many(self, object_keys):
+        """
+        Fetch multiple objects with a single MGET and unpickle each one.
+
+        This is different form the above get_list, since it unpickles each value, making it 
+        usable for camera loop
+        """
+        object_keys = list(object_keys)
+        if not object_keys:
+            return []   # MGET with no keys is a Redis error
+        try:
+            values = self.client.mget(object_keys)
+        except Exception as e:
+            logger.error(f"Could not get objects {object_keys} - error: {e}")
+            raise
+
+        results = []
+        for key, value in zip(object_keys, values):
+            if value is None:
+                logger.debug(f"Object {key} not found in store (missing or expired)")
+                results.append(None)
+                continue
+            try:
+                results.append(pickle.loads(value))
+            except Exception as e:
+                logger.error(f"Could not deserialize object {key} - error: {e}")
+                results.append(None)
+        return results
+
 
     def get_all(self):
         """Get a listing of all objects in the store.

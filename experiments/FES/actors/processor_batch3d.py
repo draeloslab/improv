@@ -775,10 +775,20 @@ class ProcessorBatch3D(Actor):
 
         # --- 2. pull the frames out of the store ---
         t0 = time.perf_counter()
+        # One MGET for every present camera instead of a GET per camera. Results
+        # come back aligned with "present"; a missing camera is None and is
+        # skipped on its own without dropping the rest of the batch.
         frames = {}
-        for slot in present:
+        try:
+            fetched = self.client.get_many([frame_ids[slot] for slot in present])
+        except Exception as e:
+            logger.error(f"slots {present}: store get_many failed: {e}")
+            fetched = [None] * len(present)
+        for slot, frame in zip(present, fetched):
+            if frame is None:
+                logger.debug(f"slot {slot}: frame gone from store, skipping this camera")
+                continue
             try:
-                frame = self.client.get(frame_ids[slot])
                 if not (isinstance(frame, np.ndarray) and frame.ndim == 3):
                     frame = cv2.imdecode(frame, cv2.IMREAD_COLOR)
                 if not self.camera_prescaled:
@@ -786,10 +796,8 @@ class ProcessorBatch3D(Actor):
                         frame,
                         (int(frame.shape[1] * self.resize), int(frame.shape[0] * self.resize)))
                 frames[slot] = frame
-            except ObjectNotFoundError:
-                logger.debug(f"slot {slot}: frame gone from store, skipping this camera")
             except Exception as e:
-                logger.error(f"slot {slot}: store get failed: {e}")
+                logger.error(f"slot {slot}: frame decode/resize failed: {e}")
         self.store_get_latencies.append(time.perf_counter() - t0)
 
         if not frames:

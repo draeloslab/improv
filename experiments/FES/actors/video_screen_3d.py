@@ -101,32 +101,65 @@ class VideoScreen3D(ManagedActor):
         self.out_folder = run_folder()
         logger.info(f"3D Video GUI setup completed, {self.num_cameras} cameras")
 
-    def getLastFrame(self, camera_id):
-        """Newest image for one camera. Returns the frame or None."""
+    def getLastFrame(self):
+        """Newest image for every camera, fetched with ONE store (redis) round trip.
+
+        Returns a list of length num_cameras: the frame, or None for a camera
+        with no new message this tick 
+
+        Links are drained without waiting. The old per-camera get(timeout=3 ms)
+        could block the thread for up to 3 ms x num_cameras every tick when
+        a camera had nothing new.
+
+        This is just speculation. Might not make much of a difference
+
+        """
         self.videoStarts.append(time.time())
         frame_start = time.perf_counter()
-        try:
-            link = self.links[f"images{camera_id}_in"]
-            msg = link.get(timeout=0.003)
+        frames = [None] * self.num_cameras
+        frame_ids = [None] * self.num_cameras
+
+        for camera_id in range(self.num_cameras):
+            link = self.links.get(f"images{camera_id}_in")
+            if link is None:
+                continue
+            msg = None
             while True:              # newest frame only: one message per tick lets the backlog grow without bound
                 try:
                     msg = link.get_nowait()
                 except Exception:
                     break
-            frame_id = msg[0]
-            if frame_id is None:
-                return None
-            frame = self.client.get(frame_id)
-            if not (isinstance(frame, np.ndarray) and frame.ndim == 3):
-                frame = cv2.imdecode(frame, cv2.IMREAD_COLOR)
-            self.frame_latencies.append(time.perf_counter() - frame_start)
-            return frame
-        except (queue.Empty, KeyError):
-            return None
+            if msg is None:
+                continue
+            try:
+                frame_ids[camera_id] = msg[0]
+            except Exception:
+                logger.debug(f"camera {camera_id}: malformed frame message {msg!r}")
+
+        present = [c for c, fid in enumerate(frame_ids) if fid is not None]
+        if not present:
+            return frames
+
+        try:
+            fetched = self.client.get_many([frame_ids[c] for c in present])
         except Exception:
-            logger.debug(f"error getting frame for camera {camera_id}: "
-                         f"{traceback.format_exc()}")
-            return None
+            logger.debug(f"error getting frames {present}: {traceback.format_exc()}")
+            return frames
+
+        for camera_id, frame in zip(present, fetched):
+            if frame is None:
+                continue
+            try:
+                if not (isinstance(frame, np.ndarray) and frame.ndim == 3):
+                    frame = cv2.imdecode(frame, cv2.IMREAD_COLOR)
+                frames[camera_id] = frame
+            except Exception:
+                logger.debug(f"error decoding frame for camera {camera_id}: "
+                             f"{traceback.format_exc()}")
+
+        # One entry per GUI tick (all cameras), not per camera as before.
+        self.frame_latencies.append(time.perf_counter() - frame_start)
+        return frames
 
     def getLastPrediction(self):
         """Newest ProcessorBatch3D message: one dict covering every camera.
@@ -159,6 +192,7 @@ class VideoScreen3D(ManagedActor):
 
     def runStep(self):
         self.start_program = True
+        time.sleep(0.05)
 
     def stopMe(self):
         logger.info(f"{self.name}: Stopping 3D Video GUI")
