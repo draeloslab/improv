@@ -167,3 +167,7 @@ calibration
 
 experiments/FES/actors/xpc_link.py
 experiments/FES/calibration_20260903/_gen_nb.py
+experiments/FES/graphs/bo_stim_replay.yaml
+experiments/FES/scripts/bo_loop_selftest.py
+experiments/FES/scripts/fake_brand.py
+experiments/FES/scripts/gather_selftest.py
