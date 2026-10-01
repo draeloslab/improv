@@ -226,6 +226,10 @@ Other paths:
 `camera_config.yaml`: `resolution` / `stream_resolution`, `fps`, `appsink_max_buffers` (1 for live tracking, 5 for
 recording), `camera_settings` (exposure / gain / white balance, fixed on purpose), `active_cameras` (serials).
 
+`video_config.yaml`: where raw video goes and how buffers are encoded to mp4 (`encoding`: crf / pix_fmt / preset, options
+listed in the file; CRF 17 yuv444p since 2026-10-01, CRF 23 yuv420p before). `convert-day`
+(`~/Code/vision-camera-conversion`) reads its own `config/video_config.yaml` with the same `encoding` block.
+
 ## Fast engines: ONNX Runtime / TensorRT
 
 The networks are small: MediaPipe's palm detector takes 2.3 ms and its landmark net 0.9 ms on CPU in ONNX Runtime

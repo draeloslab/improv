@@ -125,7 +125,7 @@ class VideoSaver(ManagedActor):
         with open(f'{source_folder}/config/video_config.yaml', 'r') as file:
             video_config = yaml.safe_load(file)
         self.buffer_length = video_config['buffer_length']
-        self.compression_quality = video_config['compression_quality']
+        self.encoding = video_config.get('encoding')
 
         # One session folder for all of this run's savers, from the shared run id (see run_paths).
         session_folder = video_session_folder(video_config['raw_chunks_path'])
@@ -141,7 +141,7 @@ class VideoSaver(ManagedActor):
         logger.info(f"Latency Output folder set to {self.out_folder}")
 
         self.video_converter = VideoConverter(
-            compression_quality=self.compression_quality,
+            encoding=self.encoding,
             video_params={'frame_w': self.frame_w, 'frame_h': self.frame_h, 'fps': self.fps},
             output_video=self.output_video,
             out_folder_buffer=self.out_folder_buffer,

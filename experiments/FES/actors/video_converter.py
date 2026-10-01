@@ -13,17 +13,20 @@ from .run_paths import get_logger
 
 logger = get_logger(__name__, "camera_video_converter.log")
 
+#: Used for any key missing from config/video_config.yaml `encoding`.
+DEFAULT_ENCODING = {'crf': 17, 'pix_fmt': 'yuv444p', 'preset': 'slow'}
+
 class VideoConverter:
     """
     A class to handle video conversion from buffer files to video using FFmpeg.
     """
-    def __init__(self, compression_quality, video_params, output_video, out_folder_buffer,
+    def __init__(self, encoding, video_params, output_video, out_folder_buffer,
                 log_progress=False, msg_out=None, stop_program_event=threading.Event()):
         """
         Initializes the VideoConverter.
 
         Args:
-            compression_quality (int): Quality level for video compression (0-100).
+            encoding (dict): libx264 settings {crf, pix_fmt, preset} (config/video_config.yaml `encoding`).
             video_params (dict): containing frame_w, frame_h, fps.
             output_video (str): Path to the output video file.
             out_folder_buffer (str): Directory containing buffer binary files.
@@ -31,7 +34,7 @@ class VideoConverter:
             msg_out (Queue): Queue to send progress messages.
             stop_program_event (threading.Event(), optional): threading event for handling the force quit of the application
         """
-        self.compression_quality = compression_quality
+        self.encoding = {**DEFAULT_ENCODING, **(encoding or {})}
         self.frame_w = video_params['frame_w']
         self.frame_h = video_params['frame_h']
         self.fps = video_params['fps']
@@ -44,18 +47,6 @@ class VideoConverter:
         self.video_conv_queue = Queue(maxsize=1500)
         self.video_proc = None
         self.saving_error = False
-
-    def __map_cv_quality_to_ffmpeg_q(self, imwrite_quality):
-        """
-        Maps OpenCV imwrite quality (0-100) to FFmpeg quality scale (2-31).
-
-        Args:
-            imwrite_quality (int): OpenCV imwrite quality.
-
-        Returns:
-            int: Corresponding FFmpeg quality value.
-        """
-        return max(2, min(31, int(31 - (imwrite_quality * 29 / 100))))
 
     def save_video_process(self):
         """
@@ -74,8 +65,9 @@ class VideoConverter:
 
             output_dict = {
                 '-c:v': 'libx264',     # Use H.264 codec
-                '-preset': 'slow',     # Use a slower preset for better compression
-                '-pix_fmt': 'yuv420p',
+                '-crf': str(self.encoding['crf']),
+                '-preset': str(self.encoding['preset']),
+                '-pix_fmt': str(self.encoding['pix_fmt']),
                 '-r': str(self.fps),
                 '-threads': '0'
             }        
@@ -133,7 +125,8 @@ class VideoConverter:
         buffer_files = sorted(self.out_folder_buffer.glob('buffer_*.bin'))
 
         msg = {'type': 'num_buffer_files', 'value': len(buffer_files)}
-        self.msg_out.put(msg)
+        if self.msg_out is not None:      # VideoSaver converts without a GUI progress queue
+            self.msg_out.put(msg)
         
         if self.log_progress:
             logger.info(f"VideoConverter: Number of buffer files to process: {len(buffer_files)}")
@@ -184,7 +177,8 @@ class VideoConverter:
                     break
 
                 msg = {'type': 'buffer_conv_progress', 'value': idx+1}
-                self.msg_out.put(msg)
+                if self.msg_out is not None:      # VideoSaver converts without a GUI progress queue
+                    self.msg_out.put(msg)
 
                 # check if the stop_program has been set - if yes stop the conversion
                 if self.stop_program_event.is_set():
@@ -204,4 +198,5 @@ class VideoConverter:
         logger.info("VideoConverter: Conversion process completed.")
 
         msg = {'type': 'video_conversion_done'}
-        self.msg_out.put(msg)
+        if self.msg_out is not None:      # VideoSaver converts without a GUI progress queue
+            self.msg_out.put(msg)

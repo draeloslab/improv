@@ -1,3 +1,12 @@
-raw_chunks_path: 'camera_video' # path inside the home_dir
-buffer_length: 5 # [s] time length of the buffer 
-compression_quality: 100 # [0-100] mp4 quality when converting buffers (100 = best, maps to FFmpeg q 2)
+# Raw-video recording (actors/video_saver.py) and buffer -> mp4 conversion (actors/video_converter.py, the GUI's
+# conversion button). convert-day (~/Code/vision-camera-conversion) has its own copy of `encoding`: keep them the same.
+raw_chunks_path: 'camera_video'   # recordings go to ~/<raw_chunks_path>/<date>/<HHMMSS>/camera_N/buffer_*.bin
+buffer_length: 5                  # [s] of frames per buffer file
+
+# mp4 encoding (libx264):
+#   crf      x264 quality, lower = better: 0 lossless (files ~ the raw buffers), 17 visually lossless (~2-3x the size of
+#            23), 23 x264's default (EVERY video up to 2026-10-01 used this), 28 small and visibly soft.
+#   pix_fmt  yuv444p = full colour resolution (some players, e.g. QuickTime, can't play it);
+#            yuv420p = colour at quarter resolution, plays everywhere (every video up to 2026-10-01).
+#   preset   ultrafast ... medium ... slow ... veryslow: slower = smaller file at the SAME quality, not better quality.
+encoding: {crf: 17, pix_fmt: yuv444p, preset: slow}
