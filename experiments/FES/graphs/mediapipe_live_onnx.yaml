@@ -1,8 +1,10 @@
-# TEST: the ONNX/TensorRT MediaPipe engine on the two live cameras, GUI only (no BRAND, no saving). For checking the
-# tracker and its timing on the rig before running mediapipe_hand3d_brand_onnx.yaml.
+# TEST: the ONNX/TensorRT MediaPipe engine on the two live cameras, GUI + raw video (no BRAND). For checking the
+# tracker and its timing on the rig before running mediapipe_hand3d_brand_onnx.yaml. The raw video lets the same
+# human-hand frames be replayed offline through both engines (stock MediaPipe vs ONNX): record ~1-2 min, both hands.
 #
 #   CameraReader{slot} -+-> ProcessorBatch3D --> VideoScreen3D.preds_in
 #                       +-> VideoScreen3D.images{slot}_in
+#                       +-> VideoSaver{slot}.q_in
 #
 # Cameras: slots 0, 1 = physical 0, 3 (calibration 2026-09-29_124200), as in mediapipe_hand3d_brand.yaml.
 #
@@ -38,9 +40,12 @@ actors:
       onnx_providers: [[TensorrtExecutionProvider, {trt_fp16_enable: true}], CUDAExecutionProvider, CPUExecutionProvider]
     method: spawn
 
+  VideoSaver0: {package: actors.video_saver, class: VideoSaver, camera_num: 0, method: spawn}
+  VideoSaver1: {package: actors.video_saver, class: VideoSaver, camera_num: 3, method: spawn}
+
 connections:
-  Generator0.q_out: [VideoScreen3D.images0_in, ProcessorBatch3D.frames0_in]
-  Generator1.q_out: [VideoScreen3D.images1_in, ProcessorBatch3D.frames1_in]
+  Generator0.q_out: [VideoScreen3D.images0_in, ProcessorBatch3D.frames0_in, VideoSaver0.q_in]
+  Generator1.q_out: [VideoScreen3D.images1_in, ProcessorBatch3D.frames1_in, VideoSaver1.q_in]
   ProcessorBatch3D.q_out: [VideoScreen3D.preds_in]
 
 redis_config:

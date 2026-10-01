@@ -49,6 +49,29 @@ def _rect(cx, cy, w, h, rot, scale, shift_y):
     return cx, cy, size, rot
 
 
+DEDUP_IOU = 0.3      # landmark-box overlap above which two hands are the same hand
+
+
+def _landmark_box(xy):
+    """(x0, y0, x1, y1) bounding box of a hand's landmarks."""
+    return (*xy.min(0), *xy.max(0))
+
+
+def _same_hand(a, b):
+    """Two landmark sets are one hand if their boxes overlap (IoU > DEDUP_IOU) or their palms (wrist + MCPs) are closer
+    than half the hand's size (catches weak, squashed duplicates at the frame edge)."""
+    if _iou(_landmark_box(a), _landmark_box(b)) > DEDUP_IOU:
+        return True
+    palm = [0, 5, 9, 13, 17]
+    size = max(np.ptp(a, 0).max(), np.ptp(b, 0).max())
+    return np.linalg.norm(a[palm].mean(0) - b[palm].mean(0)) < 0.5 * size
+
+
+def _inside(x, y, box):
+    """True if point (x, y) lies inside box (x0, y0, x1, y1)."""
+    return box[0] <= x <= box[2] and box[1] <= y <= box[3]
+
+
 def _iou(a, b):
     """Intersection over union of two (x0, y0, x1, y1) boxes."""
     ax0, ay0, ax1, ay1 = a
@@ -199,29 +222,39 @@ class OnnxHandTracker:
     def step(self, rgb):
         """One frame: follow the tracked hands, look for new ones if needed.
 
+        A hand is kept only if its landmark box does not overlap an already accepted hand's (IoU > DEDUP_IOU), like
+        MediaPipe's own de-duplication. Without it, the palm detector -- which runs while fewer than num_hands hands are
+        followed -- re-finds the hand already being tracked and that duplicate takes the second hand's slot.
+
         Returns [{'xy': (21, 2) pixels, 'score': presence, 'right': handedness probability}, ...].
         """
         import time
         hands, new_rois = [], []
+
+        def accept(xy, presence, right):
+            if presence < self.presence_conf:
+                return False
+            if any(_same_hand(xy, h['xy']) for h in hands):
+                return False
+            hands.append({'xy': xy, 'score': presence, 'right': right})
+            new_rois.append(self.landmarks_to_roi(xy))
+            return True
+
         t0 = time.perf_counter()
-        for roi in ([] if self.always_detect else self.rois):
-            xy, presence, right = self.landmarks(rgb, roi)
-            if presence >= self.presence_conf:
-                hands.append({'xy': xy, 'score': presence, 'right': right})
-                new_rois.append(self.landmarks_to_roi(xy))
+        tracked = [self.landmarks(rgb, roi) for roi in ([] if self.always_detect else self.rois)]
+        for xy, presence, right in sorted(tracked, key=lambda h: -h[1]):     # most confident first wins an overlap
+            accept(xy, presence, right)
         self.timing['landmark'] = time.perf_counter() - t0
         self.timing['palm'] = 0.0
-        if len(new_rois) < self.num_hands:                           # look for more hands, like MediaPipe's VIDEO mode
+        if len(hands) < self.num_hands:                              # look for more hands, like MediaPipe's VIDEO mode
             t0 = time.perf_counter()
             for d in self.detect_palms(rgb):
-                roi = self.palm_to_roi(d)
-                box = lambda r: (r[0] - r[2] / 2, r[1] - r[2] / 2, r[0] + r[2] / 2, r[1] + r[2] / 2)
-                if len(new_rois) >= self.num_hands or any(_iou(box(roi), box(r)) > 0.5 for r in new_rois):
-                    continue
-                xy, presence, right = self.landmarks(rgb, roi)
-                if presence >= self.presence_conf:
-                    hands.append({'xy': xy, 'score': presence, 'right': right})
-                    new_rois.append(self.landmarks_to_roi(xy))
+                if len(hands) >= self.num_hands:
+                    break
+                cx, cy = d['c']
+                if any(_inside(cx, cy, _landmark_box(h['xy'])) for h in hands):
+                    continue                                         # a palm inside a hand we already have
+                accept(*self.landmarks(rgb, self.palm_to_roi(d)))
             self.timing['palm'] = time.perf_counter() - t0
         self.rois = new_rois
         return hands

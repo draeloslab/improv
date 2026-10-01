@@ -520,7 +520,8 @@ class ProcessorBatch3D(Actor):
             import yaml as _yaml
             from .dlc_onnx import DlcOnnxTopDown
             train_dir = Path(config['batch3d_model_path'])
-            self.bodyparts = list(_yaml.safe_load(open(train_dir / 'pytorch_config.yaml'))['metadata']['bodyparts'])
+            with open(train_dir / 'pytorch_config.yaml') as f:
+                self.bodyparts = list(_yaml.safe_load(f)['metadata']['bodyparts'])
             self.n_keypoints = len(self.bodyparts)
             models = Path(config.get('dlc_onnx_models_dir', Path(__file__).resolve().parents[1] / 'models' / 'dlc_trt')).expanduser()
             self.dlc_onnx = DlcOnnxTopDown(models, frame_size=tuple(config.get('dlc_onnx_frame_size', [960, 720])),
@@ -1017,9 +1018,11 @@ class ProcessorBatch3D(Actor):
         if self.frame_num % self.frames_log == 0:
             elapsed = time.perf_counter() - self.time_start
             n3d = int(np.sum(np.isfinite(points_3d[:, 0]))) if points_3d is not None else 0
+            skew = np.asarray(self.time_skew_ms[-self.frames_log:], float)
+            skew = f"{np.nanmedian(skew):.1f} ms" if np.isfinite(skew).any() else "n/a"     # replay has no capture times
             logger.info(f"frame {self.frame_num}: {round(self.frames_log / elapsed, 2)} fps, "
                         f"{len(batch_slots)} cams, {n3d}/{self.n_keypoints} keypoints in 3D, "
-                        f"frame skew {self.frame_skew[-1]}, time skew {np.nanmedian(self.time_skew_ms[-self.frames_log:]):.1f} ms, "
+                        f"frame skew {self.frame_skew[-1]}, time skew {skew}, "
                         f"infer {np.median(self.inference_latencies[-self.frames_log:])*1000:.1f} ms, "
                         f"tri {np.median(self.triangulate_latencies[-self.frames_log:])*1000:.2f} ms, "
                         f"ang {np.median(self.angle_latencies[-self.frames_log:])*1000:.2f} ms")

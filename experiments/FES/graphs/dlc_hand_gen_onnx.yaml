@@ -48,7 +48,7 @@ actors:
       calibration_toml: 'analysis/stim_1153/walkthrough_out/calibration_corrected.toml'
       dlc_engine: onnx
       dlc_onnx_frame_size: [960, 540]
-      dlc_onnx_pose_providers: [[TensorrtExecutionProvider, {trt_fp16_enable: true}], CUDAExecutionProvider, CPUExecutionProvider]
+      dlc_onnx_pose_providers: [CUDAExecutionProvider, CPUExecutionProvider]   # TensorRT saves ~0.5 ms but logs a harmless parse error
     method: spawn
 
 connections:
