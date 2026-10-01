@@ -172,3 +172,4 @@ experiments/FES/scripts/bo_loop_selftest.py
 experiments/FES/scripts/fake_brand.py
 experiments/FES/scripts/gather_selftest.py
 experiments/FES/models/hand_trt/
+experiments/FES/models/dlc_trt/
