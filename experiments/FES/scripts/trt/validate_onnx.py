@@ -22,11 +22,11 @@ ap.add_argument('video'); ap.add_argument('ref')
 ap.add_argument('--frames', type=int, default=600)
 ap.add_argument('--palm-range', type=float, nargs=2, default=[0.0, 1.0])
 ap.add_argument('--conf', type=float, default=0.5)
-ap.add_argument('--hands', type=int, default=2)
+ap.add_argument('--hands', type=int, default=2); ap.add_argument('--always-detect', action='store_true')
 a = ap.parse_args()
 ref = np.load(a.ref)
 trk = OnnxHandTracker(Path(__file__).resolve().parents[2] / 'models' / 'hand_trt', num_hands=a.hands, det_conf=a.conf,
-                      presence_conf=a.conf, palm_range=tuple(a.palm_range))
+                      presence_conf=a.conf, palm_range=tuple(a.palm_range), always_detect=a.always_detect)
 cap = cv2.VideoCapture(a.video)
 errs, pres, agree_sign, n_both, n_onnx, n_mp, ms, palm_ms, lm_ms = [], [], [], 0, 0, 0, [], [], []
 for i in range(min(a.frames, len(ref['n_hands']))):

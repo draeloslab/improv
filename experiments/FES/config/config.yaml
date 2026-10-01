@@ -89,6 +89,13 @@ mediapipe_min_tracking_confidence: 0.02
 mediapipe_running_mode: "video"
 # CPU measured as fast as GPU here and more consistent; leave on CPU.
 mediapipe_delegate: "CPU"   # GPU measured 2x slower (71 vs 32.5 ms/step, 4 cams, 09-25)
+# "onnx" runs the same two MediaPipe networks through actors/hand_onnx.py (onnxruntime) instead of MediaPipe's wrapper: 13.9 vs 35.6 ms per
+# 2-camera step on the 09-25 replay, same settings (scripts/trt/bench_onnx_tracker.py vs bench_mediapipe.py). Needs onnxruntime in the env and
+# models/hand_trt/*.onnx (scripts/trt/export_onnx.sh). onnx_providers: null = CPU (12.5 ms), [CUDAExecutionProvider, CPUExecutionProvider] = 3.4 ms,
+# [[TensorrtExecutionProvider, {trt_fp16_enable: true}], CUDAExecutionProvider, CPUExecutionProvider] = 2.1 ms (first start builds the TensorRT engines, ~1 min;
+# needs `pip install --no-deps tensorrt-cu12-libs==10.13.*` in the env).
+mediapipe_engine: "mediapipe"
+onnx_providers: null
 
 # --- dlc backend (batch3d_backend: "dlc") ---
 # HandTrackingVideo1Aug7 shuffle 12: TOP-DOWN (method: td), 42 keypoints (right

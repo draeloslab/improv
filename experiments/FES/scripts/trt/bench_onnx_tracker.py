@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'actors'))
 from hand_onnx import OnnxHandTracker
 
 ap = argparse.ArgumentParser(); ap.add_argument('videos', nargs=2); ap.add_argument('--frames', type=int, default=600)
-ap.add_argument('--providers', default='cpu')
+ap.add_argument('--providers', default='cpu', choices=['cpu', 'cuda', 'trt'])
 a = ap.parse_args()
 frames = []
 for v in a.videos:
@@ -26,7 +26,8 @@ for v in a.videos:
     frames.append(fs)
 n = min(map(len, frames))
 models = Path(__file__).resolve().parents[2] / 'models' / 'hand_trt'
-prov = {'cpu': None, 'cuda': ['CUDAExecutionProvider', 'CPUExecutionProvider']}[a.providers]
+trt = [('TensorrtExecutionProvider', {'trt_fp16_enable': True}), 'CUDAExecutionProvider', 'CPUExecutionProvider']
+prov = {'cpu': None, 'cuda': ['CUDAExecutionProvider', 'CPUExecutionProvider'], 'trt': trt}[a.providers]
 pool = ThreadPoolExecutor(2)
 for hands, conf in [(2, 0.02), (1, 0.02), (2, 0.5), (1, 0.5)]:
     trk = [OnnxHandTracker(models, num_hands=hands, det_conf=conf, presence_conf=conf, providers=prov) for _ in range(2)]

@@ -16,10 +16,10 @@ from mediapipe.tasks.python import vision as mp_vision
 MODEL = '/home/chesteklab/Desktop/hand-tracking-notebooks-jake-2026-08-17/mediapipe/hand_landmarker.task'
 ap = argparse.ArgumentParser()
 ap.add_argument('video'); ap.add_argument('out')
-ap.add_argument('--frames', type=int, default=600); ap.add_argument('--hands', type=int, default=2); ap.add_argument('--conf', type=float, default=0.02)
+ap.add_argument('--frames', type=int, default=600); ap.add_argument('--image-mode', action='store_true', help='no tracker/smoothing: detect every frame'); ap.add_argument('--hands', type=int, default=2); ap.add_argument('--conf', type=float, default=0.02)
 a = ap.parse_args()
 lm = mp_vision.HandLandmarker.create_from_options(mp_vision.HandLandmarkerOptions(
-    base_options=mp_python.BaseOptions(model_asset_path=MODEL), running_mode=mp_vision.RunningMode.VIDEO, num_hands=a.hands,
+    base_options=mp_python.BaseOptions(model_asset_path=MODEL), running_mode=mp_vision.RunningMode.IMAGE if a.image_mode else mp_vision.RunningMode.VIDEO, num_hands=a.hands,
     min_hand_detection_confidence=a.conf, min_hand_presence_confidence=a.conf, min_tracking_confidence=a.conf))
 cap = cv2.VideoCapture(a.video)
 pts, label, n = [], [], []
@@ -29,7 +29,8 @@ while i < a.frames:
     if not ok:
         break
     h, w = f.shape[:2]
-    r = lm.detect_for_video(mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(f, cv2.COLOR_BGR2RGB)), i * 33)
+    im = mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(f, cv2.COLOR_BGR2RGB))
+    r = lm.detect(im) if a.image_mode else lm.detect_for_video(im, i * 33)
     p = np.full((a.hands, 21, 2), np.nan); lab = np.full(a.hands, np.nan)
     for k, hand in enumerate(r.hand_landmarks[:a.hands]):
         p[k] = [[l.x * w, l.y * h] for l in hand]

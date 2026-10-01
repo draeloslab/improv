@@ -20,6 +20,8 @@ import numpy as np
 import onnxruntime as ort
 
 PALM_IN, LM_IN = 192, 224
+PALM_SCALE, PALM_SHIFT_Y = 2.6, -0.5       # DetectionsToRects/RectTransformation for a palm detection
+TRACK_SCALE, TRACK_SHIFT_Y = 2.0, -0.1     # HandLandmarksToRect for a tracked hand
 
 
 def _anchors():
@@ -53,15 +55,45 @@ def _iou(a, b):
     return inter / (((ax1 - ax0) * (ay1 - ay0)) + ((bx1 - bx0) * (by1 - by0)) - inter + 1e-9)
 
 
+def prepare_providers(providers, cache_dir):
+    """
+    onnxruntime provider list from config (YAML lists -> tuples). Loads the CUDA libraries that torch's pip packages ship
+    (ort.preload_dlls) and, for the TensorRT provider, libnvinfer from the `tensorrt-cu12-libs` pip package, so no
+    LD_LIBRARY_PATH is needed. TensorRT engines are built once per model (about a minute) and cached in cache_dir.
+    """
+    if not providers:
+        return ['CPUExecutionProvider']
+    names = [p if isinstance(p, str) else p[0] for p in providers]
+    if any(n in ('CUDAExecutionProvider', 'TensorrtExecutionProvider') for n in names):
+        ort.preload_dlls()
+    if 'TensorrtExecutionProvider' in names:
+        try:
+            import tensorrt_libs  # noqa: F401   (loads libnvinfer*.so on import)
+        except ImportError:
+            pass
+    out = []
+    for p in providers:
+        if isinstance(p, str):
+            out.append(p)
+        else:
+            opts = dict(p[1] if len(p) > 1 else {})
+            if p[0] == 'TensorrtExecutionProvider':
+                opts.setdefault('trt_engine_cache_enable', True)
+                opts.setdefault('trt_engine_cache_path', str(cache_dir))
+            out.append((p[0], opts))
+    return out
+
+
 class OnnxHandTracker:
-    def __init__(self, models_dir, num_hands=2, det_conf=0.5, presence_conf=0.5, providers=None, palm_range=(0.0, 1.0)):
+    def __init__(self, models_dir, num_hands=2, det_conf=0.5, presence_conf=0.5, providers=None, palm_range=(0.0, 1.0), always_detect=False):
         models_dir = Path(models_dir)
-        providers = providers or ['CPUExecutionProvider']
+        providers = prepare_providers(providers, models_dir / 'trt_cache')
         opts = ort.SessionOptions()
         opts.intra_op_num_threads = 2
         self.palm = ort.InferenceSession(str(models_dir / 'hand_detector.onnx'), opts, providers=providers)
         self.lm = ort.InferenceSession(str(models_dir / 'hand_landmarks_detector.onnx'), opts, providers=providers)
         self.num_hands, self.det_conf, self.presence_conf, self.palm_range = num_hands, det_conf, presence_conf, palm_range
+        self.always_detect = always_detect     # ignore tracking, detect every frame (to compare with MediaPipe's IMAGE mode)
         self.rois = []            # tracked (cx, cy, size, rot) per hand, pixels
         self.timing = {'palm': 0.0, 'landmark': 0.0}
 
@@ -80,22 +112,30 @@ class OnnxHandTracker:
         keep = np.flatnonzero(sc >= self.det_conf)
         if not len(keep):
             return []
-        keep = keep[np.argsort(-sc[keep])[:16]]      # only the best candidates go to NMS (python loop)
-        r, a = reg[keep], ANCHORS[keep]
+        keep = keep[np.argsort(-sc[keep])[:48]]      # best candidates only: NMS below is O(n^2)
+        r, a, score = reg[keep], ANCHORS[keep], sc[keep]
         cx, cy = r[:, 0] / PALM_IN + a[:, 0], r[:, 1] / PALM_IN + a[:, 1]
         bw, bh = r[:, 2] / PALM_IN, r[:, 3] / PALM_IN
         kps = r[:, 4:18].reshape(-1, 7, 2) / PALM_IN + a[:, None, :]
-        order = np.argsort(-sc[keep])
-        out, taken = [], []
-        for i in order:                                              # NMS, IoU 0.3
-            box = (cx[i] - bw[i] / 2, cy[i] - bh[i] / 2, cx[i] + bw[i] / 2, cy[i] + bh[i] / 2)
-            if any(_iou(box, t) > 0.3 for t in taken):
+        boxes = np.stack([cx - bw / 2, cy - bh / 2, cx + bw / 2, cy + bh / 2], 1)
+        # weighted NMS like MediaPipe: each surviving detection is the score-weighted mean of every candidate overlapping it
+        ix0, iy0 = np.maximum(boxes[:, None, 0], boxes[None, :, 0]), np.maximum(boxes[:, None, 1], boxes[None, :, 1])
+        ix1, iy1 = np.minimum(boxes[:, None, 2], boxes[None, :, 2]), np.minimum(boxes[:, None, 3], boxes[None, :, 3])
+        inter = np.clip(ix1 - ix0, 0, None) * np.clip(iy1 - iy0, 0, None)
+        area = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
+        iou = inter / (area[:, None] + area[None, :] - inter + 1e-9)
+        remaining, out = np.ones(len(score), bool), []
+        to_px = lambda p: np.array([(p[0] * PALM_IN - padx) / s, (p[1] * PALM_IN - pady) / s])
+        for i in range(len(score)):                                  # candidates are sorted by score
+            if not remaining[i]:
                 continue
-            taken.append(box)
-            to_px = lambda p: np.array([(p[0] * PALM_IN - padx) / s, (p[1] * PALM_IN - pady) / s])
-            c = to_px((cx[i], cy[i]))
-            out.append({'c': c, 'wh': np.array([bw[i] * PALM_IN / s, bh[i] * PALM_IN / s]), 'k0': to_px(kps[i, 0]),
-                        'k2': to_px(kps[i, 2]), 'score': float(sc[keep][i])})
+            grp = remaining & (iou[i] > 0.3)
+            wgt = score[grp] / score[grp].sum()
+            remaining &= ~grp
+            c = np.array([(wgt * cx[grp]).sum(), (wgt * cy[grp]).sum()])
+            wh = np.array([(wgt * bw[grp]).sum(), (wgt * bh[grp]).sum()])
+            k = (wgt[:, None, None] * kps[grp]).sum(0)
+            out.append({'c': to_px(c), 'wh': wh * PALM_IN / s, 'k0': to_px(k[0]), 'k2': to_px(k[2]), 'score': float(score[i])})
             if len(out) >= self.num_hands:
                 break
         return out
@@ -104,7 +144,7 @@ class OnnxHandTracker:
     def palm_to_roi(d):
         (x0, y0), (x2, y2) = d['k0'], d['k2']
         rot = _norm_angle(0.5 * np.pi - np.arctan2(-(y2 - y0), x2 - x0))
-        return _rect(d['c'][0], d['c'][1], d['wh'][0], d['wh'][1], rot, 2.6, -0.5)
+        return _rect(d['c'][0], d['c'][1], d['wh'][0], d['wh'][1], rot, PALM_SCALE, PALM_SHIFT_Y)
 
     # ------------------------------------------------------------ landmark net
     def landmarks(self, rgb, roi):
@@ -134,14 +174,14 @@ class OnnxHandTracker:
         w, h = rx.max() - rx.min(), ry.max() - ry.min()
         ax, ay = (rx.max() + rx.min()) / 2, (ry.max() + ry.min()) / 2
         cx, cy = ax * np.cos(rot) - ay * np.sin(rot) + mid[0], ax * np.sin(rot) + ay * np.cos(rot) + mid[1]
-        return _rect(cx, cy, w, h, rot, 2.0, -0.1)
+        return _rect(cx, cy, w, h, rot, TRACK_SCALE, TRACK_SHIFT_Y)
 
     # ------------------------------------------------------------ one frame
     def step(self, rgb):
         import time
         hands, new_rois = [], []
         t0 = time.perf_counter()
-        for roi in self.rois:
+        for roi in ([] if self.always_detect else self.rois):
             xy, presence, right = self.landmarks(rgb, roi)
             if presence >= self.presence_conf:
                 hands.append({'xy': xy, 'score': presence, 'right': right})

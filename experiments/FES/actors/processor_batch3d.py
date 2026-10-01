@@ -44,6 +44,7 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 import time
 import traceback
+from types import SimpleNamespace
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -77,6 +78,18 @@ from .run_paths import get_logger, run_folder
 from .chunk_log import ChunkLog
 
 logger = get_logger(__name__, "processor_batch3d.log")
+
+
+def _onnx_result(hands, shape):
+    """OnnxHandTracker output as the MediaPipe HandLandmarkerResult fields _infer_mediapipe reads
+    (hand_landmarks[i][k].x/.y normalised; handedness[i][0].category_name/.score)."""
+    h, w = shape[:2]
+    lm = lambda x, y: SimpleNamespace(x=x / w, y=y / h)
+    right = [hd['right'] >= 0.5 for hd in hands]
+    return SimpleNamespace(
+        hand_landmarks=[[lm(x, y) for x, y in hd['xy']] for hd in hands],
+        handedness=[[SimpleNamespace(category_name='Right' if r else 'Left',
+                                     score=hd['right'] if r else 1.0 - hd['right'])] for hd, r in zip(hands, right)])
 
 
 # Joint angle definitions for the 21-keypoint MediaPipe hand layout
@@ -464,8 +477,20 @@ class ProcessorBatch3D(Actor):
         delegate_name = str(config.get('mediapipe_delegate', 'CPU')).upper()
         delegate = getattr(mp_python.BaseOptions.Delegate, delegate_name)
 
+        # mediapipe_engine: "onnx" swaps MediaPipe's Python wrapper for actors/hand_onnx.py (the same two networks as ONNX,
+        # same ROI/tracking logic): 2.5x faster per step on CPU in scripts/trt/bench_onnx_tracker.py. Everything downstream
+        # (handedness routing, association, triangulation) is unchanged: the tracker returns MediaPipe-shaped results.
+        self.mp_engine = str(config.get('mediapipe_engine', 'mediapipe')).lower()
         self.landmarkers = []
-        for _ in range(self.num_cameras):
+        if self.mp_engine == 'onnx':
+            from .hand_onnx import OnnxHandTracker
+            models = Path(config.get('onnx_models_dir', Path(__file__).resolve().parents[1] / 'models' / 'hand_trt')).expanduser()
+            providers = config.get('onnx_providers')
+            self.landmarkers = [OnnxHandTracker(models, num_hands=num_hands, det_conf=min_conf, presence_conf=presence_conf,
+                                                providers=providers) for _ in range(self.num_cameras)]
+            logger.info(f"mediapipe engine: onnx ({models}), providers={providers or 'CPU'}, {num_hands} hands, "
+                        f"det/presence conf {min_conf}/{presence_conf}")
+        for _ in range(0 if self.mp_engine == 'onnx' else self.num_cameras):
             base_options = mp_python.BaseOptions(model_asset_path=model_path, delegate=delegate)
             options = mp_vision.HandLandmarkerOptions(
                 base_options=base_options,
@@ -1092,6 +1117,12 @@ class ProcessorBatch3D(Actor):
             # them (front_end_3d.py renders them straight into
             # QImage.Format_RGB888). No cv2.cvtColor here -- swapping channels
             # on an already-RGB frame would hand mediapipe a blue-tinted image.
+            if self.mp_engine == 'onnx':
+                try:
+                    return slot, _onnx_result(self.landmarkers[slot].step(frames[slot]), frames[slot].shape)
+                except Exception as e:
+                    logger.warning(f"slot {slot}: onnx hand tracker failed ({e!r}); no hand this frame")
+                    return slot, None
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frames[slot])
             # mediapipe occasionally raises while unpacking a result (seen:
             # AttributeError: Landmark from world-landmark conversion); treat that
