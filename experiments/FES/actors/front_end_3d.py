@@ -77,19 +77,14 @@ class Camera3DWidget(QWidget):
     """Camera streams + every joint angle + the triangulated hand in 3D."""
 
     def __init__(self, visual, comm, q_sig):
-        import os as _os
-        def _chk(msg):
-            _os.write(2, f"[CHK] {msg}\n".encode())
-        _chk("__init__ entered")
+        """visual: the VideoScreen3D actor (frames and predictions); comm / q_sig: improv's GUI signal queues."""
         try:
             super().__init__()
-            _chk("init start")
 
             self.visual = visual
             self.comm = comm
             self.q_sig = q_sig
             self.stop_program = False
-            _chk("basic attrs set")
 
             n = self.visual.num_cameras
             self.last_frame = [None] * n
@@ -107,7 +102,6 @@ class Camera3DWidget(QWidget):
             self.skeleton_idx = []
 
             source_folder = Path(__file__).resolve().parent.parent
-            _chk("before config read")
             with open(f'{source_folder}/config/config.yaml', 'r') as file:
                 config = yaml.safe_load(file)
             # Predictions are in the processor's input-frame pixels. With
@@ -117,7 +111,6 @@ class Camera3DWidget(QWidget):
             self.resize = 1.0 if config.get('camera_prescaled', False) else config['resize']
             self.threshold = config['threshold']
 
-            _chk("before setWindowTitle")
             self.setWindowTitle('3D Hand Tracking')
             self.setGeometry(100, 100, 1920, 1080)
 
@@ -133,7 +126,6 @@ class Camera3DWidget(QWidget):
             angle_span = (cam_rows + 1) // 2
 
             # --- camera views: left block ---
-            _chk("before camera labels")
             self.camera_labels = [QLabel(self) for _ in range(n)]
             for label in self.camera_labels:
                 label.setMinimumSize(320, 240)
@@ -146,7 +138,6 @@ class Camera3DWidget(QWidget):
                 layout.addWidget(label, i // cam_cols, i % cam_cols)
 
             # --- joint angle plot: top right ---
-            _chk("before angle plot widget")
             self.angle_plot_widget = pg.PlotWidget()
             self.angle_plot_widget.setMinimumSize(480, 320)
             self.angle_plot_widget.setBackground('w')
@@ -166,7 +157,6 @@ class Camera3DWidget(QWidget):
 
             # --- 3D skeleton: bottom right. Software-projected (see module
             # docstring for why this isn't pyqtgraph.opengl.GLViewWidget). ---
-            _chk("before 3d plot widget")
             self.plot3d_widget = pg.PlotWidget()
             self.plot3d_widget.setMinimumSize(480, 320)
             self.plot3d_widget.setBackground('k')
@@ -200,17 +190,14 @@ class Camera3DWidget(QWidget):
             self.bone_items = []
             layout.addWidget(self.plot3d_widget, angle_span, cam_cols, cam_rows - angle_span, 1)
 
-            _chk("before setLayout")
             self.setLayout(layout)
 
             fps = getattr(self.visual, 'frame_rate_update', 30)
             update_interval = int(1000 / fps) if fps > 0 else 33
-            _chk("before QTimer")
             self.timer = QTimer()
             self.timer.timeout.connect(self.update_frames)
             self.timer.start(update_interval)
 
-            _chk("before final log")
             logger.info("3D front end setup completed")
         except Exception as e:
             logger.error(f"3D front end setup failed: {e}")
@@ -219,6 +206,7 @@ class Camera3DWidget(QWidget):
     # ------------------------------------------------------------------ update
 
     def update_frames(self):
+        """QTimer tick: draw the newest frame per camera, then the newest prediction (2D overlay, angles, 3D)."""
         # Camera images first -- these arrive on their own per-camera links and
         # are independent of whether a prediction landed this tick.
         for camera_id in range(self.visual.num_cameras):
@@ -313,6 +301,7 @@ class Camera3DWidget(QWidget):
     # ----------------------------------------------------------- angle plotting
 
     def _new_angle_curve(self, joint):
+        """Add a plot curve (next palette colour) for a joint seen for the first time."""
         colour = _JOINT_PALETTE[self._palette_idx % len(_JOINT_PALETTE)]
         self._palette_idx += 1
         self.angle_curves[joint] = self.angle_plot_widget.plot(
@@ -401,6 +390,7 @@ class Camera3DWidget(QWidget):
             self.bone_items[k].setVisible(False)
 
     def closeEvent(self, event):
+        """Window closed: stop the VideoScreen3D actor (saves its logs) and quit."""
         logger.info("Camera3DWidget closeEvent triggered")
         self.visual.stopMe()
         self.comm.put(['stop'])

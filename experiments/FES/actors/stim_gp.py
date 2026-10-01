@@ -31,11 +31,14 @@ def features(electrodes, pulse_width, frequency, amplitude):
 
 
 def unpack(th):
+    """Log-parameter vector -> named kernel hyper-parameters (amplitudes, lengthscales, noise)."""
     return dict(c=np.exp(th[0]), a=np.exp(th[1:1 + NE]), s=np.exp(th[1 + NE]), l=np.exp(th[2 + NE]),
                 lam=np.exp(th[3 + NE:6 + NE]), noise=np.exp(th[6 + NE]))
 
 
 def kernel(p, E1, Z1, E2, Z2):
+    """Covariance between stimulations: RBF over (pulse width, frequency, current) x (constant + per-electrode
+    additive + electrode-set similarity) terms."""
     kz = np.exp(-0.5 * (((Z1[:, None, :] - Z2[None, :, :]) / p['lam']) ** 2).sum(-1))
     add = (E1 * p['a'] ** 2) @ E2.T
     hamming = E1.sum(1)[:, None] + E2.sum(1)[None, :] - 2 * E1 @ E2.T      # binary vectors: squared distance
@@ -46,15 +49,18 @@ class JointGP:
     """One joint's GP. Data are kept raw (deg); the fit standardises internally."""
 
     def __init__(self):
+        """No data yet; default hyper-parameters and a prior of mean 0, sd 10 deg."""
         self.E = np.zeros((0, NE)); self.Z = np.zeros((0, 3)); self.y = np.zeros(0)
         self.th = np.r_[0.0, np.full(NE, -0.5), -0.5, 0.5, 0.0, 0.0, 0.0, -0.7]
         self.mu, self.sd = 0.0, 10.0
 
     @property
     def p(self):
+        """Current hyper-parameters, unpacked."""
         return unpack(self.th)
 
     def add(self, E, Z, y):
+        """Append observations (non-finite y skipped) and update the Cholesky factor; no refit."""
         m = np.isfinite(y)
         self.E = np.vstack([self.E, E[m]]); self.Z = np.vstack([self.Z, Z[m]]); self.y = np.r_[self.y, y[m]]
         self._factor()
@@ -77,6 +83,7 @@ class JointGP:
         return self
 
     def _nll(self, th, ys):
+        """Negative log marginal likelihood of the standardised data under hyper-parameters th."""
         p = unpack(th)
         K = kernel(p, self.E, self.Z, self.E, self.Z) + (p['noise'] ** 2 + 1e-6) * np.eye(len(ys))
         try:
@@ -87,6 +94,7 @@ class JointGP:
         return 0.5 * ys @ a + np.log(np.diag(L)).sum()
 
     def _factor(self):
+        """Cholesky factor of the training covariance and the weights the prediction uses."""
         p = self.p
         if len(self.y) == 0:
             self.L = None; return
@@ -106,6 +114,7 @@ class JointGP:
 
     @property
     def noise_deg(self):
+        """Observation noise sd in degrees."""
         return float(self.p['noise'] * self.sd)
 
 
@@ -114,6 +123,7 @@ class StimModel:
 
     def __init__(self, joints, electrodes_allowed=ELECTRODES, pulse_widths=(80, 100, 120, 160, 200),
                  frequencies=(20, 30, 50, 100), currents=(1000, 2000, 3000, 4000, 5000), max_electrodes=8):
+        """The candidate grid is every electrode subset (up to max_electrodes) x pulse width x frequency x current."""
         self.joints = list(joints)
         self.gps = {j: JointGP() for j in self.joints}
         combos = [list(c) for n in range(1, max_electrodes + 1) for c in itertools.combinations(sorted(electrodes_allowed), n)]
@@ -133,6 +143,7 @@ class StimModel:
             self.add(r['electrodes'], r['pulse_width'], r['frequency'], r['amplitude'], r)
 
     def fit(self, starts=4):
+        """Refit every joint's hyper-parameters (starts random restarts each)."""
         for g in self.gps.values():
             g.fit(starts=starts)
 
@@ -142,6 +153,7 @@ class StimModel:
         return np.stack([o[0] for o in out], 1), np.stack([o[1] for o in out], 1)
 
     def n_obs(self):
+        """{joint: number of observations}."""
         return {j: len(g.y) for j, g in self.gps.items()}
 
 

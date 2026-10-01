@@ -4,7 +4,8 @@ runners on recorded frames. improvDLC3 env, run from ~ (not from a folder with u
 
     python export_dlc_onnx.py [--frame-size 960 720]
 
-Writes models/dlc_trt/dlc_detector.onnx (fixed WxH frame in, boxes/scores out, NMS inside) and dlc_pose.onnx (b,3,256,256 -> heatmap, locref).
+Writes models/dlc_trt/dlc_detector_<W>x<H>.onnx (that frame size in, boxes/scores out, NMS inside; export once per
+live frame size) and dlc_pose.onnx (b,3,256,256 -> heatmap, locref).
 Inputs are uint8 RGB (b, h, w, 3); the ImageNet normalisation DLC applies is inside the graph.
 """
 import argparse
@@ -69,7 +70,7 @@ with torch.no_grad():
     torch.onnx.export(pm, torch.randint(0, 255, (1, 256, 256, 3), dtype=torch.uint8), out / 'dlc_pose.onnx', input_names=['x'], output_names=['heatmap', 'locref'],
                       opset_version=17, dynamic_axes={'x': {0: 'b'}, 'heatmap': {0: 'b'}, 'locref': {0: 'b'}})
     try:
-        torch.onnx.export(dmod, torch.randint(0, 255, (1, H, W, 3), dtype=torch.uint8), out / 'dlc_detector.onnx', input_names=['x'], output_names=['boxes', 'scores'],
+        torch.onnx.export(dmod, torch.randint(0, 255, (1, H, W, 3), dtype=torch.uint8), out / f'dlc_detector_{W}x{H}.onnx', input_names=['x'], output_names=['boxes', 'scores'],
                           opset_version=17, dynamic_axes={'boxes': {0: 'n'}, 'scores': {0: 'n'}})
         print('detector exported')
     except Exception as e:

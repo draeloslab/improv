@@ -1,12 +1,9 @@
 """Single batched processor: N cameras -> one pose-estimation step -> 3D -> joint angles.
 
-Replaces the one-Processor-per-camera design (actors/processor.py). The
-motivation is measured, not theoretical: four independent processes submitting
-to the same GPU pile into a shared queue and each one's `inference()` call
-blocks until the whole pile drains, so the earliest submitter reports the
-*longest* time (corr(submission phase, measured inference) = -0.999 in run
-20260804-1432). See MULTICAM_3D_PLAN.md Part 1. One process handling all N
-cameras has no cross-process queue to wait on.
+Replaces the one-Processor-per-camera design (actors/processor.py, still used by the 2D xPC graphs).
+Four independent processes submitting to the same GPU queue each waited for the whole queue to drain,
+so the earliest submitter reported the *longest* time (corr(submission phase, inference time) = -0.999,
+run 20260804-1432). One process handling all N cameras has no cross-process queue to wait on.
 
 The pipeline per step is:
 
@@ -17,18 +14,17 @@ The pipeline per step is:
                        ->  joint angles (bone-to-bone angle)   -> {joint: deg}
                        ->  q_out
 
-`batch3d_backend` in config.yaml picks how that pose-estimation step works
-(see _setup_mediapipe/_infer_mediapipe and _setup_dlc/_infer_dlc):
+`batch3d_backend` in config.yaml picks the pose estimator, and an engine picks how it runs:
 
-  - "mediapipe" (default): N HandLandmarker instances run concurrently on a
-    thread pool. MediaPipe's Python Tasks API has no tensor-batch call, so this
-    -- not a literal batched tensor -- is what "one step, N cameras" means for
-    this backend; TFLite releases the GIL during inference so it still lands in
-    one step's time budget (measured 32.6 ms for 4 cameras concurrently vs
-    138 ms sequential).
-  - "dlc": a real batched tensor forward pass through one PyTorch model
-    (batch_size = num_cameras): measured 41.6 ms for 4 frames vs 75.6 ms for
-    four sequential calls (1.8x).
+  - "mediapipe": Google's HandLandmarker, one per camera, run concurrently on a thread pool.
+      mediapipe_engine "mediapipe" -> MediaPipe's own Python wrapper (TFLite on CPU, ~34 ms / 2 cameras)
+      mediapipe_engine "onnx"      -> actors/hand_onnx.py, the same two networks on onnxruntime
+                                      (12.6 ms CPU, 2.4 ms TensorRT for 2 cameras)
+  - "dlc": a DeepLabCut top-down model (detector + pose net), all cameras in one batch.
+      dlc_engine "pytorch" -> DeepLabCut's inference runners (~26 ms / 2 cameras)
+      dlc_engine "onnx"    -> actors/dlc_onnx.py on onnxruntime (~5-7 ms / 2 cameras)
+
+Both backends produce the same per-camera (x, y, score) rows, so everything after `_infer` is shared.
 
 Triangulation uses aniposelib, as the rest of the lab does (see _triangulate()).
 Joint angles are the same bone-to-bone angle dlc2kinematics computes, vectorised
@@ -203,9 +199,16 @@ def _hand_layouts(bodyparts):
 
 
 class ProcessorBatch3D(Actor):
-    """One actor, N cameras, one batched forward pass, 3D keypoints + joint angles."""
+    """One actor for N cameras: pose estimation on every camera each step, then 3D keypoints and joint angles.
+
+    Inputs: frames{i}_in for camera slot i ([store id, camera_start, frame_num, capture_time] messages).
+    Output (q_out): one dict per step with joint_angles, joint_names, points_3d (K, 3) mm, points_2d
+    (num_cameras, K, 3), skeleton_idx, bodyparts, camera_start (earliest camera in the step), frame_num.
+    """
 
     def __init__(self, *args, **kwargs):
+        """Graph kwargs: num_cameras, camera_nums, pred_active, triangulate, align_frames (replay),
+        gather_wait_ms, max_frame_skew_ms, compute_cores, config_overrides (dict merged over config.yaml)."""
         super().__init__(*args, **kwargs)
         self.num_cameras = kwargs.get('num_cameras', 4)
         # Physical camera_num for each frames{i}_in slot, in slot order. Slot
@@ -244,6 +247,8 @@ class ProcessorBatch3D(Actor):
     # ------------------------------------------------------------------ setup
 
     def setup(self):
+        """Read config.yaml (+ the graph's config_overrides), pin CPU cores, build the pose estimator,
+        calibration, hand association, joint definitions and the per-step logs."""
         source_folder = Path(__file__).resolve().parent.parent
         with open(f'{source_folder}/config/config.yaml', 'r') as file:
             config = yaml.safe_load(file)
@@ -255,19 +260,10 @@ class ProcessorBatch3D(Actor):
             logger.info(f"config overrides from the graph: {overrides}")
         self.config = config
 
-        # Claim P-core(s) before anything spins up CUDA/TFLite helper threads --
-        # thread affinity is only inherited by threads created after this call.
-        # The mediapipe backend runs num_cameras HandLandmarker instances
-        # concurrently on a thread pool and needs more than one physical core
-        # or that concurrency starves itself (measured 57 ms for a 4-camera
-        # step pinned to 1 core vs 32.6 ms given the P-cores that used to be
-        # split across 4 separate per-camera Processor actors). The dlc
-        # backend's forward pass is GPU-bound and single-threaded on the CPU
-        # side (torch.set_num_threads(1) in _setup_dlc), so it keeps the
-        # original one-core pin.
-        # mediapipe: cpu_affinity.compute_slots physical P-cores (the thread pool needs several; 4 cameras
-        # measured 31.7 ms on 4 cores vs 29.2 on 7). Claiming one per camera took every P-core with 7
-        # cameras and left the CameraReaders sharing them. dlc: one core. compute_cores overrides both.
+        # Claim P-cores before anything spins up CUDA/TFLite helper threads (affinity is only inherited
+        # by threads created afterwards). mediapipe runs one landmarker per camera on a thread pool and
+        # starves on a single core (57 ms vs 32.6 ms for 4 cameras), so it gets cpu_affinity.compute_slots
+        # physical P-cores; dlc is GPU-bound and gets one. The compute_cores kwarg overrides both.
         backend = config.get('batch3d_backend', 'mediapipe')
         compute_slots = int((config.get('cpu_affinity') or {}).get('compute_slots', 4))
         n_slots = min(self.num_cameras, compute_slots) if (self.pred_active and backend == 'mediapipe') else 1
@@ -284,13 +280,6 @@ class ProcessorBatch3D(Actor):
 
         self.resize = config['resize']
         self.camera_prescaled = config.get('camera_prescaled', False)
-        # Keypoints below this likelihood are dropped (set to NaN) before
-        # triangulation, so a camera that cannot see a joint contributes nothing
-        # to it rather than dragging the DLT solution toward a bad ray. This is
-        # the knob the task asks for; aniposelib then needs >=2 surviving views
-        # per keypoint and returns NaN for the rest. (With the mediapipe
-        # backend this is a per-camera whole-hand gate, not per-keypoint --
-        # see _setup_mediapipe / _infer_mediapipe.)
         self._wd_file = None
         self.out_folder = run_folder()
         L = lambda name: ChunkLog(self.out_folder, name)      # bounded memory, blocks written as the run goes
@@ -310,9 +299,10 @@ class ProcessorBatch3D(Actor):
             process_var=float(config.get('kalman_process_var', 1)),
             dlc_var=float(config.get('kalman_measurement_var', 10)))
         self.points_2d_raw_log = L('batch3d_points_2d_raw')
-        # One threshold (config `threshold`). With the Kalman filter on it has already
-        # replaced sub-threshold keypoints by estimates (likelihood 0), so the gate
-        # here must not drop them again.
+        # Keypoints below `threshold` are set to NaN before triangulation, so a camera that cannot see a
+        # joint adds no ray for it (aniposelib needs >= 2 surviving views per keypoint). With mediapipe the
+        # score is per hand, so this is a whole-hand gate. With the 2D Kalman filter on, sub-threshold
+        # keypoints were already replaced by estimates (likelihood 0), so the gate must not drop them again.
         self.likelihood_threshold = -1.0 if self.kalman_on else float(config['threshold'])
         self.min_cameras = int(config.get('triangulation_min_cameras', 2))
 
@@ -651,17 +641,14 @@ class ProcessorBatch3D(Actor):
             logger.error(f"only {n_linked} calibrated camera(s) among the wired ones -- "
                          f"triangulation needs at least 2 and will return all-NaN")
 
-        # Each camera was calibrated at the frame size stored in the toml; live
-        # 2D points are rescaled into it per camera, from the ACTUAL frame size
-        # (see runStep). The old config key compared the toml against itself.
-        if config.get('calibration_frame_size'):
-            logger.warning("config calibration_frame_size is ignored: the scale now comes "
-                           "from the calibration file vs the live frame size")
+        # Each camera was calibrated at the frame size stored in the toml; live 2D points are rescaled
+        # into it per camera from the actual frame size (see _run_step).
         self.calib_sizes = [cam.get_size() for cam in self.cgroup.cameras]
 
     # ------------------------------------------------------------------- step
 
     def _gather_frames(self):
+        """One frame per camera for this step: (frame_ids, starts, frame_nums, present_slots, capture_times)."""
         if self.align_frames:
             return self._gather_aligned()
         return self._gather_newest()
@@ -760,6 +747,7 @@ class ProcessorBatch3D(Actor):
         newest = {}
 
         def drain():
+            """Empty every camera queue, keeping only the newest message per camera."""
             for slot, link in wired:
                 while True:
                     try:
@@ -790,8 +778,11 @@ class ProcessorBatch3D(Actor):
         return frame_ids, starts, fnums, present, caps
 
     def runStep(self):
-        # Watchdog: if one step takes >10 s (a hang, not a slow frame), dump every
-        # thread's stack into the processor log so the stall can be located.
+        """improv's per-step hook: one processing step under a hang watchdog.
+
+        If a step takes > 10 s (a hang, not a slow frame) every thread's stack is dumped to
+        logs/batch3d_watchdog.log so the stall can be located.
+        """
         if self._wd_file is None:
             self._wd_file = open(self.out_folder / "logs" / "batch3d_watchdog.log", "a")
         faulthandler.dump_traceback_later(10, repeat=True, file=self._wd_file)
@@ -801,6 +792,7 @@ class ProcessorBatch3D(Actor):
             faulthandler.cancel_dump_traceback_later()
 
     def _run_step(self):
+        """Gather -> store get -> pose estimation -> (association) -> triangulation -> _finish_step."""
         if not self.pred_active:
             return
 
@@ -1006,6 +998,7 @@ class ProcessorBatch3D(Actor):
         return points_3d, gui
 
     def _finish_step(self, points_3d, raw_2d, starts, fnums, batch_slots, step_start):
+        """Continuity (hold/glide), joint angles, logging and the output message for one step."""
         # --- 5b. continuity: hold through gaps, glide back (config `continuity`) ---
         if self.continuity is not None and points_3d is not None:
             self.points_3d_raw_log.append(points_3d.copy())
@@ -1092,6 +1085,7 @@ class ProcessorBatch3D(Actor):
         return raw
 
     def _infer_dlc(self, frames, batch_slots):
+        """DLC pose estimation for the cameras in batch_slots -> (num_cameras, K, 3) x, y, likelihood."""
         batch = [frames[s] for s in batch_slots]
         if self.dlc_engine == 'onnx':
             raw_2d = np.full((self.num_cameras, self.n_keypoints, 3), np.nan)
@@ -1132,13 +1126,11 @@ class ProcessorBatch3D(Actor):
         mp = self._mp
 
         def detect_one(slot):
-            # Frames arriving from the store are already RGB -- both the real
-            # camera path (TIS.py opens the device with SinkFormats.RGB) and the
-            # synthetic Generator (which converts BGR->RGB before client.put)
-            # guarantee this, and nothing else in this codebase re-converts
-            # them (front_end_3d.py renders them straight into
-            # QImage.Format_RGB888). No cv2.cvtColor here -- swapping channels
-            # on an already-RGB frame would hand mediapipe a blue-tinted image.
+            """Run one camera's landmarker -> (slot, MediaPipe-shaped result or None).
+
+            Store frames are already RGB (TIS opens the camera as RGB, Generator converts), so no
+            colour conversion here.
+            """
             if self.mp_engine == 'onnx':
                 try:
                     return slot, _onnx_result(self.landmarkers[slot].step(frames[slot]), frames[slot].shape)
@@ -1181,6 +1173,7 @@ class ProcessorBatch3D(Actor):
             self._mp_dets[slot] = dets
 
             def hand_rows(i):
+                """Detection i as a (21, 3) [x px, y px, handedness score] block, plus the score."""
                 hand = result.hand_landmarks[i]
                 score = (result.handedness[i][0].score if result.handedness else 1.0)
                 pred = np.empty((len(hand), 3), dtype=float)
@@ -1252,6 +1245,7 @@ class ProcessorBatch3D(Actor):
     # ------------------------------------------------------------------- stop
 
     def stop(self):
+        """Close the pose estimator and save every per-step log of the run to the run folder."""
         if not self.pred_active:
             logger.info("ProcessorBatch3D stopped (inactive)")
             return
@@ -1260,7 +1254,8 @@ class ProcessorBatch3D(Actor):
             try:
                 self.mp_executor.shutdown(wait=False, cancel_futures=True)
                 for lm in self.landmarkers:
-                    lm.close()
+                    if hasattr(lm, 'close'):        # MediaPipe landmarkers; the ONNX tracker has nothing to close
+                        lm.close()
             except Exception:
                 logger.error(f"error closing mediapipe landmarkers: {traceback.format_exc()}")
 

@@ -1,3 +1,10 @@
+"""Processor: per-camera 2D DeepLabCut inference for the xPC graphs (one actor per camera).
+
+Per frame: store get -> DLC (PyTorch) -> 2D Kalman filter (actors/kalmanfilter.py) -> one 'angle' value -> q_out as
+[prediction, angle, camera_start, frame_num, camera_num]. The 'angle' is the y pixel of the PIP keypoint (or of the
+single keypoint of a 1-keypoint model), divided by config `resize`, which Sender maps onto the xPC's 0-1023 range.
+The 3D graphs use actors/processor_batch3d.py instead.
+"""
 import os
 # Limit numpy/BLAS threading to avoid contention with PyTorch in multiprocessing
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -10,15 +17,9 @@ import yaml
 import time
 import traceback
 import cv2
-import copy
 import torch
-# from dlclive import DLCLive
 from pathlib import Path
 from improv.actor import Actor
-from collections import deque
-# from .dlcProcessor import IndexAngles
-# from deeplabcut.pose_estimation_pytorch import Task
-# from deeplabcut.pose_estimation_pytorch.apis.analyze_videos import video_inference
 from deeplabcut.pose_estimation_pytorch.config import read_config_as_dict
 from deeplabcut.pose_estimation_pytorch.apis.utils import get_inference_runners
 from .kalmanfilter import KalmanFilterPredictor
@@ -31,10 +32,10 @@ logger = get_logger(__name__, "processor.log")
 
 
 class Processor(Actor):
-    """ Applying DLC inference to each video frame
-    """
+    """DLC inference on one camera's frames (frames_in) -> [prediction, angle, camera_start, frame_num, camera_num]."""
 
     def __init__(self, *args, **kwargs):
+        """Graph kwargs: pred_active (False = pass-through no-op), camera_num (selects config model_path_N)."""
         super().__init__(*args, **kwargs)
 
         self.pred_active = kwargs['pred_active']
@@ -171,8 +172,6 @@ class Processor(Actor):
             self.frame_num = 0
             self.frame_sentTime = 0
             self.frames_log = 200 # num frames after which to log
-            self.angle_queue = deque(maxlen=15)  # to store last 10 angles for smoothing
-            self.alpha = config['alpha']
             self.interp_thresh = config['threshold']
             self.prev_angle = None
             self.smoothed_prediction = None
@@ -204,10 +203,11 @@ class Processor(Actor):
 
             self.out_folder = run_folder()
             logger.info(f"Output folder set to {self.out_folder}")
-            logger.info(f"Using alpha: {self.alpha} and interp_thresh: {self.interp_thresh} and resize: {self.resize}")
+            logger.info(f"interp_thresh: {self.interp_thresh}, resize: {self.resize}")
             logger.info("Completed setup for Processor")
 
     def stop(self):
+        """Save the predictions, angles and timing logs (proc_*_cam<N>.npy)."""
         """Stop function for saving results and cleaning up."""
         if self.pred_active:
             self.done = True
@@ -245,6 +245,7 @@ class Processor(Actor):
         logger.info(f"Processor {self.name} stopped")
 
     def runStep(self):
+        """Take the newest frame, run DLC + the Kalman filter, compute the angle and send it."""
         frame_id = None
         self.prediction = None
         angle = None
@@ -380,21 +381,15 @@ class Processor(Actor):
                     # --- Step 6: Post-processing (angle calculation + smoothing) ---
                     t0 = time.perf_counter()
                     if len(smoothed_prediction) >= 3:
-                        # angle = self.calculateAngle(smoothed_prediction)
                         angle = smoothed_prediction[1][1] # Just take the y value of the PIP joint as a proxy for angle, since actual angle calc is noisy
                     else:
                         logger.debug(f"Camera {self.camera_num}: Prediction shape insufficient for angle calculation: {smoothed_prediction.shape}")
                         angle = smoothed_prediction[0][1]  # the keypoint's y pixel (1-keypoint models), sent as the 'angle'
 
-                    # Only feed real numbers into the smoothing window. A single NaN
-                    # used to poison np.mean for the whole 15-frame deque, which is
-                    # why one dropped keypoint produced a run of NaN angles rather
-                    # than a single glitch. -1/-2 are DLC's "assembly failed"
-                    # sentinels and are not real coordinates either.
+                    # No angle smoothing here (a 15-frame moving average used to add ~0.5 s of lag); the Kalman filter
+                    # above is the only smoothing. -1/-2 are DLC's "assembly failed" sentinels, not coordinates.
                     if np.isfinite(angle) and angle > -1.5:
-                        self.angle_queue.append(angle)
                         smoothed_angle = angle
-                    # smoothed_angle = float(np.mean(self.angle_queue))  #NOTE this adds so much lag
                     else:
                         # Nothing valid seen yet this run -- hold the last good angle
                         # rather than emitting NaN downstream to the sender/GUI.
@@ -445,22 +440,3 @@ class Processor(Actor):
         else:
             pass
 
-    def calculateAngle(self,prediction):
-        # Check if we have at least 3 points
-        if len(prediction) < 3:
-            logger.error(f"Cannot calculate angle: need 3 points, got {len(prediction)}")
-            return None
-
-        p2, p3, p4 = prediction[1,:2], prediction[2, :2], prediction[3, :2]
-        #  DIP=0, PIP=1, MCP=2, Wrist=3, currently getting angle at MCP
-        # Define vectors from point 3 to points 2 and 4
-        v3_to_2 = p2 - p3
-        v3_to_4 = p4 - p3
-
-        # Calculate dot product and determinant
-        dot_product = np.dot(v3_to_2, v3_to_4)
-        determinant = v3_to_2[0] * v3_to_4[1] - v3_to_2[1] * v3_to_4[0]
-
-        # Calculate angle in degrees at point 3
-        angle = np.degrees(np.arctan2(determinant, dot_product)) % 360
-        return angle

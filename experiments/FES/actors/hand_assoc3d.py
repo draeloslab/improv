@@ -35,12 +35,16 @@ class OneEuroHand:
 
     def __init__(self, min_cutoff=1.0, beta=0.05, d_cutoff=1.0, fps=30.0,
                  hold_frames=5, reset_mm=60.0):
+        """min_cutoff (Hz): smoothing at rest (lower = smoother, more lag). beta: how fast the cutoff rises with speed
+        (higher = less lag when moving). d_cutoff (Hz): smoothing of the speed estimate. hold_frames: frames the last
+        hand is repeated after it is lost. reset_mm: palm jump that restarts the filter instead of smoothing across it."""
         self.min_cutoff, self.beta, self.d_cutoff = min_cutoff, beta, d_cutoff
         self.fps, self.hold_frames, self.reset_mm = fps, hold_frames, reset_mm
         self.x = self.dx = None
         self.held = 0
 
     def _alpha(self, fc):
+        """Exponential-smoothing weight for cutoff frequency fc (Hz) at this frame rate."""
         return 1.0 / (1.0 + self.fps / (2 * np.pi * fc))
 
     def step(self, z):
@@ -72,6 +76,9 @@ class HandTracker3D:
 
     def __init__(self, cgroup, tol_px=15.0, size_mm=(20.0, 200.0), gate_mm=100.0,
                  max_miss=10, smooth=None, fps=30.0):
+        """cgroup: aniposelib CameraGroup. tol_px: reprojection error for detections to count as one hand.
+        size_mm: plausible wrist -> middle-MCP length. gate_mm: palm distance to stay the same track. max_miss:
+        frames a track survives unseen. smooth: OneEuroHand kwargs, or False for raw output."""
         self.cg = cgroup
         self.nrows = len(cgroup.cameras)
         self.tol, self.size_mm, self.gate, self.max_miss = tol_px, size_mm, gate_mm, max_miss
@@ -84,12 +91,14 @@ class HandTracker3D:
 
     # ------------------------------------------------------------ geometry
     def _triangulate(self, views):
+        """[(calibration row, (21, 2) pixels)] -> (21, 3) mm."""
         p = np.full((self.nrows, 21, 2), np.nan)
         for r, xy in views:
             p[r] = xy
         return self.cg.triangulate(p, progress=False)
 
     def _view_error(self, p3, row, xy):
+        """Mean reprojection error (px) of a 3D hand in one camera."""
         proj = self.cg.project(p3)[row]
         return float(np.nanmean(np.linalg.norm(proj - xy, axis=1)))
 

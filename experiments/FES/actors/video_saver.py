@@ -1,15 +1,17 @@
+"""VideoSaver: records one camera to raw buffer files during a run (converted to mp4 afterwards by VideoConverter)."""
 import os
-import time
 import threading
-import yaml
-import numpy as np
-from improv.actor import ManagedActor
-from . import cpu_affinity
+import time
 from pathlib import Path
-from queue import Queue, Empty
-from .video_converter import VideoConverter
+from queue import Empty, Queue
 
+import numpy as np
+import yaml
+from improv.actor import ManagedActor
+
+from . import cpu_affinity
 from .run_paths import get_logger, run_folder, video_session_folder
+from .video_converter import VideoConverter
 
 logger = get_logger(__name__, "camera_video_saver.log")
 
@@ -29,6 +31,7 @@ class VideoSaver(ManagedActor):
     """
 
     def __init__(self, *args, **kwargs):
+        """Graph kwargs: camera_num (index into camera_config.yaml active_cameras)."""
         super().__init__(*args, **kwargs)
         self.camera_num = kwargs['camera_num']
 
@@ -98,6 +101,7 @@ class VideoSaver(ManagedActor):
 
     # ------------------------------------------------------------------ lifecycle
     def setup(self):
+        """Pin to the E-cores, create the session's buffer folder and the reader/writer/converter threads."""
         # Disk writing is throughput work, not latency work -- keeping it (and its ffmpeg children, which
         # inherit this affinity) on the E-cores leaves the P-cores for the processor and camera readers.
         cpu_affinity.pin_actor(cpu_affinity.BACKGROUND, label=f"VideoSaver cam{self.camera_num}")
@@ -156,6 +160,7 @@ class VideoSaver(ManagedActor):
         logger.info(f"[Camera {self.camera_name}] saver setup completed")
 
     def runStep(self):
+        """The first step drops frames queued before the run and starts the reader and writer threads."""
         if not self.start_program:
             while not self.q_in.empty():          # drop frames queued before the run started
                 self.q_in.get_nowait()
@@ -166,6 +171,7 @@ class VideoSaver(ManagedActor):
             logger.info(f"[Camera {self.camera_name}] recording started")
 
     def stop(self):
+        """Finish writing, save the saver's timing logs and, if the GUI asked for it, convert the buffers to mp4."""
         self.stop_program = True
         logger.info(f"[Camera {self.camera_name}] waiting for the saver threads to finish")
         if self.reader_thread.is_alive():
@@ -211,4 +217,5 @@ class VideoSaver(ManagedActor):
             time.sleep(0.5)
 
     def convert_saved_frames(self):
+        """Thread target: turn this camera's buffer files into the mp4."""
         self.video_converter.convert_saved_frames()

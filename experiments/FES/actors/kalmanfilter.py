@@ -1,17 +1,19 @@
 """
-DeepLabCut Toolbox (deeplabcut.org)
-© A. & M. Mathis Labs
+2D Kalman smoothing of keypoints (used by ProcessorBatch3D with hand_association: label and kalman_enabled).
 
-Licensed under GNU Lesser General Public License v3.0
+KalmanFilterPredictor is DLC-Live's processor (DeepLabCut Toolbox, (c) A. & M. Mathis Labs, LGPL-3.0);
+KalmanHandSmoother wraps it for a stream whose keypoints drop out.
 """
-
-
 import time
+
 import numpy as np
-# from dlclive.processor import Processor
 
 
 class KalmanFilterPredictor():
+    """DLC-Live's constant-velocity (nderiv=1) / acceleration (nderiv=2) Kalman filter over all keypoints at once.
+
+    process() also extrapolates `forward` seconds ahead (latency compensation); KalmanHandSmoother turns that off.
+    """
     def __init__(
         self,
         adapt=True,
@@ -41,6 +43,7 @@ class KalmanFilterPredictor():
         self.last_pose_time = 0
 
     def _get_forward_model(self, dt):
+        """State transition matrix for a step of dt seconds."""
 
         F = np.zeros((self.n_states, self.n_states))
         for d in range(self.nderiv + 1):
@@ -50,6 +53,7 @@ class KalmanFilterPredictor():
         return F
 
     def _init_kf(self, pose):
+        """Size the state for this pose's keypoints and start at it with zero velocity."""
 
         # get number of body parts
         self.bp = pose.shape[0]
@@ -75,6 +79,7 @@ class KalmanFilterPredictor():
         self.is_initialized = True
 
     def _predict(self):
+        """Prior step: shrink the state towards the priors, then propagate it and its covariance."""
 
         F = self._get_forward_model(time.time() - self.last_pose_time)
 
@@ -85,6 +90,7 @@ class KalmanFilterPredictor():
         self.Pp = np.dot(np.dot(F, self.P), F.T) + self.Q
 
     def _get_residuals(self, pose):
+        """Innovation: measured position (and finite-difference derivatives) minus the prediction."""
 
         z = np.zeros((self.n_states, 1))
         z[: (self.bp * 2)] = pose[: self.bp, :2].reshape(self.bp * 2, 1)
@@ -93,6 +99,7 @@ class KalmanFilterPredictor():
         self.y = z - np.dot(self.H, self.Xp)
 
     def _update(self, liks):
+        """Correction step; keypoints below lik_thresh keep the prediction."""
 
         S = np.dot(self.H, np.dot(self.Pp, self.H.T)) + self.R
         K = np.dot(np.dot(self.Pp, self.H.T), np.linalg.inv(S))
@@ -101,6 +108,7 @@ class KalmanFilterPredictor():
         self.P = np.dot(self.I - np.dot(K, self.H), self.Pp)
 
     def _get_future_pose(self, dt):
+        """Positions extrapolated from the current state."""
 
         Ff = self._get_forward_model(time.time() - self.last_pose_time)
         Xf = np.dot(Ff, self.X)
@@ -109,6 +117,7 @@ class KalmanFilterPredictor():
         return future_pose
 
     def _get_state_likelihood(self, pose):
+        """Per-keypoint likelihood broadcast to every state entry (x, y and their derivatives)."""
 
         liks = pose[:, 2]
         liks_xy = np.repeat(liks, 2)
@@ -117,7 +126,7 @@ class KalmanFilterPredictor():
         return liks_state
 
     def process(self, pose, **kwargs):
-
+        """(K, 3) x, y, likelihood -> filtered (and forward-extrapolated) pose. kwargs: frame_time when adapt=True."""
         if not self.is_initialized:
 
             self._init_kf(pose)
@@ -164,6 +173,8 @@ class KalmanHandSmoother:
 
     def __init__(self, fps=30, lik_thresh=0.6, coast_lik=0.5, max_coast=15,
                  priors=(1, 1), initial_var=10, process_var=1, dlc_var=10, nderiv=2):
+        """Config kalman_*: process_var / dlc_var (measurement) set the smoothing (higher dlc_var or lower process_var
+        = smoother and laggier); max_coast is how long a lost keypoint is estimated before it is dropped."""
         self.kf = KalmanFilterPredictor(
             adapt=False, forward=0.0, fps=fps, nderiv=nderiv, priors=list(priors),
             initial_var=initial_var, process_var=process_var, dlc_var=dlc_var,

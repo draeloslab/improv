@@ -25,6 +25,7 @@ TRACK_SCALE, TRACK_SHIFT_Y = 2.0, -0.1     # HandLandmarksToRect for a tracked h
 
 
 def _anchors():
+    """The palm detector's 2016 SSD anchor centres (normalised x, y): 24x24 cells x 2 + 12x12 cells x 6."""
     out = []
     for fm, per_cell in ((24, 2), (12, 6)):          # strides 8 (2 anchors/cell) and 16 (3 layers merged = 6/cell)
         for y in range(fm):
@@ -37,6 +38,7 @@ ANCHORS = _anchors()
 
 
 def _norm_angle(a):
+    """Wrap an angle in radians to [-pi, pi)."""
     return a - 2 * np.pi * np.floor((a + np.pi) / (2 * np.pi))
 
 
@@ -48,6 +50,7 @@ def _rect(cx, cy, w, h, rot, scale, shift_y):
 
 
 def _iou(a, b):
+    """Intersection over union of two (x0, y0, x1, y1) boxes."""
     ax0, ay0, ax1, ay1 = a
     bx0, by0, bx1, by1 = b
     iw, ih = max(0, min(ax1, bx1) - max(ax0, bx0)), max(0, min(ay1, by1) - max(ay0, by0))
@@ -85,7 +88,16 @@ def prepare_providers(providers, cache_dir):
 
 
 class OnnxHandTracker:
+    """One camera's hand tracker: MediaPipe's palm detector + landmark net on onnxruntime, with MediaPipe's VIDEO-mode
+    tracking (the palm detector only runs while fewer than num_hands hands are being followed)."""
+
     def __init__(self, models_dir, num_hands=2, det_conf=0.5, presence_conf=0.5, providers=None, palm_range=(0.0, 1.0), always_detect=False):
+        """
+        models_dir: folder with hand_detector.onnx and hand_landmarks_detector.onnx.
+        num_hands: hands to follow per camera. det_conf / presence_conf: MediaPipe's min_hand_detection_confidence /
+        min_hand_presence_confidence. providers: onnxruntime providers (see prepare_providers); None = CPU.
+        palm_range: input value range of the palm detector (0..1 for this model). always_detect: no tracking.
+        """
         models_dir = Path(models_dir)
         providers = prepare_providers(providers, models_dir / 'trt_cache')
         opts = ort.SessionOptions()
@@ -99,6 +111,11 @@ class OnnxHandTracker:
 
     # ------------------------------------------------------------ palm detector
     def detect_palms(self, rgb):
+        """Palm detections in one RGB frame, best first: [{'c', 'wh', 'k0' (wrist), 'k2' (middle MCP), 'score'}] in pixels.
+
+        Letterboxes the frame to 192x192, decodes the SSD boxes/keypoints against ANCHORS and merges overlapping
+        candidates with MediaPipe's weighted NMS (IoU 0.3).
+        """
         h, w = rgb.shape[:2]
         s = PALM_IN / max(h, w)
         nw, nh = round(w * s), round(h * s)
@@ -142,12 +159,14 @@ class OnnxHandTracker:
 
     @staticmethod
     def palm_to_roi(d):
+        """Palm detection -> rotated square hand ROI (cx, cy, size, rotation): wrist->middle MCP points up, 2.6x the palm box."""
         (x0, y0), (x2, y2) = d['k0'], d['k2']
         rot = _norm_angle(0.5 * np.pi - np.arctan2(-(y2 - y0), x2 - x0))
         return _rect(d['c'][0], d['c'][1], d['wh'][0], d['wh'][1], rot, PALM_SCALE, PALM_SHIFT_Y)
 
     # ------------------------------------------------------------ landmark net
     def landmarks(self, rgb, roi):
+        """Run the landmark net on the rotated 224x224 crop of roi -> (21 x/y in frame pixels, presence, P(right hand))."""
         cx, cy, size, rot = roi
         c, s = np.cos(rot), np.sin(rot)
         k = size / LM_IN                                           # crop pixel -> frame pixel
@@ -178,6 +197,10 @@ class OnnxHandTracker:
 
     # ------------------------------------------------------------ one frame
     def step(self, rgb):
+        """One frame: follow the tracked hands, look for new ones if needed.
+
+        Returns [{'xy': (21, 2) pixels, 'score': presence, 'right': handedness probability}, ...].
+        """
         import time
         hands, new_rois = [], []
         t0 = time.perf_counter()
@@ -202,3 +225,6 @@ class OnnxHandTracker:
             self.timing['palm'] = time.perf_counter() - t0
         self.rois = new_rois
         return hands
+
+    def close(self):
+        """Nothing to release (sessions are freed with the object); here so callers can treat it like a landmarker."""

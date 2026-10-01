@@ -1,23 +1,23 @@
-from improv.actor import Actor
-import numpy as np
-import logging
-import cv2
+"""Generator: plays a recorded video into the store as if it were a live camera (replay graphs, no hardware)."""
 import time
 from pathlib import Path
+
+import cv2
+import numpy as np
 import yaml
+from improv.actor import Actor
 
+from . import cpu_affinity
+from .run_paths import get_logger, run_folder
 
-
-from .run_paths import run_folder
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger = get_logger(__name__, "generator.log")
 
 
 class Generator(Actor):
-    """Sample actor to generate data to pass into a sample processor.
+    """Reads a video at config `fps`, converts BGR -> RGB and sends [store id, time, frame_num] on q_out.
 
-    Intended for use along with sample_processor.py.
+    Graph kwargs: camera_num (plays config.yaml video_paths[camera_num]) or video_path (any file). Without either
+    it plays config.yaml video_path.
     """
 
     def __init__(self, *args, **kwargs):
@@ -26,47 +26,27 @@ class Generator(Actor):
         self.video_path_kw = kwargs.get('video_path')     # graph-level override of config.yaml's video_paths
 
     def setup(self):
-        logger.info(f"Beginning setup for {self.name}")
-
-         # load the configuration file
-        source_folder = Path(__file__).resolve().parent.parent
-
-        with open(f'{source_folder}/config/config.yaml', 'r') as file:
-            config = yaml.safe_load(file)
-
-        
-        # Optional `camera_num` (yaml kwarg) selects config['video_paths'][camera_num],
-        # so several Generators can play one recording per physical camera.
-        camera_num = getattr(self, 'camera_num', None)
+        """Pick the video, open it and set up the timing logs."""
+        with open(Path(__file__).resolve().parent.parent / 'config' / 'config.yaml') as f:
+            config = yaml.safe_load(f)
         if self.video_path_kw:
             self.video_path = self.video_path_kw
-        elif camera_num is not None:
-            self.video_path = config['video_paths'][camera_num]
-        elif '0' in self.name:
-            self.video_path = config['video_path_0']
-        elif '2' in self.name:
-            self.video_path = config['video_path_2']
+        elif self.camera_num is not None:
+            self.video_path = config['video_paths'][self.camera_num]
         else:
             self.video_path = config['video_path']
 
-        # Replay actor: keep it off the P-cores the processor uses (and off the
-        # faulty core, via cpu_affinity.exclude_cpus).
-        from . import cpu_affinity
+        # Replay actor: keep it off the processor's P-cores (and off the excluded cores).
         cpu_affinity.pin_actor(cpu_affinity.BACKGROUND, label=f"Generator {self.name}")
         self.cap = None
         self.frame_interval = 1.0 / config['fps']
         self.next_due = None
-        self.resize = config['resize']
         self.frame_num = 0
-        
-        # --- Timing logs ---
-        # Wall-clock timestamp when each frame is produced (time.time())
-        self.timestamps = []
-        # Duration of actual work per frame: read + cvtColor + store put + q_out put (perf_counter)
-        self.work_latencies = []
-        # Duration including the sleep: work + time.sleep (perf_counter)
-        self.full_latencies = []
-        # Per-step breakdown (perf_counter durations in seconds)
+
+        # Timing logs (seconds)
+        self.timestamps = []        # time.time() when each frame was produced
+        self.work_latencies = []    # read + cvtColor + store put + q_out put
+        self.full_latencies = []    # the same plus the pacing sleep
         self.read_latencies = []    # cv2 read
         self.cvt_latencies = []     # cvtColor
         self.store_put_latencies = []  # client.put
@@ -78,18 +58,11 @@ class Generator(Actor):
         if not self.cap.isOpened():
             logger.error(f"Error opening video file: {self.video_path}")
             return
-        total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-
-        self.out_folder = run_folder()
-        logger.info(f"Output folder set to {self.out_folder}")
-        logger.info(f'Total frames: {total_frames}')
+        logger.info(f"{self.name}: {self.video_path}, {int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))} frames")
         self.done = False
-        logger.info("Completed setup for Generator")
 
     def stop(self):
-
-        logger.info("Generator stopping")
+        """Release the video and save the timing logs (gen_*.npy)."""
         if self.cap:
             self.cap.release()
         
@@ -100,17 +73,10 @@ class Generator(Actor):
         np.save(self.out_folder / "gen_cvt_latencies.npy", self.cvt_latencies)
         np.save(self.out_folder / "gen_store_put_latencies.npy", self.store_put_latencies)
         np.save(self.out_folder / "gen_queue_put_latencies.npy", self.queue_put_latencies)
-
-        # Also save legacy names for backward compatibility
-        np.save(self.out_folder / "genstarts.npy", self.timestamps)
-        np.save(self.out_folder / "gen_latencies.npy", self.work_latencies)
-        np.save(self.out_folder / "full_latencies.npy", self.full_latencies)
-
-        logger.info(f"Generator latencies saved to {self.out_folder}")
         return 0
 
     def runStep(self):
-
+        """Send the next frame, then sleep until it is due (paced against a deadline, not a fixed sleep)."""
         if self.done:
             return
 
@@ -118,7 +84,7 @@ class Generator(Actor):
             frame_start = time.time()
             perf_start = time.perf_counter()
 
-            # --- Step 1: Read frame ---
+            # 1. read
             t0 = time.perf_counter()
             ret, self.frame = self.cap.read()
             if not ret:
@@ -127,18 +93,17 @@ class Generator(Actor):
                 return
             self.read_latencies.append(time.perf_counter() - t0)
 
-            # --- Step 2: Color convert ---
+            # 2. BGR -> RGB (the store holds RGB, like the cameras)
             t0 = time.perf_counter()
             self.frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
             self.cvt_latencies.append(time.perf_counter() - t0)
 
-            # --- Step 3: Store put ---
+            # 3. store put
             t0 = time.perf_counter()
             data_id = self.client.put(self.frame)
             self.store_put_latencies.append(time.perf_counter() - t0)
 
-            # --- Step 4: Queue put ---
-            # Pass frame_num so downstream actors can correlate events
+            # 4. announce it (frame_num lets align_frames match the same instant across cameras)
             t0 = time.perf_counter()
             try:
                 self.q_out.put([data_id, frame_start, self.frame_num])
@@ -150,8 +115,7 @@ class Generator(Actor):
             self.frame_num += 1
             self.work_latencies.append(time.perf_counter() - perf_start)
 
-            # Pace against a deadline, not a fixed sleep: sleeping a full period on
-            # top of the read/put work played at 27.5 fps instead of 30.
+            # A fixed sleep on top of the work played at 27.5 fps instead of 30.
             now = time.perf_counter()
             self.next_due = (now if self.next_due is None else self.next_due) + self.frame_interval
             if self.next_due > now:

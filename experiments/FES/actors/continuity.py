@@ -10,12 +10,17 @@ import numpy as np
 
 
 class ContinuousPose:
+    """Hold-and-glide filter for an (n_keypoints, 3) stream (see the module docstring)."""
+
     def __init__(self, n_keypoints, glide_frames=20, glide_alpha=0.15, jump_mm=40.0):
+        """glide_frames: frames a keypoint glides after a gap or jump. glide_alpha: fraction of the remaining distance
+        covered per gliding frame (0.15 -> 63% in ~6 frames, 200 ms at 30 fps). jump_mm: step size that counts as a jump."""
         self.gf, self.ga, self.jump = glide_frames, glide_alpha, jump_mm
         self.prev = np.full((n_keypoints, 3), np.nan)
         self.glide = np.zeros(n_keypoints, int)
 
     def step(self, z):
+        """One frame of (n_keypoints, 3) points, NaN where missing -> the continuous points."""
         prev = self.prev
         have = np.isfinite(z[:, 0])
         known = np.isfinite(prev[:, 0])

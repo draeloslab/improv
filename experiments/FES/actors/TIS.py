@@ -1,37 +1,42 @@
+"""TIS: a GStreamer pipeline for one The Imaging Source camera (tiscamera's tcambin), feeding the improv store.
+
+Pipeline: tcambin ! videoconvert ! capsfilter (native size, RGB) ! videoscale ! capsfilter (stream size) ! queue ! appsink.
+Every frame that reaches appsink is copied out of the GStreamer buffer into a numpy array (no encode), put in the store and announced on q_out
+as [store id, camera_start, frame_num, capture_time]:
+  camera_start  time.time() when the Python callback got the frame (start of the reported end-to-end latency)
+  frame_num     this camera's frame counter
+  capture_time  the buffer's GStreamer timestamp mapped to wall-clock time (when the frame reached the driver)
+
+Needs tiscamera, GStreamer and its Python bindings (python3-gst-1.0, pycairo, PyGObject).
+"""
 import threading
 import time
-import numpy as np
-import cv2
 from enum import Enum
-from collections import namedtuple
 
 import gi
+import numpy as np
+
 gi.require_version("Gst", "1.0")
 gi.require_version("Tcam", "1.0")
+from gi.repository import GLib, Gst, Tcam  # noqa: E402,F401  (Tcam registers tcambin's properties)
 
-import logging
-from .run_paths import get_logger, run_folder
+from .run_paths import get_logger, run_folder  # noqa: E402
 
 logger = get_logger(__name__, "camera_reader.log")
 
-from pathlib import Path
-
-
-from gi.repository import GLib, Gst, Tcam
-
-# Needed packages:
-# python-gst-1.0
-# python-opencv
-# tiscamera (+ pip install pycairo PyGObject)
 
 class SinkFormats(Enum):
+    """Pixel formats the appsink can be negotiated to."""
     GRAY8 = "GRAY8"
     GRAY16_LE = "GRAY16_LE"
     BGRx = "BGRx"
     RGB = "RGB"
 
 class TIS:
+    """One camera: open, configure, start/stop the pipeline, and publish frames from the appsink callback."""
+
     def __init__(self, camera_name, client, q_out):
+        """camera_name labels logs and output files; client is the improv store client; q_out the frame queue."""
         try:
             if not Gst.is_initialized():
                 Gst.init(())  # Usually better to call in the main function.
@@ -41,49 +46,24 @@ class TIS:
             Gst.init(())
 
         self.camera_name = camera_name
-
-        self.sharing_on = False
-        self.stop_program = False
-
-        # Gst.debug_set_default_threshold(Gst.DebugLevel.WARNING)
-        self.serialnumber = ""
-        self.height = 0
-        self.width = 0
-        self.framerate = ""
-        self.sinkformat = None
-        self.img_mat = None
-        self.ImageCallback = None
-        self.pipeline = None
-        self.source = None
-        self.appsink = None
-        
-        # Array which will receive the images.
-        self.image_data = []
-        self.image_caps = None
-
-        # buffer processing management
         self.client = client
         self.q_out = q_out
-
-        self.camera_latencies = []
-        self.camera_latenciesFull = []
-        self.cameraStarts = []
-        self.captureTimes = []      # wall-clock capture time per frame (NaN if the buffer had no timestamp)
-
-        # --- Timing logs ---
+        self.sharing_on = False
+        self.pipeline = self.source = self.appsink = None
         self.frame_num = 0
-        # Per-step breakdown (perf_counter durations in seconds)
-        self.convert_latencies = []    # GStreamer buffer → numpy
-        self.encode_latencies = []     # unused (JPEG encode removed); kept for file-schema compat
-        self.store_put_latencies = []  # client.put
-        self.queue_put_latencies = []  # q_out.put
-        
+        self.total_frame_count = 0
+
+        # Per-frame timing logs, saved by stop_pipeline (durations in seconds)
+        self.camera_latencies = []       # callback start -> frame announced on q_out (TISlatencies_*)
+        self.camera_latenciesFull = []   # the whole callback, including frames dropped before the run started
+        self.cameraStarts = []           # camera_start per frame (TISstarts_*)
+        self.captureTimes = []           # capture_time per frame, NaN without a buffer timestamp (TIScapture_*)
+        self.convert_latencies = []      # GStreamer buffer -> numpy view
+        self.store_put_latencies = []    # client.put
+        self.queue_put_latencies = []    # q_out.put
         self.out_folder = run_folder()
-        # logger.info(f"Output folder set to {self.out_folder}")
-        logger.info("Completed setup for TIS")
 
     def open_device(self, serial,
-                    shared_frame,
                     width, height,
                     framerate,
                     sinkformat: SinkFormats,
@@ -92,7 +72,7 @@ class TIS:
                     out_width: int = None,
                     out_height: int = None,
                     max_buffers: int = 5):
-        ''' Inialize a device, e.g. camera.
+        ''' Initialize a camera.
         :param serial: Serial number of the camera to be used.
         :param width: Width of the wanted video format (native capture)
         :param height: Height of the wanted video format (native capture)
@@ -131,14 +111,13 @@ class TIS:
         elif self.sinkformat == SinkFormats.BGRx:
             self.bpp = 4
 
-        self.num_bytes = self.height * self.width * (self.bpp - 1)
-
         self._create_pipeline(conversion, showvideo)
         self.source.set_property("serial", self.serialnumber)
         self.pipeline.set_state(Gst.State.READY)
         self.pipeline.get_state(40000000)
 
     def _create_pipeline(self, conversion: str, showvideo: bool):
+        """Build the GStreamer pipeline (downscaling happens here, in C, not in Python) and hook up the appsink."""
         if conversion and not conversion.strip().endswith("!"):
             conversion += " !"
         p = 'tcambin name=source ! videoconvert ! capsfilter name=caps'
@@ -195,15 +174,12 @@ class TIS:
         capsfilter_out.set_property("caps", caps_out)
 
     def start_pipeline(self):
-        """ Start the pipeline, so the video start running """
+        """Set the caps and start the pipeline. Returns False if the camera did not reach PLAYING (e.g. unplugged)."""
         self.start_time = time.perf_counter()
         self.total_frame_count = 0
         self.frame_count = 0
         self.total_delay = 0
         self.max_delay = 0
-
-        self.image_data = []
-        self.image_caps = None
 
         self._setcaps()
         self.pipeline.set_state(Gst.State.PLAYING)
@@ -290,8 +266,8 @@ class TIS:
         logger.info(f"[Camera {self.camera_name}] camera settings applied (read back): {applied}")
         return applied
     
-    # starting sharing the frames received from the camera
     def start_sharing(self):
+        """Start putting frames into the store (frames before this are dropped)."""
         self.sharing_on = True
 
         self.total_start_time = time.perf_counter()
@@ -302,8 +278,8 @@ class TIS:
         self.total_delay = 0
         self.max_delay = 0
     
-    # @profile
     def __on_new_buffer(self, appsink):
+        """appsink callback, once per frame: numpy view -> store -> q_out, with timing."""
         frame_time = time.perf_counter()
 
         sample = appsink.get_property('last-sample')
@@ -316,28 +292,18 @@ class TIS:
             capture_time = self._capture_time(buf)
             self.captureTimes.append(capture_time if capture_time is not None else float('nan'))
 
-            # --- Step 1: Convert GStreamer buffer to numpy ---
-            # Dimensions are cached on self (out_width/out_height/bpp, set once in
-            # open_device) instead of being re-derived from sample.get_caps() /
-            # get_structure() / get_value() on every single frame.
+            # 1. GStreamer buffer -> numpy (already at stream size; sizes cached in open_device)
             t0 = time.perf_counter()
             frame = self.__convert_to_numpy(buf.extract_dup(0, buf.get_size()))
             self.convert_latencies.append(time.perf_counter() - t0)
 
-            # --- Step 2: (JPEG encode removed) ---
-            # Frame is already downscaled to out_width x out_height by GStreamer
-            # (see _create_pipeline/_setcaps), so it goes into the store raw --
-            # no encode here, no imdecode + cv2.resize downstream in the
-            # processor. encode_latencies is kept (always empty) so downstream
-            # tooling that expects the file to exist doesn't break.
-
             try:
-                # --- Step 3: Store put ---
+                # 2. store put
                 t0 = time.perf_counter()
                 data_id = self.client.put(frame)
                 self.store_put_latencies.append(time.perf_counter() - t0)
 
-                # --- Step 4: Queue put (with frame_num for cross-actor correlation) ---
+                # 3. announce it (frame_num lets other actors match frames across logs)
                 t0 = time.perf_counter()
                 self.q_out.put([data_id, camera_start, self.frame_num, capture_time])
                 self.queue_put_latencies.append(time.perf_counter() - t0)
@@ -356,7 +322,6 @@ class TIS:
 
             except Exception as e:
                 logger.warning(f"[Camera {self.camera_name}] Could not put frame in the store | {e}")
-                pass
 
             if self.frame_count % 600 == 0 and self.frame_count > 0:
                 total_time = time.perf_counter() - self.start_time
@@ -368,11 +333,8 @@ class TIS:
                 self.frame_count = 0
                 self.start_time = time.perf_counter()
         self.camera_latenciesFull.append(time.perf_counter() - frame_time)
-            
-        
         return Gst.FlowReturn.OK
 
-    # @profile
     def __convert_to_numpy(self, data):
         ''' Convert a GStreamer sample to a numpy array.
             Dimensions come from self.out_height/self.out_width/self.bpp, cached
@@ -385,10 +347,9 @@ class TIS:
         return np.ndarray((self.out_height, self.out_width, self.bpp), buffer=data, dtype=np.uint8)
     
     def stop_pipeline(self):
+        """Stop the camera and save its timing logs (TIS*_<camera>.npy) to the run folder."""
         stop_time = time.perf_counter()
-
         self.sharing_on = False
-        self.stop_program = True
         if hasattr(self, '_watch_stop'):
             self._watch_stop.set()
         
@@ -402,14 +363,12 @@ class TIS:
         else:
             logger.info(f"[Camera {self.camera_name}] reader stopped. Total frames: {self.total_frame_count}")
 
-        # Total latencies (legacy)
         np.save(self.out_folder / f"TISlatencies_{self.camera_name}.npy", self.camera_latencies)
         np.save(self.out_folder / f"TISstarts_{self.camera_name}.npy", self.cameraStarts)
         np.save(self.out_folder / f"TISlatenciesFull_{self.camera_name}.npy", self.camera_latenciesFull)
 
         # Per-step breakdowns
         np.save(self.out_folder / f"TIS_convert_{self.camera_name}.npy", self.convert_latencies)
-        np.save(self.out_folder / f"TIS_encode_{self.camera_name}.npy", self.encode_latencies)
         np.save(self.out_folder / f"TIS_store_put_{self.camera_name}.npy", self.store_put_latencies)
         np.save(self.out_folder / f"TIS_queue_put_{self.camera_name}.npy", self.queue_put_latencies)
         np.save(self.out_folder / f"TIScapture_{self.camera_name}.npy", self.captureTimes)
@@ -423,6 +382,7 @@ class TIS:
         return self.source
 
     def list_properties(self):
+        """Print every tcam property the camera exposes (display name and property name)."""
         property_names = self.source.get_tcam_property_names()
 
         for name in property_names:
@@ -445,11 +405,8 @@ class TIS:
             baseproperty = self.source.get_tcam_property(property_name)
             val = baseproperty.get_value()
             return val
-
         except Exception as error:
             raise RuntimeError(f"Failed to get property '{property_name}'") from error
-
-        return None
 
     def set_property(self, property_name, value):
         '''

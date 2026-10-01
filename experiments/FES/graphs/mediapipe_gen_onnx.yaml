@@ -1,0 +1,71 @@
+# TEST: the ONNX/TensorRT MediaPipe engine on recorded video (no cameras). Same as mediapipe_gen.yaml except the
+# config_overrides block; run both and compare batch3d_lat_inference.npy / the "infer N ms" log lines.
+#
+#   Generator{slot} ─┬─> ProcessorBatch3D ──> VideoScreen3D.preds_in
+#                 └─> VideoScreen3D.images{slot}_in
+#
+# Each Generator plays config.yaml's video_paths[camera_num] (09-23 12:38 run,
+# 960x540). Triangulation uses config.yaml's calibration_toml (2026-09-23/124500),
+# which covers cams 3,4,5,6 only; cams 0 and 2 get 2D keypoints but no rays.
+# The videos are not frame-synced (2-3 frame offsets), so expect some noise.
+#
+# Run: FES_CONDA_ENV=improvDLC3 fes-run mediapipe_gen_onnx.yaml   (first start builds the TensorRT engines, ~1 min)
+
+actors:
+  GUI:
+    package: actors.video_screen_3d
+    class: Visual3D
+    visual: VideoScreen3D
+
+  VideoScreen3D:
+    package: actors.video_screen_3d
+    class: VideoScreen3D
+    num_active_cameras: 4
+
+  Generator0:
+    package: actors.generator
+    class: Generator
+    camera_num: 0
+
+  Generator1:
+    package: actors.generator
+    class: Generator
+    camera_num: 1
+
+  Generator2:
+    package: actors.generator
+    class: Generator
+    camera_num: 3
+
+  Generator3:
+    package: actors.generator
+    class: Generator
+    camera_num: 5
+
+  # Slots (Generator{i} -> frames{i}_in / images{i}_in) must be 0..N-1 in
+  # order; camera_nums maps each slot to its physical camera.
+  ProcessorBatch3D:
+    package: actors.processor_batch3d
+    class: ProcessorBatch3D
+    num_cameras: 4
+    camera_nums: [0, 1, 3, 5]   # 09-25 130900 has no cam2 video; cam6 is uncalibrated
+    pred_active: True
+    triangulate: true
+    # Replay only: pair cameras by frame number (all views from the same video
+    # frame even when frames are skipped) and use all 7 good P-cores.
+    align_frames: true
+    compute_cores: 7
+    config_overrides:
+      mediapipe_engine: onnx
+      onnx_providers: [[TensorrtExecutionProvider, {trt_fp16_enable: true}], CUDAExecutionProvider, CPUExecutionProvider]
+    method: spawn
+
+connections:
+  Generator0.q_out: [VideoScreen3D.images0_in, ProcessorBatch3D.frames0_in]
+  Generator1.q_out: [VideoScreen3D.images1_in, ProcessorBatch3D.frames1_in]
+  Generator2.q_out: [VideoScreen3D.images2_in, ProcessorBatch3D.frames2_in]
+  Generator3.q_out: [VideoScreen3D.images3_in, ProcessorBatch3D.frames3_in]
+  ProcessorBatch3D.q_out: [VideoScreen3D.preds_in]
+
+redis_config:
+  port: 6379

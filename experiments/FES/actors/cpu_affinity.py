@@ -84,6 +84,7 @@ def load_config():
 
 
 def _read(path):
+    """Contents of a sysfs file, or None."""
     try:
         with open(path) as f:
             return f.read().strip()
@@ -253,6 +254,7 @@ def pin_actor(role, slot=0, config=None, label=None, n_slots=1):
 
 
 def _apply(cpus, label, why):
+    """Pin the calling thread (and threads it creates later) to cpus; log what was applied."""
     try:
         os.sched_setaffinity(0, set(cpus))
         actual = sorted(os.sched_getaffinity(0))

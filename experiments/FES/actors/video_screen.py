@@ -1,3 +1,4 @@
+"""improv actor pair behind the 2D GUI (actors/front_end5.CameraStreamWidget)."""
 import time
 import threading
 import yaml
@@ -27,12 +28,16 @@ from .run_paths import get_logger, run_folder
 logger = get_logger(__name__, "video_screen.log", level=logging.DEBUG, handler_level=logging.INFO)
 
 class Visual(Actor):
+    """improv's GUI actor for the 2D graphs: owns the Qt application and the CameraStreamWidget window."""
+
     def setup(self, visual):
+        """visual: the VideoScreen actor the window reads frames and predictions from."""
         self.visual = visual
         self.visual.setup()
         logger.info("Running setup for " + self.name)
 
     def run(self):
+        """Start Qt, show the window, tell improv the GUI is ready, then run the Qt event loop."""
         logger.info("Loading FrontEnd")        
         self.app = QtWidgets.QApplication([])
         self.viewer = CameraStreamWidget(self.visual, self.q_comm, self.q_sig)
@@ -43,12 +48,17 @@ class Visual(Actor):
         logger.info("GUI ready")
 
 class VideoScreen(ManagedActor):
+    """Feeds the 2D GUI: newest frame per camera (images{i}_in), newest [prediction, angle] per camera (preds{i}_in).
+    Also drives the offline buffer -> mp4 conversion from the GUI button."""
+
     def __init__(self, *args, **kwargs):
+        """Graph kwargs: num_active_cameras."""
         super().__init__(*args, **kwargs)
         
         self.num_cameras = kwargs['num_active_cameras']
 
     def setup(self):
+        """Pin to the E-cores and set up the frame / prediction fetch logs."""
         # The GUI redraws on its own timer and was measured at ~106 us per
         # frame, so it does not belong on a P-core -- it only needs to keep up
         # with the eye, not with the FES loop.
@@ -113,6 +123,7 @@ class VideoScreen(ManagedActor):
 
 
     def getLastFrame(self, camera_id):
+        """(frame, predictions, angle) for one camera; any of them None if nothing new arrived."""
         frame_id = None
         predictions = None  # Initialize predictions with a default value
         angle = None
@@ -303,11 +314,12 @@ class VideoScreen(ManagedActor):
 
         # return frame, predictions
 
-    def runStep(self): 
+    def runStep(self):
+        """Nothing per step: the GUI pulls on its own timer."""
         self.start_program = True
-        pass
 
     def stopMe(self):
+        """Save the GUI's fetch latencies."""
         logger.info(f"{self.name}: Stopping Video GUI")
         self.stop_program = True
         # logger.info(f'End Frame length: {len(self.frame_latencies)}')

@@ -1,26 +1,22 @@
+"""Sender: the 2D xPC graphs' output. Packs each camera's angle as a 10-bit 'sensor' value and writes it over UART
+(/dev/ttyUSB0, 115200 baud) to the xPC, which reads it like the bend-sensor glove."""
 import time
-import numpy
-import serial
-import logging
-from improv.actor import Actor
 from pathlib import Path
-import yaml
+
 import numpy as np
+import serial
+import yaml
+from improv.actor import Actor
 
 from .run_paths import get_logger, run_folder
 
 logger = get_logger(__name__, "sender.log")
 
 class Sender(Actor):
-    """Sample actor to generate data to pass into a sample processor.
-
-    Intended for use along with sample_processor.py.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    """Reads preds0_in / preds2_in (camera 0 and 2 Processors), normalises their angles and sends packed UART frames."""
 
     def setup(self):
+        """Open the serial port and load the angle ranges used to normalise to 0-1023."""
         logger.info("Beginning setup for Sender")
 
         # Constants
@@ -115,6 +111,7 @@ class Sender(Actor):
         return max(0, min(1023, int(normalized)))  # Clamp to valid range
 
     def runStep(self):
+        """Send the newest angles (only when a camera produced a fresh one), and log the end-to-end latency."""
         step_start = time.perf_counter()
         got_fresh_cam0 = False
         got_fresh_cam2 = False
@@ -230,6 +227,7 @@ class Sender(Actor):
 
 
     def stop(self):
+        """Close the port and save the send logs (sender_*.npy, endtoendLatencies.npy, used by the xPC analysis)."""
         logger.info("Stopping Sender")
 
         # Compute robust min/max once over the entire run

@@ -1,3 +1,4 @@
+"""VideoConverter: turns a VideoSaver's length-prefixed raw buffer files into an mp4 with FFmpeg."""
 import subprocess
 import struct
 import numpy as np
@@ -8,7 +9,6 @@ from pathlib import Path
 from queue import Queue
 from skvideo.io import FFmpegWriter
 
-import logging
 from .run_paths import get_logger
 
 logger = get_logger(__name__, "camera_video_converter.log")

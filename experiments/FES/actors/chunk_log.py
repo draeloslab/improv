@@ -19,6 +19,7 @@ _q = None
 
 
 def _writer():
+    """Background thread: write queued blocks to disk."""
     while True:
         path, block = _q.get()
         try:
@@ -30,6 +31,7 @@ def _writer():
 
 
 def _enqueue(path, block):
+    """Queue a block for the writer thread (started on first use)."""
     global _q
     if _q is None:
         _q = queue.Queue()
@@ -38,12 +40,16 @@ def _enqueue(path, block):
 
 
 class ChunkLog:
+    """A list-like log that spills every `every` rows to <folder>/.parts/<name>/NNNNN.npy, so long runs keep memory
+    bounded and a crashed run can be recovered (python -m actors.chunk_log <run folder>)."""
+
     def __init__(self, folder, name, every=900):
         self.dir = Path(folder) / '.parts' / name
         self.dir.mkdir(parents=True, exist_ok=True)
         self.every, self.rows, self.n_parts, self.n = every, [], 0, 0
 
     def append(self, row):
+        """Add one row (one step's array)."""
         self.rows.append(row)
         self.n += 1
         if len(self.rows) >= self.every:
@@ -66,6 +72,7 @@ class ChunkLog:
         return np.concatenate(blocks) if blocks else np.zeros((0,))
 
     def drop_parts(self):
+        """Delete the spilled blocks (after array() has been saved)."""
         shutil.rmtree(self.dir, ignore_errors=True)
         try:
             self.dir.parent.rmdir()          # .parts, once the last log is gone

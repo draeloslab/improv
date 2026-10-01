@@ -1,3 +1,5 @@
+# Cameras (actors/camera_reader.py, actors/TIS.py). active_cameras[camera_num] is the camera a CameraReader with that
+# camera_num opens; camera_nums in a graph index this list.
 camera_params:
   # Native sensor capture format.
   resolution:
@@ -45,14 +47,11 @@ camera_params:
   # corr(submission phase, inference time) = -0.999). `slots` defaults to
   # config.yaml's max_camera_slots; over-estimating is harmless, under-
   # estimating brings the collisions back. Turn OFF once cameras are hardware
-  # triggered: triangulation needs sync (see MULTICAM_3D_PLAN.md).
+  # triggered: triangulation needs the cameras in phase.
   capture_stagger:
     enabled: false
     slots: 4
     lead_seconds: 2.0
-
-zmq_config:
-  ip: "localhost"
 
 active_cameras:
   - camera: {name: "top",          serial_id: "49320579-aravis"}
@@ -63,5 +62,4 @@ active_cameras:
   - camera: {name: "bottom_right", serial_id: "25625243-aravis"}
   - camera: {name: "back_right",   serial_id: "25625242-aravis"}
 
-inactive_cameras:
-  - camera: {name: "back_right", serial_id: "45324230-aravis"}
+# Spare camera, not wired:  {name: "back_right", serial_id: "45324230-aravis"}

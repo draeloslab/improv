@@ -1,3 +1,4 @@
+"""GUI for the 2D (per-camera) graphs: camera views with keypoint overlays and one angle curve per camera."""
 import sys
 import numpy as np
 import threading
@@ -60,7 +61,7 @@ class CameraStreamWidget(QWidget):
     """PyQt Widget for displaying multiple camera streams."""
 
     def __init__(self, visual, comm, q_sig):
-        
+        """visual: the VideoScreen actor; comm / q_sig: improv's GUI signal queues."""
         try:
             super().__init__()
             self.visual = visual

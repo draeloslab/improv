@@ -5,11 +5,11 @@ single link carrying one dict for all cameras (from ProcessorBatch3D) rather
 than one [pred, angle] message per camera.
 """
 
+import logging
 import os
 import queue
 import time
 import traceback
-import logging
 from pathlib import Path
 
 import cv2
@@ -41,37 +41,36 @@ logger = get_logger(__name__, "video_screen.log", level=logging.DEBUG,
 
 
 class Visual3D(Actor):
+    """improv's GUI actor: owns the Qt application and the Camera3DWidget window."""
+
     def setup(self, visual):
+        """visual: the VideoScreen3D actor the window reads frames and predictions from."""
         self.visual = visual
         self.visual.setup()
         logger.info("Running setup for " + self.name)
 
     def run(self):
-        import os as _os
-        def _chk(msg):
-            _os.write(2, f"[CHK-run] {msg}\n".encode())
-        _chk("run entered")
+        """Start Qt, show the window, tell improv the GUI is ready, then run the Qt event loop."""
         logger.info("Loading 3D FrontEnd")
-        _chk("before QApplication")
         self.app = QtWidgets.QApplication([])
-        _chk("after QApplication, before widget")
         self.viewer = Camera3DWidget(self.visual, self.q_comm, self.q_sig)
-        _chk("after widget, before show")
         self.viewer.show()
-        _chk("after show, before ready puts")
         self.q_comm.put([Signal.ready()])
         self.visual.q_comm.put([Signal.ready()])
-        _chk("before exec_")
         self.app.exec_()
         logger.info("3D GUI ready")
 
 
 class VideoScreen3D(ManagedActor):
+    """Feeds the 3D GUI: the newest frame per camera (images{i}_in) and the newest ProcessorBatch3D message (preds_in)."""
+
     def __init__(self, *args, **kwargs):
+        """Graph kwargs: num_active_cameras."""
         super().__init__(*args, **kwargs)
         self.num_cameras = kwargs['num_active_cameras']
 
     def setup(self):
+        """Pin to the E-cores and read the frame size / rate the window refreshes at."""
         cpu_affinity.pin_actor(cpu_affinity.BACKGROUND, label="VideoScreen3D")
         self._getStoreInterface()
 
@@ -158,9 +157,11 @@ class VideoScreen3D(ManagedActor):
         return msg
 
     def runStep(self):
+        """Nothing per step: the GUI pulls frames and predictions on its own timer."""
         self.start_program = True
 
     def stopMe(self):
+        """Save the GUI's fetch latencies (viz*.npy)."""
         logger.info(f"{self.name}: Stopping 3D Video GUI")
         self.stop_program = True
         try:

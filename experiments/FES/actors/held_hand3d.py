@@ -26,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 
 class OneEuroKeypoints:
+    """Per-keypoint One-Euro filter for (n, 3) points; a keypoint missing for more than max_gap frames is dropped."""
+
     def __init__(self, n=21, min_cutoff=1.0, beta=0.05, d_cutoff=1.0, max_gap=5, fps=30.0):
         self.mc, self.beta, self.dc, self.max_gap, self.fps = min_cutoff, beta, d_cutoff, max_gap, fps
         self.x = np.full((n, 3), np.nan)
@@ -33,6 +35,7 @@ class OneEuroKeypoints:
         self.gap = np.zeros(n, int)
 
     def step(self, z):
+        """(n, 3) measurement (NaN = missing) -> filtered points (NaN where this frame had none)."""
         a = lambda fc: 1.0 / (1.0 + self.fps / (2 * np.pi * fc))
         have = np.isfinite(z[:, 0])
         self.gap = np.where(have, 0, self.gap + 1)
@@ -46,8 +49,12 @@ class OneEuroKeypoints:
 
 
 class HeldHandTracker:
+    """3D of the one hand that stays in a learned place (config `held_hand`, hand_association: region)."""
+
     def __init__(self, cgroup, likelihood=0.3, max_px=15.0, warmup_s=10.0, hand=1, order_row=None,
                  radius_mm=80.0, radius_px=40.0, smooth=None, fps=30.0):
+        """Config held_hand: likelihood / max_px gate keypoints; warmup_s learns the hand's place; hand picks which of
+        two (numbered left -> right in calibration row order_row); radius_mm / radius_px gate it afterwards."""
         self.cg = cgroup
         self.nrow = len(cgroup.cameras)
         self.lik, self.max_px, self.warmup_s, self.hand = likelihood, max_px, warmup_s, hand
@@ -86,6 +93,7 @@ class HeldHandTracker:
                 yield q, rows
 
     def _hand_centre(self, h):
+        """Median image position of a (21, 3) DLC hand's confident keypoints, or None."""
         ok = h[:, 2] >= self.lik
         return np.median(h[ok, :2], 0) if ok.sum() >= 3 else None
 
@@ -112,6 +120,7 @@ class HeldHandTracker:
         return q
 
     def _centre2d(self, q):
+        """A 3D hand's median projected position in every camera: {calibration row: (x, y)}."""
         return {r: np.nanmedian(self.cg.project(q)[r], 0) for r in range(self.nrow)}
 
     def step(self, t, views):
@@ -129,6 +138,7 @@ class HeldHandTracker:
         return p if np.isfinite(p[:, 0]).any() else None
 
     def _learn(self):
+        """End of warm-up: cluster the warm-up hands into two places and keep the `hand`-th from the left."""
         import cv2
         cen = np.array([np.nanmean(q, 0) for q in self.warm], np.float32)
         cv2.setRNGSeed(0)

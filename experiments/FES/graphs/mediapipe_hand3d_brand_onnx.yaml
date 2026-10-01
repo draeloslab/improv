@@ -19,7 +19,7 @@
 # 3-cam batches). To add one back: a Generator, its camera_num in camera_nums, num_cameras / num_active_cameras +1,
 # and a frames{slot}_in connection -- the processor silently ignores a misspelled input name.
 #
-# Run: SENDER_UDP_IP=<brand ip> fes-run.sh mediapipe_hand3d_brand.yaml   (env improvPytorchJarvis)
+# Run: SENDER_UDP_IP=<brand ip> FES_CONDA_ENV=improvDLC3 fes-run mediapipe_hand3d_brand_onnx.yaml
 
 actors:
   GUI:

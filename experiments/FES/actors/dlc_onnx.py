@@ -70,12 +70,20 @@ def decode(heatmap, locref, locref_std=7.2801):
 
 
 class DlcOnnxTopDown:
+    """DLC top-down pose estimation on onnxruntime for a batch of camera frames (one hand box per frame)."""
+
     def __init__(self, models_dir, frame_size=(960, 720), det_providers=None, pose_providers=None, margin=0, min_score=0.0):
+        """
+        models_dir: folder with dlc_detector_<W>x<H>.onnx and dlc_pose.onnx (scripts/trt/export_dlc_onnx.py).
+        frame_size: (width, height) the detector was exported for. det_providers / pose_providers: onnxruntime
+        providers (default CUDA). margin: extra pixels around the box before cropping. min_score: detector cut-off.
+        """
         models_dir = Path(models_dir)
         self.frame_size, self.margin, self.min_score = tuple(frame_size), margin, min_score
         det_p = prepare_providers(det_providers or ['CUDAExecutionProvider', 'CPUExecutionProvider'], models_dir / 'trt_cache')
         pose_p = prepare_providers(pose_providers or ['CUDAExecutionProvider', 'CPUExecutionProvider'], models_dir / 'trt_cache')
-        self.det = ort.InferenceSession(str(models_dir / 'dlc_detector.onnx'), providers=det_p)
+        w, h = self.frame_size
+        self.det = ort.InferenceSession(str(models_dir / f'dlc_detector_{w}x{h}.onnx'), providers=det_p)
         self.pose = ort.InferenceSession(str(models_dir / 'dlc_pose.onnx'), providers=pose_p)
 
     def detect(self, rgb):
@@ -89,6 +97,7 @@ class DlcOnnxTopDown:
         return np.array([x0, y0, x1 - x0, y1 - y0], np.float32)
 
     def inference(self, frames):
+        """RGB frames -> list of (K, 3) [x, y, score] in frame pixels (None where no hand box was found)."""
         boxes = [self.detect(f) for f in frames]
         live = [i for i, b in enumerate(boxes) if b is not None and b[2] > 1 and b[3] > 1]
         out = [None] * len(frames)

@@ -54,11 +54,10 @@ def link_settings():
 
 
 class BrandReceiver(Actor):
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    """Listens on feedback_port for BRAND's JSON messages and forwards each (with its arrival time t_rx) on q_out."""
 
     def setup(self):
+        """Bind the feedback port (non-blocking) and open brand_feedback.jsonl in the run folder."""
         get_logger(__name__, "brand_link.log")
         cpu_affinity.pin_actor(cpu_affinity.BACKGROUND, label="BrandReceiver")
         self.port = link_settings()['feedback_port']
@@ -78,6 +77,7 @@ class BrandReceiver(Actor):
         logger.info(f"BrandReceiver listening on 0.0.0.0:{self.port}")
 
     def runStep(self):
+        """Forward every waiting packet (none may be skipped); warn once if BRAND is silent for 10 s."""
         if self.first_step is None:
             self.first_step = time.time()
         got = False
@@ -118,6 +118,7 @@ class BrandReceiver(Actor):
             time.sleep(0.001)
 
     def stop(self):
+        """Close the socket and the feedback log."""
         logger.info(f"BrandReceiver stopping; messages received: {self.counts}")
         for f in (self.sock, self.log):
             try:

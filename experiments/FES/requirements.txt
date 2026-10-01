@@ -1,7 +1,26 @@
-deeplabcut-live
+# pip-only alternative to environment.yml (same pins). PyGObject / pycairo need the system GStreamer and
+# gobject-introspection libraries (see README.md). Install improv itself first: pip install -e ../..
+--extra-index-url https://download.pytorch.org/whl/cu129
+numpy==1.26.0
+scipy==1.15.3
+pyyaml==6.0.2
+pandas==2.3.2
+matplotlib==3.8.4
+PyQt5==5.15.11
+pyqtgraph==0.14.0
+opencv-python-headless==4.11.0.86
+scikit-video==1.1.11
+pyserial==3.5
+redis==6.4.0
+pyzmq==27.0.2
+protobuf==4.25.9
 pycairo
 PyGObject
-opencv-python
-scikit-video
-pandas
-seaborn
+mediapipe==0.10.14
+aniposelib==0.8.0
+torch==2.8.0
+torchvision==0.23.0
+deeplabcut==3.0.2
+onnxruntime-gpu==1.23.2
+tensorrt-cu12-libs>=10.13,<10.14
+onnx==1.16.2

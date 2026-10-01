@@ -1,5 +1,5 @@
+"""Receiver: records the xPC's UDP packets (finger positions, trial state, neural features) during 2D xPC runs."""
 import time
-# import serial
 import socket
 import numpy as np
 import logging
@@ -25,10 +25,8 @@ class Receiver(Actor):
     parses them, and passes the data through the actor pipeline.
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     def setup(self):
+        """Check the spoofed xPC network link and bind UDP port 11114."""
         logger.info("Beginning setup for UDPReceiver")
 
         # UDP connection parameters
@@ -194,6 +192,7 @@ class Receiver(Actor):
             logger.error(f"Error receiving/parsing UDP data: {e}")
 
     def stop(self):
+        """Save the received xPC data (fpos_data.npy) and warn loudly if nothing arrived."""
         logger.info("Stopping UDPReceiver")
         if self.packets_received == 0:
             logger.error(

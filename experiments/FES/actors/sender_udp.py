@@ -1,17 +1,18 @@
-import time
-import os
+"""SenderUDP: the last hop. Sends joint angles (or per-camera angles), stimulation requests and 3D keypoints over UDP."""
 import ipaddress
-import socket
 import json
-import numpy as np
-import logging
-import yaml
+import os
+import socket
+import time
 from pathlib import Path
-from improv.actor import Actor
-from . import cpu_affinity
 
-from .run_paths import get_logger, run_folder
+import numpy as np
+import yaml
+from improv.actor import Actor
+
+from . import cpu_affinity
 from .brand_link import link_settings
+from .run_paths import get_logger, run_folder
 
 logger = get_logger(__name__, "sender_udp.log")
 
@@ -24,9 +25,11 @@ class SenderUDP(Actor):
     packet only when at least one camera produced a fresh prediction this step
     (mirrors the fix applied to the UART Sender's saturation bug).
 
-    Every camera is identified by its real camera_num (from
-    actors/config/camera_config.yaml's active_cameras / config.yaml's
-    model_path_N), NOT by which preds{N}_in slot it happens to be wired to --
+    Destination: env SENDER_UDP_IP / SENDER_UDP_PORT (default 192.168.137.201:11115). Nothing is smoothed here: a
+    packet always carries the latest value of every angle.
+
+    Every camera is identified by its real camera_num (config/camera_config.yaml active_cameras /
+    config.yaml model_path_N), NOT by which preds{N}_in slot it happens to be wired to --
     slot index is just wiring order in the yaml (e.g. Processor1 can have
     camera_num=3 while still being wired to preds1_in), so it is not a stable
     or meaningful identity to hand to a downstream consumer.
@@ -87,18 +90,15 @@ class SenderUDP(Actor):
     """
 
     def __init__(self, *args, keypoint_port=None, keypoint_hand="auto", **kwargs):
+        """keypoint_port: UDP port for the 3D keypoint stream (off if None). keypoint_hand: right / left / auto."""
         super().__init__(*args, **kwargs)
         self.keypoint_port = int(keypoint_port) if keypoint_port else None
         self.keypoint_hand = keypoint_hand
 
     def setup(self):
-        logger.info("Beginning setup for SenderUDP")
-
-        # The sender is the last hop before the wire, but its whole step is a
-        # few queue polls, a json.dumps and a sendto -- ~0.1 ms. The ~0.07 ms
-        # an E-core adds to that is far less than the 5+ ms a processor loses
-        # by being displaced off a P-core, so this belongs in the background
-        # pool with the savers and the GUI.
+        """Open the socket, check the destination and set up the per-camera / per-joint send logs."""
+        # A step is a few queue polls, a json.dumps and a sendto (~0.1 ms), so the sender lives on the E-cores:
+        # the ~0.07 ms that costs is far less than what a processor loses by being displaced off a P-core.
         cpu_affinity.pin_actor(cpu_affinity.BACKGROUND, label="SenderUDP")
 
         # UDP connection parameters
@@ -415,6 +415,7 @@ class SenderUDP(Actor):
         self.step_latencies.append(time.perf_counter() - step_start)
 
     def stop(self):
+        """Close the socket and save everything sent (sender_*.npy, true_e2e_cam*.npy, sender_joint_*.npy)."""
         logger.info("Stopping SenderUDP")
 
         for cam in sorted(self.angle_history):
@@ -486,12 +487,6 @@ class SenderUDP(Actor):
                     f.write(json.dumps({**req, 't_socket': t}) + "\n")
             logger.info(f"stim requests sent: {len(self.stim_sent)}")
 
-        # Legacy file names for backward compatibility with tooling that
-        # assumed a single primary camera (camera_num 0).
-        legacy_e2e = self.true_e2e.get(0, [])
-        np.save(self.out_folder / "endtoendLatencies.npy", legacy_e2e)
-        np.save(self.out_folder / "senderStartTimes.npy", self.send_timestamps)
-
         logger.info(f"Total UDP packets sent: {self.packet_n}")
         if self.keypoint_port:
             logger.info(f"3D keypoint packets sent: {self.keypoints_sent}")
@@ -500,14 +495,3 @@ class SenderUDP(Actor):
             logger.info(f"Fresh cam{cam} predictions: {sum(self.fresh[cam])} / {len(self.fresh[cam])}")
 
         logger.info("SenderUDP stopped")
-
-if __name__ == "__main__":
-    # For testing purposes, you can instantiate and run the actor here.
-    sender = SenderUDP('SenderUDP')
-    sender.setup()
-    try:
-        while True:
-            sender.runStep()
-            time.sleep(0.01)
-    except KeyboardInterrupt:
-        sender.stop()

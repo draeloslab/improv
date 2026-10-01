@@ -1,0 +1,47 @@
+# TEST: the ONNX/TensorRT MediaPipe engine on the two live cameras, GUI only (no BRAND, no saving). For checking the
+# tracker and its timing on the rig before running mediapipe_hand3d_brand_onnx.yaml.
+#
+#   CameraReader{slot} -+-> ProcessorBatch3D --> VideoScreen3D.preds_in
+#                       +-> VideoScreen3D.images{slot}_in
+#
+# Cameras: slots 0, 1 = physical 0, 3 (calibration 2026-09-29_124200), as in mediapipe_hand3d_brand.yaml.
+#
+# Run: FES_CONDA_ENV=improvDLC3 fes-run mediapipe_live_onnx.yaml
+
+actors:
+  GUI:
+    package: actors.video_screen_3d
+    class: Visual3D
+    visual: VideoScreen3D
+
+  VideoScreen3D:
+    package: actors.video_screen_3d
+    class: VideoScreen3D
+    num_active_cameras: 2
+
+  Generator0: {package: actors.camera_reader, class: CameraReader, camera_num: 0}
+  Generator1: {package: actors.camera_reader, class: CameraReader, camera_num: 3}
+
+  ProcessorBatch3D:
+    package: actors.processor_batch3d
+    class: ProcessorBatch3D
+    num_cameras: 2
+    camera_nums: [0, 3]
+    pred_active: True
+    triangulate: true
+    config_overrides:
+      batch3d_backend: mediapipe
+      hand_association: geometric
+      mediapipe_both_hands: true
+      mediapipe_num_hands: 2
+      mediapipe_engine: onnx
+      onnx_providers: [[TensorrtExecutionProvider, {trt_fp16_enable: true}], CUDAExecutionProvider, CPUExecutionProvider]
+    method: spawn
+
+connections:
+  Generator0.q_out: [VideoScreen3D.images0_in, ProcessorBatch3D.frames0_in]
+  Generator1.q_out: [VideoScreen3D.images1_in, ProcessorBatch3D.frames1_in]
+  ProcessorBatch3D.q_out: [VideoScreen3D.preds_in]
+
+redis_config:
+  port: 6379

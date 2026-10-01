@@ -55,12 +55,11 @@ DEFAULTS = dict(
 
 
 class BayesOptStim(Actor):
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    """One stimulation trial at a time (see the module docstring). Links: joints_in, feedback_in -> q_out (requests)."""
 
     # ------------------------------------------------------------------ setup
     def setup(self):
+        """Read config `bayes_opt`, build the candidate grid and per-joint GPs, seed them with the prior runs, fit."""
         cpu_affinity.pin_actor(cpu_affinity.BACKGROUND, label="BayesOptStim")
         source_folder = Path(__file__).resolve().parent.parent
         with open(source_folder / 'config' / 'config.yaml') as f:
@@ -98,6 +97,7 @@ class BayesOptStim(Actor):
 
     # ------------------------------------------------------------------ inputs
     def _drain(self, name):
+        """Every message waiting on link `name` (empty list if the link is not wired)."""
         link = self.links.get(name)
         out = []
         if link is None:
@@ -109,6 +109,7 @@ class BayesOptStim(Actor):
                 return out
 
     def _take_joints(self):
+        """Append the processor's newest joint angles (for the modelled joints) to the rolling buffer."""
         for msg in self._drain('joints_in'):
             if not isinstance(msg, dict) or not msg.get('joint_angles'):
                 continue
@@ -117,6 +118,7 @@ class BayesOptStim(Actor):
                              np.array([a.get(j, np.nan) if a.get(j) is not None else np.nan for j in self.joints], float)))
 
     def _take_feedback(self):
+        """Apply BRAND's messages: a new target posture, or stim_on / stim_off / stim_rejected for the open trial."""
         for m in self._drain('feedback_in'):
             kind = m.get('type')
             if kind == 'target':
@@ -155,12 +157,14 @@ class BayesOptStim(Actor):
 
     # ------------------------------------------------------------------ model
     def _refresh_predictions(self):
+        """Recompute every candidate's predicted change (mean, sd) per joint after the GPs changed."""
         t0 = time.perf_counter()
         self.pred_mu, self.pred_sd = self.model.predict_grid()
         self.noise = np.array([self.model.gps[j].noise_deg for j in self.joints])
         logger.debug(f"grid predictions {time.perf_counter() - t0:.2f} s")
 
     def _posture_now(self):
+        """Mean joint angles over the last `baseline` seconds (the resting posture a stimulation starts from)."""
         if not self.buf:
             return None
         t_last = self.buf[-1][0]
@@ -169,6 +173,8 @@ class BayesOptStim(Actor):
             return np.nanmean(A, 0)
 
     def _choose(self):
+        """Index of the next candidate and why: target mode (lower confidence bound on the squared error to the
+        target posture) when a target is known, otherwise explore mode (most informative candidate)."""
         mode = self.cfg['acquisition']['mode']
         mu, sd = self.pred_mu, self.pred_sd
         if mode == 'target' and self.target:
@@ -190,6 +196,7 @@ class BayesOptStim(Actor):
         return i, dict(mode='explore', score=float(info[i]))
 
     def _maybe_refit(self):
+        """Every refit_every trials, refit the GP hyper-parameters in a background thread; install them when done."""
         if self.refit is not None and self.refit.done():
             try:
                 thetas = self.refit.result()
@@ -207,6 +214,7 @@ class BayesOptStim(Actor):
             snap = {j: (g.E.copy(), g.Z.copy(), g.y.copy(), g.th.copy()) for j, g in self.model.gps.items()}
 
             def work():
+                """Refit a copy of every joint's GP (runs on the background pool)."""
                 from .stim_gp import JointGP
                 out = {}
                 for j, (E, Z, y, th) in snap.items():
@@ -218,6 +226,7 @@ class BayesOptStim(Actor):
 
     # ------------------------------------------------------------------ loop
     def runStep(self):
+        """Trial state machine: idle -> (request) waiting_on -> (stim_on) stimulating -> (frames past stim_off) evaluate."""
         try:
             self._take_joints()
             self._take_feedback()
@@ -246,6 +255,7 @@ class BayesOptStim(Actor):
             logger.error(f"runStep: {traceback.format_exc()}")
 
     def _request(self, now):
+        """Choose a stimulation and send it as a stim_request; opens a trial."""
         max_t = int(self.cfg['max_trials'])
         if max_t and self.n_trials >= max_t:
             return
@@ -262,6 +272,7 @@ class BayesOptStim(Actor):
                     f"{req['amplitude']} uA / {req['pulse_width']} us / {req['frequency']} Hz ({why['mode']}, score {why['score']:.2f})")
 
     def _evaluate(self, now):
+        """Measure the open trial's joint-angle change and add what was actually delivered to the GPs."""
         tr = self.trial
         t = np.array([b[0] for b in self.buf]); A = np.array([b[1] for b in self.buf])
         change, base, cover = window_change(t, A, tr['t_on'], tr['t_off'], self.T['settle'], self.T['baseline'])
@@ -280,6 +291,7 @@ class BayesOptStim(Actor):
         self._close('ok' if np.isfinite(change).any() else 'no joints measured', now)
 
     def _close(self, status, now):
+        """Finish the open trial: append it to bo_trials.jsonl and schedule the next one after rest_duration."""
         tr = self.trial
         tr['status'] = status
         tr['t_closed'] = now
@@ -297,6 +309,7 @@ class BayesOptStim(Actor):
         self.state, self.trial = 'idle', None
 
     def stop(self):
+        """Log the trial count (trials are already on disk)."""
         logger.info(f"BayesOptStim stopping after {self.n_trials} trials")
         try:
             self.pool.shutdown(wait=False, cancel_futures=True)
