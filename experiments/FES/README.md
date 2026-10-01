@@ -177,7 +177,7 @@ Every stage, in order, for the main 3D path (MediaPipe, `hand_association: geome
 |---|---|---|---|---|---|
 | 1 | Capture | camera, `TIS.py` | 960x720 RGB at 30 fps, fixed exposure 2 ms / gain 0 / white balance. The two cameras free-run ~17 ms out of phase (no hardware sync). | `camera_config.yaml` | the driver timestamp is a constant 53 ms before the Python callback (unverified: may be a clock-offset artifact) |
 | 2 | Hand-off | `TIS.py` | numpy copy -> redis store -> queue. `appsink_max_buffers: 1` keeps only the newest frame. | `appsink_max_buffers` | 1.5 ms |
-| 3 | Gather | `ProcessorBatch3D._gather_newest` | newest frame per camera; waits up to `gather_wait_ms` (12) for the other cameras. Older frames are skipped, never queued. | graph `gather_wait_ms` | ~25 ms until both cameras' frames are in (mostly the phase offset) |
+| 3 | Gather | `ProcessorBatch3D._gather_newest` | newest frame per camera; waits up to `gather_wait_ms` (36, about one frame) for the other cameras. Older frames are skipped, never queued. | graph `gather_wait_ms` | ~25 ms until both cameras' frames are in (mostly the phase offset) |
 | 4 | Pose | `_infer_mediapipe` | per camera, MediaPipe's palm detector + 21-landmark net. **Stock MediaPipe in VIDEO mode also filters the landmarks internally**; the ONNX engine does not. | `mediapipe_*` | stock 34 ms, ONNX CPU 12.6 ms, TensorRT 2.4 ms (both cameras) |
 | 5 | Score gate | `_geometric_3d` | hands whose handedness score < `threshold` are dropped. | `threshold` | - |
 | 6 | Association + triangulation | `hand_assoc3d.py` | detections from different cameras form a 3D hand only if they reproject within `tol_px`; tracks are kept frame to frame; right/left from accumulated votes. | `geometric_association.*` | 2.7 ms |

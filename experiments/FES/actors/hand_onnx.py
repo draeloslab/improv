@@ -22,6 +22,7 @@ import onnxruntime as ort
 PALM_IN, LM_IN = 192, 224
 PALM_SCALE, PALM_SHIFT_Y = 2.6, -0.5       # DetectionsToRects/RectTransformation for a palm detection
 TRACK_SCALE, TRACK_SHIFT_Y = 2.0, -0.1     # HandLandmarksToRect for a tracked hand
+TRACK_SUBSET = [0, 1, 2, 3, 5, 6, 9, 10, 13, 14, 17, 18]   # landmarks MediaPipe's graph passes to HandLandmarksToRect
 
 
 def _anchors():
@@ -205,13 +206,17 @@ class OnnxHandTracker:
 
     @staticmethod
     def landmarks_to_roi(xy):
-        """HandLandmarksToRect: rotation from wrist -> mean of PIPs (index, ring, middle), box in the rotated frame."""
+        """MediaPipe's HandLandmarksToRect on the landmark subset its graph selects (TRACK_SUBSET: wrist, thumb CMC/MCP/IP,
+        and each finger's MCP and PIP -- no DIPs or tips): rotation from the wrist towards the mean of the index/ring MCPs
+        averaged with the middle MCP, box in the rotated frame. Using all 21 points (fingertips included) made the crop too
+        big, so the hand looked small to the landmark net and tracking drifted (worst on small hands)."""
         x0, y0 = xy[0]
-        x1, y1 = (xy[6] + xy[14]) / 2 * 0.5 + xy[10] * 0.5
+        x1, y1 = (xy[5] + xy[13]) / 2 * 0.5 + xy[9] * 0.5
         rot = _norm_angle(0.5 * np.pi - np.arctan2(-(y1 - y0), x1 - x0))
-        mid = (xy.min(0) + xy.max(0)) / 2
+        pts = xy[TRACK_SUBSET]
+        mid = (pts.min(0) + pts.max(0)) / 2
         ca, sa = np.cos(-rot), np.sin(-rot)
-        d = xy - mid
+        d = pts - mid
         rx, ry = d[:, 0] * ca - d[:, 1] * sa, d[:, 0] * sa + d[:, 1] * ca
         w, h = rx.max() - rx.min(), ry.max() - ry.min()
         ax, ay = (rx.max() + rx.min()) / 2, (ry.max() + ry.min()) / 2

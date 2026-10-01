@@ -228,10 +228,11 @@ class ProcessorBatch3D(Actor):
         # every camera). Needs sources whose frame_num counts the same video frame
         # (actors.generator); free-running cameras' counters are not comparable.
         self.align_frames = bool(kwargs.get('align_frames', False))
-        # Live cameras: how long a step waits, after its first frame, for the other cameras' frames (ms).
-        # 0 = take whatever has arrived. ~12 ms gathers all cameras when they are up to half a frame out
-        # of phase, at the cost of that much latency on the earliest frame.
-        self.gather_wait_ms = float(kwargs.get('gather_wait_ms', 12))
+        # Live cameras: how long a step waits, after its first frame, for the other cameras' frames (ms). The
+        # cameras free-run up to a whole frame out of phase (2026-10-01: ~15 ms), so the wait must cover a frame
+        # period: with 12 ms and the fast ONNX engine, steps alternated between one camera and the other (36-55% of
+        # steps single-camera, so no 3D). A camera silent for 0.5 s is not waited for. 0 = take whatever has arrived.
+        self.gather_wait_ms = float(kwargs.get('gather_wait_ms', 36))
         self.config_overrides = kwargs.get('config_overrides') or {}
         self._fbuf = {}
         self._fseen = {}     # slot -> wall time its last message arrived
@@ -476,6 +477,9 @@ class ProcessorBatch3D(Actor):
             from .hand_onnx import OnnxHandTracker
             models = Path(config.get('onnx_models_dir', Path(__file__).resolve().parents[1] / 'models' / 'hand_trt')).expanduser()
             providers = config.get('onnx_providers')
+            # MediaPipe's wrapper rejects junk hands (landmark presence ~0.04) that pass a 0.02 presence threshold; the
+            # ONNX tracker keeps its own, higher gate (real hands score 0.96-0.99).
+            presence_conf = max(presence_conf, float(config.get('onnx_min_presence', 0.5)))
             self.landmarkers = [OnnxHandTracker(models, num_hands=num_hands, det_conf=min_conf, presence_conf=presence_conf,
                                                 providers=providers) for _ in range(self.num_cameras)]
             logger.info(f"mediapipe engine: onnx ({models}), providers={providers or 'CPU'}, {num_hands} hands, "
@@ -739,10 +743,9 @@ class ProcessorBatch3D(Actor):
         caps = [None] * self.num_cameras     # wall-clock capture time (driver timestamp), if the camera sent one
 
         # Drain every camera without waiting. If none had a frame, sleep once (5 ms) and look again. Then, so
-        # one step holds ALL the cameras and not whichever arrived first (cameras are up to half a frame out
-        # of phase, so a step started on the first frame got 1-2 of 3 cameras 40-70% of the time, and a
-        # 1-camera step cannot triangulate), wait up to gather_wait_ms more for the cameras that were sending
-        # a moment ago. A camera silent for 0.5 s no longer holds the step up.
+        # one step holds ALL the cameras and not whichever arrived first (a 1-camera step cannot triangulate),
+        # wait up to gather_wait_ms more for the cameras that were sending a moment ago. A camera silent for
+        # 0.5 s no longer holds the step up.
         wired = [(slot, self.links[f"frames{slot}_in"]) for slot in range(self.num_cameras)
                  if f"frames{slot}_in" in self.links]
         newest = {}

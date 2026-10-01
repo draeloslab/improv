@@ -82,6 +82,10 @@ mediapipe_delegate: "CPU"   # MediaPipe's GPU delegate measured 2x slower (71 vs
 #   first start builds and caches the TensorRT engines, ~1 min). Models: scripts/trt/export_onnx.sh -> models/hand_trt/.
 mediapipe_engine: "mediapipe"
 onnx_providers: null
+# onnx only: landmark presence a hand needs to be kept (mediapipe_min_hand_presence_confidence applies to the stock
+# engine). Junk detections score ~0.04, real hands 0.96-0.99; at 0.3-0.5 the ONNX engine reports the same hands as
+# stock MediaPipe in 98% of frames on human video.
+onnx_min_presence: 0.5
 
 # --- dlc backend ---
 # HandTrackingVideo1Aug7 shuffle 12: top-down (detector + pose net), 42 keypoints (right_*, then left_*, MP21 order).
