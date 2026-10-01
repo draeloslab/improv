@@ -522,6 +522,22 @@ class ProcessorBatch3D(Actor):
         and only flushes when it is full, so anything smaller would split one
         step's frames across several forward passes.
         """
+        # dlc_engine: "onnx" runs the same detector + pose net through actors/dlc_onnx.py (onnxruntime, no torch/deeplabcut at run
+        # time): 5.2 ms vs 25.9 ms per 2-camera step in scripts/trt/validate_dlc_onnx.py, keypoints within 0.03 px (median) of DLC's.
+        # Needs models/dlc_trt/*.onnx from scripts/trt/export_dlc_onnx.py, exported for the live frame size (dlc_onnx_frame_size).
+        self.dlc_engine = str(config.get('dlc_engine', 'pytorch')).lower()
+        if self.dlc_engine == 'onnx':
+            import yaml as _yaml
+            from .dlc_onnx import DlcOnnxTopDown
+            train_dir = Path(config['batch3d_model_path'])
+            self.bodyparts = list(_yaml.safe_load(open(train_dir / 'pytorch_config.yaml'))['metadata']['bodyparts'])
+            self.n_keypoints = len(self.bodyparts)
+            models = Path(config.get('dlc_onnx_models_dir', Path(__file__).resolve().parents[1] / 'models' / 'dlc_trt')).expanduser()
+            self.dlc_onnx = DlcOnnxTopDown(models, frame_size=tuple(config.get('dlc_onnx_frame_size', [960, 720])),
+                                           det_providers=config.get('dlc_onnx_det_providers'), pose_providers=config.get('dlc_onnx_pose_providers'))
+            self.pose_runner = self.detector_runner = None
+            logger.info(f"dlc engine: onnx ({models}), {self.n_keypoints} keypoints")
+            return
         import torch
         from deeplabcut.pose_estimation_pytorch.config import read_config_as_dict
         from deeplabcut.pose_estimation_pytorch.apis.utils import get_inference_runners
@@ -1077,6 +1093,12 @@ class ProcessorBatch3D(Actor):
 
     def _infer_dlc(self, frames, batch_slots):
         batch = [frames[s] for s in batch_slots]
+        if self.dlc_engine == 'onnx':
+            raw_2d = np.full((self.num_cameras, self.n_keypoints, 3), np.nan)
+            for slot, pred in zip(batch_slots, self.dlc_onnx.inference(batch)):
+                if pred is not None:
+                    raw_2d[slot] = pred
+            return raw_2d
         if self.detector_runner is not None:
             # Top-down: detector finds the box(es), pose net runs on each crop.
             ctx = self.detector_runner.inference(batch)

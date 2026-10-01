@@ -104,6 +104,13 @@ onnx_providers: null
 batch3d_model_path: '/home/chesteklab/HandTrackingVideo1Aug7-trainset80shuffle12/train'   # needs DeepLabCut 3.0.2: env improvDLC3
 batch3d_model_snapshot: "snapshot-best-100.pt"
 batch3d_detector_snapshot: "snapshot-detector-best-170.pt"
+# "onnx" runs the detector + pose net via actors/dlc_onnx.py instead of DLC's runners (5.2 vs 25.9 ms per 2-camera step; keypoints within 0.03 px).
+# Export first: python scripts/trt/export_dlc_onnx.py (models/dlc_trt). Frame size must match the live frames. providers as onnx_providers above
+# (detector: CUDA, its NMS has dynamic shapes; pose net can take TensorRT).
+dlc_engine: "pytorch"
+dlc_onnx_frame_size: [960, 720]
+dlc_onnx_det_providers: null
+dlc_onnx_pose_providers: null
 
 # --- Kalman smoothing of the 2D keypoints (actors/kalmanfilter.py) ---
 # One DLC KalmanFilterPredictor per camera. A keypoint whose likelihood is below
