@@ -14,7 +14,7 @@ logger = get_logger(__name__, "generator.log")
 
 
 class Generator(Actor):
-    """Reads a video at config `fps`, converts BGR -> RGB and sends [store id, time, frame_num] on q_out.
+    """Reads a video at its own frame rate (config `fps` if it has none), converts BGR -> RGB and sends [store id, time, frame_num] on q_out.
 
     Graph kwargs: camera_num (plays config.yaml video_paths[camera_num]) or video_path (any file). Without either
     it plays config.yaml video_path.
@@ -39,7 +39,7 @@ class Generator(Actor):
         # Replay actor: keep it off the processor's P-cores (and off the excluded cores).
         cpu_affinity.pin_actor(cpu_affinity.BACKGROUND, label=f"Generator {self.name}")
         self.cap = None
-        self.frame_interval = 1.0 / config['fps']
+        self.frame_interval = 1.0 / config['fps']     # replaced by the video's own rate below when it has one
         self.next_due = None
         self.frame_num = 0
 
@@ -58,7 +58,11 @@ class Generator(Actor):
         if not self.cap.isOpened():
             logger.error(f"Error opening video file: {self.video_path}")
             return
-        logger.info(f"{self.name}: {self.video_path}, {int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))} frames")
+        video_fps = self.cap.get(cv2.CAP_PROP_FPS)
+        if video_fps and 1 <= video_fps <= 500:
+            self.frame_interval = 1.0 / video_fps     # play at the recording's speed, whatever config `fps` says
+        logger.info(f"{self.name}: {self.video_path}, {int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))} frames "
+                    f"at {1 / self.frame_interval:.1f} fps")
         self.done = False
 
     def stop(self):

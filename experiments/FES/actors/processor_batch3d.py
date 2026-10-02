@@ -70,6 +70,7 @@ from .kalmanfilter import KalmanHandSmoother
 from .hand_assoc3d import HandTracker3D, glove_mask
 from .held_hand3d import HeldHandTracker
 from .continuity import ContinuousPose
+from .kalman3d import KalmanPose3D
 from .run_paths import get_logger, run_folder
 from .chunk_log import ChunkLog
 
@@ -229,10 +230,10 @@ class ProcessorBatch3D(Actor):
         # (actors.generator); free-running cameras' counters are not comparable.
         self.align_frames = bool(kwargs.get('align_frames', False))
         # Live cameras: how long a step waits, after its first frame, for the other cameras' frames (ms). The
-        # cameras free-run up to a whole frame out of phase (2026-10-01: ~15 ms), so the wait must cover a frame
-        # period: with 12 ms and the fast ONNX engine, steps alternated between one camera and the other (36-55% of
-        # steps single-camera, so no 3D). A camera silent for 0.5 s is not waited for. 0 = take whatever has arrived.
-        self.gather_wait_ms = float(kwargs.get('gather_wait_ms', 36))
+        # cameras free-run up to a whole frame out of phase (2026-10-01: ~15 ms at 30 fps), so the wait must cover a
+        # frame period: with 12 ms and the fast ONNX engine, steps alternated between one camera and the other (36-55%
+        # of steps single-camera, so no 3D). A camera silent for 0.5 s is not waited for. 0 = take whatever arrived.
+        self.gather_wait_ms = kwargs.get('gather_wait_ms')     # None = 1.1 frame periods at config `fps` (see setup)
         self.config_overrides = kwargs.get('config_overrides') or {}
         self._fbuf = {}
         self._fseen = {}     # slot -> wall time its last message arrived
@@ -260,6 +261,9 @@ class ProcessorBatch3D(Actor):
         if overrides:
             logger.info(f"config overrides from the graph: {overrides}")
         self.config = config
+        if self.gather_wait_ms is None:
+            self.gather_wait_ms = 1100.0 / float(config.get('fps', 30))      # 36.7 ms at 30 fps, 18.3 ms at 60
+        self.gather_wait_ms = float(self.gather_wait_ms)
 
         # Claim P-cores before anything spins up CUDA/TFLite helper threads (affinity is only inherited
         # by threads created afterwards). mediapipe runs one landmarker per camera on a thread pool and
@@ -335,6 +339,10 @@ class ProcessorBatch3D(Actor):
         # "label": match hands across cameras by MediaPipe's handedness label
         # (old behaviour, + optional 2D Kalman). "geometric": actors/hand_assoc3d.py
         # -- a hand exists in 3D only where cameras agree geometrically.
+        # 3D smoothing of the final points: "kalman" (actors/kalman3d.py: little lag, predicts short gaps, timed from
+        # the real step times), "one_euro" (geometric_association.smooth + continuity, the previous chain) or "none".
+        sm3 = dict(config.get('smoothing_3d') or {'method': 'one_euro'})
+        self.smoothing_method = str(sm3.get('method', 'one_euro')).lower()
         self.association = str(config.get('hand_association', 'label')).lower()
         self.hand_tracker = None
         if self.association == 'geometric':
@@ -344,7 +352,7 @@ class ProcessorBatch3D(Actor):
                 self.association = 'label'
             else:
                 g = config.get('geometric_association') or {}
-                smooth = g.get('smooth', {'min_cutoff': 1.0, 'beta': 0.05})
+                smooth = g.get('smooth', {'min_cutoff': 1.0, 'beta': 0.05}) if self.smoothing_method == 'one_euro' else False
                 self.hand_tracker = HandTracker3D(
                     self.cgroup, tol_px=float(g.get('tol_px', 15.0)),
                     size_mm=tuple(g.get('hand_size_mm', [20, 200])),
@@ -401,7 +409,11 @@ class ProcessorBatch3D(Actor):
         self.points_3d_log = L('batch3d_points_3d')
         self.points_3d_raw_log = L('batch3d_points_3d_raw')
         cont = config.get('continuity')
-        self.continuity = ContinuousPose(self.n_keypoints, **cont) if cont else None
+        self.continuity = ContinuousPose(self.n_keypoints, **cont) if (cont and self.smoothing_method == 'one_euro') else None
+        self.kalman3d = (KalmanPose3D(self.n_keypoints, **(sm3.get('kalman') or {}))
+                         if self.smoothing_method == 'kalman' else None)
+        logger.info(f"3D smoothing: {self.smoothing_method}"
+                    + (f" {sm3.get('kalman') or {}}" if self.kalman3d else f", continuity {cont}" if self.continuity else ""))
         self.angles_log = L('batch3d_joint_angles')
         self.timestamps = []
         self.frame_nums_received = L('batch3d_frame_nums')
@@ -1004,9 +1016,12 @@ class ProcessorBatch3D(Actor):
     def _finish_step(self, points_3d, raw_2d, starts, fnums, batch_slots, step_start):
         """Continuity (hold/glide), joint angles, logging and the output message for one step."""
         # --- 5b. continuity: hold through gaps, glide back (config `continuity`) ---
-        if self.continuity is not None and points_3d is not None:
+        if points_3d is not None and (self.kalman3d is not None or self.continuity is not None):
             self.points_3d_raw_log.append(points_3d.copy())
-            points_3d = self.continuity.step(points_3d)
+            if self.kalman3d is not None:
+                points_3d = self.kalman3d.step(points_3d, self.timestamps[-1])
+            else:
+                points_3d = self.continuity.step(points_3d)
         # --- 6. joint angles ---
         t0 = time.perf_counter()
         angles = self._joint_angles(points_3d)
@@ -1155,7 +1170,13 @@ class ProcessorBatch3D(Actor):
                 logger.warning(f"slot {slot}: mediapipe detect failed ({e!r}); no hand this frame")
                 return slot, None
 
-        self._mp_ts_ms += self._mp_step_ms
+        # Live: the real time since start (MediaPipe's tracker and smoothing use it), not 1000/fps per step, so a
+        # wrong `fps` in config.yaml cannot distort it. Must strictly increase.
+        if not self.align_frames:
+            self._mp_t0 = getattr(self, '_mp_t0', None) or time.monotonic()
+            self._mp_ts_ms = max(self._mp_ts_ms + 1, int((time.monotonic() - self._mp_t0) * 1000))
+        else:
+            self._mp_ts_ms += self._mp_step_ms
         if self.align_frames and self._last_target >= 0:
             # skipped frames: give mediapipe the real frame time, so its tracker
             # and landmark smoothing see the true gap

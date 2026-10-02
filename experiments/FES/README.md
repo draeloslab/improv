@@ -175,21 +175,21 @@ Every stage, in order, for the main 3D path (MediaPipe, `hand_association: geome
 
 | # | Stage | Where | What it does to the signal | Config | Cost |
 |---|---|---|---|---|---|
-| 1 | Capture | camera, `TIS.py` | 960x720 RGB at 30 fps, fixed exposure 2 ms / gain 0 / white balance. The two cameras free-run ~17 ms out of phase (no hardware sync). | `camera_config.yaml` | the driver timestamp is a constant 53 ms before the Python callback (unverified: may be a clock-offset artifact) |
+| 1 | Capture | camera, `TIS.py` | 960x720 RGB at 60 fps (`camera_config.yaml` fps; 30 before 2026-10-02), fixed exposure 2 ms / gain 0 / white balance. The two cameras free-run ~17 ms out of phase (no hardware sync). | `camera_config.yaml` | the driver timestamp is a constant 53 ms before the Python callback (unverified: may be a clock-offset artifact) |
 | 2 | Hand-off | `TIS.py` | numpy copy -> redis store -> queue. `appsink_max_buffers: 1` keeps only the newest frame. | `appsink_max_buffers` | 1.5 ms |
-| 3 | Gather | `ProcessorBatch3D._gather_newest` | newest frame per camera; waits up to `gather_wait_ms` (36, about one frame) for the other cameras. Older frames are skipped, never queued. | graph `gather_wait_ms` | ~25 ms until both cameras' frames are in (mostly the phase offset) |
+| 3 | Gather | `ProcessorBatch3D._gather_newest` | newest frame per camera; waits up to `gather_wait_ms` (default 1.1 frame periods: 18 ms at 60 fps) for the other cameras. Older frames are skipped, never queued. | graph `gather_wait_ms` | ~25 ms until both cameras' frames are in (mostly the phase offset) |
 | 4 | Pose | `_infer_mediapipe` | per camera, MediaPipe's palm detector + 21-landmark net. **Stock MediaPipe in VIDEO mode also filters the landmarks internally**; the ONNX engine does not. | `mediapipe_*` | stock 34 ms, ONNX CPU 12.6 ms, TensorRT 2.4 ms (both cameras) |
 | 5 | Score gate | `_geometric_3d` | hands whose handedness score < `threshold` are dropped. | `threshold` | - |
 | 6 | Association + triangulation | `hand_assoc3d.py` | detections from different cameras form a 3D hand only if they reproject within `tol_px`; tracks are kept frame to frame; right/left from accumulated votes. | `geometric_association.*` | 2.7 ms |
-| 7 | **One-Euro 3D smoothing** | `hand_assoc3d.OneEuroHand` | per keypoint, adaptive low-pass (1 Hz at rest, opening up with speed). When the hand is lost the last hand is repeated for `hold_frames` (5), then dropped. | `geometric_association.smooth` | **~50 ms lag** (measured) |
-| 8 | **Hold and glide** | `continuity.py` | a missing keypoint holds its last value *indefinitely* (until it is found again); after a gap or a jump > 40 mm it glides back at 15% of the distance per frame (63% in ~200 ms). | `continuity` | lag only after gaps / jumps |
+| 7 | **3D Kalman filter** (default) | `kalman3d.py` | per keypoint, constant-velocity Kalman filter timed from the real step times. A lost keypoint is extrapolated for 0.2 s (velocity decaying), then held; when found again it snaps to the measurement. With `smoothing_3d.method: one_euro` this stage is the previous One-Euro filter (`geometric_association.smooth`, 6-50 ms lag) plus stage 8. | `smoothing_3d` | ~2 ms lag (measured offline on 2026-10-01 runs) |
+| 8 | Hold and glide (`one_euro` only) | `continuity.py` | a missing keypoint holds its last value *indefinitely* (until it is found again); after a gap or a jump > 40 mm it glides back at 15% of the distance per frame (63% in ~200 ms). | `continuity` | lag only after gaps / jumps |
 | 9 | Joint angles | `_joint_angles` | bone-to-bone angle at each joint, degrees from straight (dlc2kinematics' definition). | - | 0.05 ms |
 | 10 | Send | `sender_udp.py` | latest angle per joint as JSON (NaN -> null); 21 keypoints of one hand to BRAND's hand3d node. No smoothing. | env `SENDER_UDP_IP`, graph `keypoint_port` | 0.5 ms |
-| 11 | BRAND `hand3d` node | brand-monkeyrig | maps keypoints to DOFs, normalises with its calibration ranges, resamples 30 -> 100 Hz through **two cascaded low-pass stages (`output_tau_ms: 40`, ~40 ms lag)**. | BRAND graph | ~40 ms |
+| 11 | BRAND `hand3d` node | brand-monkeyrig | maps keypoints to DOFs, normalises with its calibration ranges, resamples 30 -> 100 Hz through **two cascaded low-pass stages (`output_tau_ms`, 12 ms in the hand3d graphs since 2026-10-02; 40 ms measured as 46 ms lag)**. | BRAND graph | ~40 ms |
 
 Reported end-to-end (`sender_joint_e2e.npy`: Python callback of the older camera -> UDP send) was ~62 ms with stock
 MediaPipe: 25.6 gather + 33.9 inference + 2.7 triangulation + < 1 send. With TensorRT the inference term drops to
-~2.4 ms. Stages 1, 7, 8 and 11 add lag the latency logs do not show.
+~2.4 ms. Stages 1, 7 and 11 add lag the latency logs do not show.
 
 Things that feel like lag but are not latency:
 - **Hand lost.** Stage 8 holds the last value until the hand is found again, so a lost hand freezes the cursor
@@ -215,9 +215,11 @@ Other paths:
 - **`threshold`**: the one confidence threshold (hand score for MediaPipe, keypoint likelihood for DLC).
 - **Pose estimator**: `batch3d_backend` (mediapipe / dlc), then how it runs: `mediapipe_engine` / `onnx_providers`
   or `dlc_engine` / `dlc_onnx_*`. `mediapipe_num_hands` trades speed (1) for not latching onto the wrong hand (2).
-- **Smoothing**, in pipeline order: `kalman_*` (label association only), `geometric_association.smooth`
-  (One-Euro: lower `min_cutoff` = smoother and laggier, higher `beta` = less lag when moving; `false` turns it off),
-  `continuity` (hold and glide; `null` turns it off; then a lost hand outputs NaN -> null instead of freezing).
+- **Smoothing**, in pipeline order: `kalman_*` (2D, label association only), then `smoothing_3d` on the 3D points:
+  `kalman` (default; `measurement_sd_mm` up / `accel_sd_mm_s2` down = smoother and laggier), `one_euro` (the previous
+  `geometric_association.smooth` + `continuity` chain) or `none`.
+- **`fps`** must match `camera_config.yaml` `fps`: the One-Euro and 2D Kalman filters and the replay fallback use it
+  (the 3D Kalman filter and MediaPipe's timestamps use real time).
 - **3D**: `calibration_toml` + `calibration_camera_names`, `triangulation_min_cameras`, `hand_association` and its block.
 - **`held_hand`**: the stimulated-hand (region) mode.
 - **`cpu_affinity`**: which actor gets which cores (this CPU's core 0 is faulty and excluded).

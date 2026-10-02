@@ -11,7 +11,7 @@ camera_params:
   # stream_resolution:
   #   width: 960
   #   height: 540
-  fps: "30/1"
+  fps: "60/1"   # both rig cameras support 30/60/120; keep config.yaml `fps` the same
 
   # appsink queue depth per camera.
   #   5 = a briefly stalled reader loses no frame (use when RECORDING).
