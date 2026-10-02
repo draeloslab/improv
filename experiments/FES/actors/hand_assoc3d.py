@@ -75,10 +75,17 @@ class HandTracker3D:
     (calib_row, xy (21, 2) in calibration pixels, label 0=right/1=left, score)."""
 
     def __init__(self, cgroup, tol_px=15.0, size_mm=(20.0, 200.0), gate_mm=100.0,
-                 max_miss=10, smooth=None, fps=30.0):
-        """cgroup: aniposelib CameraGroup. tol_px: reprojection error for detections to count as one hand.
+                 max_miss=10, smooth=None, fps=30.0, join_tol_px=None, keypoint_tol_px=None, hold_tol_px=None):
+        """cgroup: aniposelib CameraGroup. tol_px: reprojection error for two detections to seed a hand.
         size_mm: plausible wrist -> middle-MCP length. gate_mm: palm distance to stay the same track. max_miss:
-        frames a track survives unseen. smooth: OneEuroHand kwargs, or False for raw output."""
+        frames a track survives unseen. smooth: OneEuroHand kwargs, or False for raw output.
+        join_tol_px: a further camera joins the hand if its MEDIAN keypoint error is below this (None = the old rule:
+        mean error below tol_px). keypoint_tol_px: per keypoint, views reprojecting worse than this are dropped (the
+        worst first, down to 2 views) and the keypoint re-triangulated (None = off). hold_tol_px: hysteresis -- a
+        camera that was in the hand last frame stays in while its median keypoint error is below this (None = off).
+        Why: with all-or-nothing camera membership the hand's camera set changed ~8x/s on 4 cameras (2026-10-02) and
+        each change moved the joint angles ~4-5 deg (>10 deg in ~20% of changes); one occluded finger's guessed
+        landmarks pushed a whole camera out."""
         self.cg = cgroup
         self.nrows = len(cgroup.cameras)
         self.tol, self.size_mm, self.gate, self.max_miss = tol_px, size_mm, gate_mm, max_miss
@@ -88,6 +95,10 @@ class HandTracker3D:
         self.smooth_on = smooth is not False
         self.filters = [OneEuroHand(fps=fps, **(smooth or {})) for _ in range(2)]
         self.last_errors = []
+        self.join_tol = join_tol_px
+        self.kp_tol = keypoint_tol_px
+        self.hold_tol = hold_tol_px
+        self.prev_rows = set()           # cameras in the output hands last frame (for hold_tol_px)
 
     # ------------------------------------------------------------ geometry
     def _triangulate(self, views):
@@ -97,10 +108,30 @@ class HandTracker3D:
             p[r] = xy
         return self.cg.triangulate(p, progress=False)
 
-    def _view_error(self, p3, row, xy):
-        """Mean reprojection error (px) of a 3D hand in one camera."""
+    def _view_error(self, p3, row, xy, stat=np.nanmean):
+        """Mean (or `stat`) reprojection error (px) of a 3D hand in one camera."""
         proj = self.cg.project(p3)[row]
-        return float(np.nanmean(np.linalg.norm(proj - xy, axis=1)))
+        return float(stat(np.linalg.norm(proj - xy, axis=1)))
+
+    def _robust_triangulate(self, views):
+        """Triangulate every keypoint from all views, then repeatedly drop each keypoint's worst view while it
+        reprojects worse than keypoint_tol_px and more than 2 views remain (2 rounds is enough with 4 cameras)."""
+        p = np.full((self.nrows, 21, 2), np.nan)
+        for r, xy in views:
+            p[r] = xy
+        p3 = self.cg.triangulate(p, progress=False)
+        if self.kp_tol is None or len(views) < 3:
+            return p3
+        for _ in range(2):
+            err = np.linalg.norm(self.cg.project(p3) - p, axis=2)               # (rows, 21), NaN where no view
+            n = np.isfinite(err).sum(0)
+            worst = np.nanargmax(np.where(np.isfinite(err), err, -1), axis=0)
+            drop = (n > 2) & (np.nanmax(np.where(np.isfinite(err), err, -1), axis=0) > self.kp_tol)
+            if not drop.any():
+                break
+            p[worst[drop], np.flatnonzero(drop)] = np.nan
+            p3 = self.cg.triangulate(p, progress=False)
+        return p3
 
     def associate(self, dets):
         """Returns a list of hands: dict(p3, members=[det indices], votes, err)."""
@@ -134,11 +165,17 @@ class HandTracker3D:
             for x in range(len(dets)):
                 if x in used or x in members or dets[x][0] in rows:
                     continue
-                if self._view_error(p, dets[x][0], dets[x][1]) < self.tol:
+                if self.hold_tol is not None and dets[x][0] in self.prev_rows:
+                    ok = self._view_error(p, dets[x][0], dets[x][1], np.nanmedian) < self.hold_tol
+                elif self.join_tol is None:
+                    ok = self._view_error(p, dets[x][0], dets[x][1]) < self.tol
+                else:
+                    ok = self._view_error(p, dets[x][0], dets[x][1], np.nanmedian) < self.join_tol
+                if ok:
                     members.append(x); rows.add(dets[x][0])
                     views.append((dets[x][0], dets[x][1]))
             if len(members) > 2:
-                p = self._triangulate(views)
+                p = self._robust_triangulate(views)
             used.update(members)
             votes = sum((1.0 if dets[x][2] == 1 else -1.0) * dets[x][3] for x in members)   # + = left
             err = float(np.mean([self._view_error(p, r, xy) for r, xy in views]))
@@ -187,6 +224,7 @@ class HandTracker3D:
             p = self.filters[side].step(raw) if self.smooth_on else raw
             if p is not None:
                 out[side * 21:side * 21 + 21] = p
+        self.prev_rows = {dets[x][0] for x, sd in enumerate(side_of_det) if sd is not None}
         return out, side_of_det
 
 

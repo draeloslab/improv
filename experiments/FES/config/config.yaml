@@ -130,6 +130,10 @@ hand_association: geometric
 geometric_association:
   tol_px: 12                # reprojection error to join a hand. 8 rejected the hand in 61% of the frames it was lost
                             # although both cameras saw it (2026-10-01, 2 cameras); higher = more coverage, more jumps
+  # Hysteresis: a camera that was in the hand last frame stays in while its MEDIAN keypoint error is below this.
+  # Without it the 4-camera hand changed camera set ~8.6x/s and each change moved the joint angles 4-5 deg (2026-10-02
+  # run 1620, replayed: hold 40 -> 1.1-2.1 changes/s, >10-deg jumps index 2.6% -> 0.8-1.2%, ring 4.7% -> 1.0-2.2%).
+  hold_tol_px: 40
   hand_size_mm: [20, 200]   # plausible wrist -> middle MCP length
   gate_mm: 100              # palm movement between frames to stay the same track
   max_miss: 10              # frames a track survives unseen

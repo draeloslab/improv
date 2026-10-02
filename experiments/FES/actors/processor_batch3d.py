@@ -357,7 +357,9 @@ class ProcessorBatch3D(Actor):
                     self.cgroup, tol_px=float(g.get('tol_px', 15.0)),
                     size_mm=tuple(g.get('hand_size_mm', [20, 200])),
                     gate_mm=float(g.get('gate_mm', 100.0)), max_miss=int(g.get('max_miss', 10)),
-                    smooth=smooth if smooth else False, fps=float(config.get('fps', 30)))
+                    smooth=smooth if smooth else False, fps=float(config.get('fps', 30)),
+                    hold_tol_px=g.get('hold_tol_px'), join_tol_px=g.get('join_tol_px'),
+                    keypoint_tol_px=g.get('keypoint_tol_px'))
                 gl = g.get('reject_gloves') or {}
                 self.glove_teal = tuple(gl['teal']) if gl.get('teal') else None
                 self.glove_white = tuple(gl['white']) if gl.get('white') else None
