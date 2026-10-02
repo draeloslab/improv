@@ -154,8 +154,8 @@ scripts/fes-run.sh 2dof_test.yaml
 
 | Graph | Input | Pose | Output |
 |---|---|---|---|
-| `mediapipe_hand3d_brand[_onnx].yaml` | 2 live cameras | MediaPipe (stock / ONNX+TensorRT) | GUI, UDP to BRAND |
-| `mediapipe_live_onnx.yaml` | 2 live cameras | MediaPipe ONNX+TensorRT | GUI (test) |
+| `mediapipe_hand3d_brand[_onnx].yaml` | 4 live cameras (0, 3, 5, 6) | MediaPipe (stock / ONNX+TensorRT) | GUI, UDP to BRAND |
+| `mediapipe_live_onnx.yaml` | 4 live cameras (0, 3, 5, 6) | MediaPipe ONNX+TensorRT | GUI + raw video (test) |
 | `mediapipe_live.yaml`, `mediapipe_nosave.yaml` | 5 / 4 live cameras | MediaPipe | GUI (+ raw video) |
 | `mediapipe_gen[_onnx].yaml` | 4 recorded videos | MediaPipe (stock / ONNX+TensorRT) | GUI |
 | `dlc_hand_gen[_onnx].yaml` | 2 recorded videos | DLC top-down, held hand (stock / ONNX) | GUI |
