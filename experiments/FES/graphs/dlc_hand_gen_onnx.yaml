@@ -19,42 +19,40 @@ actors:
   VideoScreen3D:
     package: actors.video_screen_3d
     class: VideoScreen3D
-    num_active_cameras: 2
+    num_active_cameras: 4
 
-  Generator0:
-    package: actors.generator
-    class: Generator
-    camera_num: 1
-    video_path: '/home/chesteklab/camera_video/2026-09-16/115300/camera_video_1_0916_1153.mp4'
+  Generator0: {package: actors.camera_reader, class: CameraReader, camera_num: 0}
+  Generator1: {package: actors.camera_reader, class: CameraReader, camera_num: 3}
+  Generator2: {package: actors.camera_reader, class: CameraReader, camera_num: 5}
+  Generator3: {package: actors.camera_reader, class: CameraReader, camera_num: 6}
 
-  Generator1:
-    package: actors.generator
-    class: Generator
-    camera_num: 2
-    video_path: '/home/chesteklab/camera_video/2026-09-16/115300/camera_video_2_0916_1153.mp4'
 
   ProcessorBatch3D:
     package: actors.processor_batch3d
     class: ProcessorBatch3D
-    num_cameras: 2
-    camera_nums: [1, 2]
+    num_cameras: 4
+    camera_nums: [0, 3, 5, 6]
     pred_active: True
     triangulate: true
-    align_frames: true
-    compute_cores: 4
     config_overrides:
       batch3d_backend: dlc
       hand_association: region
-      calibration_toml: 'analysis/stim_1153/walkthrough_out/calibration_corrected.toml'
       dlc_engine: onnx
       dlc_onnx_frame_size: [960, 540]
       dlc_onnx_pose_providers: [CUDAExecutionProvider, CPUExecutionProvider]   # TensorRT saves ~0.5 ms but logs a harmless parse error
     method: spawn
 
+  SenderUDP:
+    package: actors.sender_udp
+    class: SenderUDP
+    method: spawn
+
 connections:
   Generator0.q_out: [VideoScreen3D.images0_in, ProcessorBatch3D.frames0_in]
   Generator1.q_out: [VideoScreen3D.images1_in, ProcessorBatch3D.frames1_in]
-  ProcessorBatch3D.q_out: [VideoScreen3D.preds_in]
+  Generator2.q_out: [VideoScreen3D.images2_in, ProcessorBatch3D.frames2_in]
+  Generator3.q_out: [VideoScreen3D.images3_in, ProcessorBatch3D.frames3_in]
+  ProcessorBatch3D.q_out: [SenderUDP.joints_in, VideoScreen3D.preds_in]
 
 redis_config:
   port: 6379

@@ -90,9 +90,9 @@ onnx_min_presence: 0.5
 
 # --- dlc backend ---
 # HandTrackingVideo1Aug7 shuffle 12: top-down (detector + pose net), 42 keypoints (right_*, then left_*, MP21 order).
-batch3d_model_path: '/home/chesteklab/HandTrackingVideo1Aug7-trainset80shuffle12/train'
-batch3d_model_snapshot: "snapshot-best-100.pt"
-batch3d_detector_snapshot: "snapshot-detector-best-170.pt"   # unset for a bottom-up model
+batch3d_model_path: '/home/chesteklab/HandTrackingVideo1Aug7-trainset80shuffle14/train'
+batch3d_model_snapshot: "snapshot-best-160.pt"
+batch3d_detector_snapshot: "snapshot-detector-best-200.pt"   # unset for a bottom-up model
 # "pytorch" -> DeepLabCut's inference runners (~26 ms per 2-camera step).
 # "onnx"    -> actors/dlc_onnx.py on onnxruntime (~5-7 ms, keypoints within 0.03 px of DLC's). Export first with
 #              scripts/trt/export_dlc_onnx.py (-> models/dlc_trt/), for the live frame size dlc_onnx_frame_size.
