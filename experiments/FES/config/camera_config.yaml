@@ -31,7 +31,7 @@ camera_params:
     ExposureAuto: "Off"
     ExposureTime: 2000
     GainAuto: "Off"
-    Gain: 0
+    Gain: 5
     # BalanceWhiteAuto accepts "Off" or "Continuous". With Off and no gains the
     # image is green (Bayer sensor needs ~R 1.27 / B 3.3), so gains are explicit.
     # Values converged to by all 7 cameras under lab lights on 2026-09-24

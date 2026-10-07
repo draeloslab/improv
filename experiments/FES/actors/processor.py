@@ -145,7 +145,7 @@ class Processor(Actor):
             self.kalman_filter = KalmanFilterPredictor(
                 adapt=False,
                 forward=0.002,
-                fps=30,  
+                fps=60,  
                 nderiv=2,
                 priors=[1, 1],  #[1e5, 1e5]
                 initial_var=10,    
