@@ -63,7 +63,7 @@ actors:
     method: spawn
 
 connections:
-  Generator0.q_out: [Processor0.q_in, VideoScreen.images0_in] #, VideoSaver2.q_in]
+  Generator0.q_out: [Processor0.q_in, VideoScreen.images0_in, VideoSaver2.q_in]
   Processor0.q_out: [SenderUDP.preds0_in, VideoScreen.preds0_in]
 
 redis_config:

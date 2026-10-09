@@ -151,7 +151,7 @@ class Processor(Actor):
                 initial_var=10,    
                 process_var=1,     
                 dlc_var=10,        
-                lik_thresh=0.2    
+                lik_thresh=0.7    
             )
             logger.info(f'Kalman filter initialized for camera {self.camera_num}')
 
