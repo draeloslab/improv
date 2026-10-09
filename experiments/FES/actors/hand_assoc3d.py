@@ -23,6 +23,7 @@ Per frame (HandTracker3D.step):
 Tuned offline with scripts/tune3d (evaluate.py uses this module).
 """
 import itertools
+import warnings
 
 import numpy as np
 from scipy.optimize import linear_sum_assignment
@@ -72,10 +73,13 @@ class OneEuroHand:
 
 class HandTracker3D:
     """cgroup: aniposelib CameraGroup. Detections are given per frame as a list of
-    (calib_row, xy (21, 2) in calibration pixels, label 0=right/1=left, score)."""
+    (calib_row, xy (21, 2) in calibration pixels, label 0=right/1=left, score[, weights (21,)]).
+    xy may hold NaN keypoints (DLC: below the likelihood threshold); weights are per-keypoint confidences used by
+    the triangulation (None = equal)."""
 
     def __init__(self, cgroup, tol_px=15.0, size_mm=(20.0, 200.0), gate_mm=100.0,
-                 max_miss=10, smooth=None, fps=30.0, join_tol_px=None, keypoint_tol_px=None, hold_tol_px=None):
+                 max_miss=10, smooth=None, fps=30.0, join_tol_px=None, keypoint_tol_px=None, hold_tol_px=None,
+                 triangulate=None, min_common=6):
         """cgroup: aniposelib CameraGroup. tol_px: reprojection error for two detections to seed a hand.
         size_mm: plausible wrist -> middle-MCP length. gate_mm: palm distance to stay the same track. max_miss:
         frames a track survives unseen. smooth: OneEuroHand kwargs, or False for raw output.
@@ -85,7 +89,10 @@ class HandTracker3D:
         camera that was in the hand last frame stays in while its median keypoint error is below this (None = off).
         Why: with all-or-nothing camera membership the hand's camera set changed ~8x/s on 4 cameras (2026-10-02) and
         each change moved the joint angles ~4-5 deg (>10 deg in ~20% of changes); one occluded finger's guessed
-        landmarks pushed a whole camera out."""
+        landmarks pushed a whole camera out.
+        triangulate: fn(points (C, N, 2), weights (C, N) or None) -> (N, 3), e.g. actors/triangulate.triangulator
+        (None = aniposelib's unweighted DLT). min_common: keypoints two detections must share to be compared (only
+        matters for partial hands)."""
         self.cg = cgroup
         self.nrows = len(cgroup.cameras)
         self.tol, self.size_mm, self.gate, self.max_miss = tol_px, size_mm, gate_mm, max_miss
@@ -99,27 +106,50 @@ class HandTracker3D:
         self.kp_tol = keypoint_tol_px
         self.hold_tol = hold_tol_px
         self.prev_rows = set()           # cameras in the output hands last frame (for hold_tol_px)
+        self.tri = triangulate or (lambda p, w=None: cgroup.triangulate(p, progress=False))
+        self.min_common = min_common
+
+    @staticmethod
+    def _w(det):
+        """Per-keypoint weights of a detection (None if it carries none)."""
+        return det[4] if len(det) > 4 else None
+
+    def _size_ok(self, p3):
+        """Wrist -> middle-MCP length plausible. A partial hand missing either point is judged by palm width
+        instead (index MCP -> pinky MCP is ~0.8x that length); with neither it passes on reprojection alone."""
+        size = np.linalg.norm(p3[9] - p3[0])
+        if not np.isfinite(size):
+            size = np.linalg.norm(p3[5] - p3[17]) / 0.8
+        return (not np.isfinite(size)) or self.size_mm[0] <= size <= self.size_mm[1]
 
     # ------------------------------------------------------------ geometry
-    def _triangulate(self, views):
-        """[(calibration row, (21, 2) pixels)] -> (21, 3) mm."""
+    def _stack(self, views):
+        """[(row, (21, 2) px[, (21,) weights])] -> points (C, 21, 2), weights (C, 21) or None."""
         p = np.full((self.nrows, 21, 2), np.nan)
-        for r, xy in views:
-            p[r] = xy
-        return self.cg.triangulate(p, progress=False)
+        w = np.zeros((self.nrows, 21))
+        weighted = False
+        for v in views:
+            p[v[0]] = v[1]
+            if len(v) > 2 and v[2] is not None:
+                w[v[0]] = v[2]; weighted = True
+            else:
+                w[v[0]] = 1.0
+        return p, (w if weighted else None)
+
+    def _triangulate(self, views):
+        """[(calibration row, (21, 2) pixels[, weights])] -> (21, 3) mm."""
+        return self.tri(*self._stack(views))
 
     def _view_error(self, p3, row, xy, stat=np.nanmean):
-        """Mean (or `stat`) reprojection error (px) of a 3D hand in one camera."""
-        proj = self.cg.project(p3)[row]
-        return float(stat(np.linalg.norm(proj - xy, axis=1)))
+        """Mean (or `stat`) reprojection error (px) of a 3D hand in one camera (inf if no keypoint in common)."""
+        e = np.linalg.norm(self.cg.project(p3)[row] - xy, axis=1)
+        return float(stat(e)) if np.isfinite(e).any() else np.inf
 
     def _robust_triangulate(self, views):
         """Triangulate every keypoint from all views, then repeatedly drop each keypoint's worst view while it
         reprojects worse than keypoint_tol_px and more than 2 views remain (2 rounds is enough with 4 cameras)."""
-        p = np.full((self.nrows, 21, 2), np.nan)
-        for r, xy in views:
-            p[r] = xy
-        p3 = self.cg.triangulate(p, progress=False)
+        p, w = self._stack(views)
+        p3 = self.tri(p, w)
         if self.kp_tol is None or len(views) < 3:
             return p3
         for _ in range(2):
@@ -130,7 +160,7 @@ class HandTracker3D:
             if not drop.any():
                 break
             p[worst[drop], np.flatnonzero(drop)] = np.nan
-            p3 = self.cg.triangulate(p, progress=False)
+            p3 = self.tri(p, w)
         return p3
 
     def associate(self, dets):
@@ -141,17 +171,23 @@ class HandTracker3D:
             return []
         P = len(pairs)
         arr = np.full((self.nrows, P, 21, 2), np.nan)
+        wts = np.zeros((self.nrows, P, 21))
+        weighted = any(self._w(d) is not None for d in dets)
         for j, (a, b) in enumerate(pairs):
-            arr[dets[a][0], j] = dets[a][1]
-            arr[dets[b][0], j] = dets[b][1]
-        p3 = self.cg.triangulate(arr.reshape(self.nrows, -1, 2), progress=False).reshape(P, 21, 3)
+            for x in (a, b):
+                arr[dets[x][0], j] = dets[x][1]
+                wts[dets[x][0], j] = self._w(dets[x]) if self._w(dets[x]) is not None else 1.0
+        p3 = self.tri(arr.reshape(self.nrows, -1, 2),
+                      wts.reshape(self.nrows, -1) if weighted else None).reshape(P, 21, 3)
         proj = self.cg.project(p3.reshape(-1, 3)).reshape(self.nrows, P, 21, 2)
         cand = []
         for j, (a, b) in enumerate(pairs):
-            e = np.mean([np.nanmean(np.linalg.norm(proj[dets[x][0], j] - dets[x][1], axis=1))
-                         for x in (a, b)])
-            size = np.linalg.norm(p3[j, 9] - p3[j, 0])       # wrist -> middle MCP
-            if e < self.tol and self.size_mm[0] <= size <= self.size_mm[1]:
+            if np.isfinite(p3[j, :, 0]).sum() < self.min_common:
+                continue
+            with np.errstate(all='ignore'):
+                e = np.mean([np.nanmean(np.linalg.norm(proj[dets[x][0], j] - dets[x][1], axis=1))
+                             for x in (a, b)])
+            if e < self.tol and self._size_ok(p3[j]):
                 cand.append((e, a, b))
         cand.sort()
         used, hands = set(), []
@@ -160,7 +196,7 @@ class HandTracker3D:
                 continue
             members = [a, b]
             rows = {dets[a][0], dets[b][0]}
-            views = [(dets[a][0], dets[a][1]), (dets[b][0], dets[b][1])]
+            views = [(dets[a][0], dets[a][1], self._w(dets[a])), (dets[b][0], dets[b][1], self._w(dets[b]))]
             p = self._triangulate(views)
             for x in range(len(dets)):
                 if x in used or x in members or dets[x][0] in rows:
@@ -173,12 +209,12 @@ class HandTracker3D:
                     ok = self._view_error(p, dets[x][0], dets[x][1], np.nanmedian) < self.join_tol
                 if ok:
                     members.append(x); rows.add(dets[x][0])
-                    views.append((dets[x][0], dets[x][1]))
+                    views.append((dets[x][0], dets[x][1], self._w(dets[x])))
             if len(members) > 2:
                 p = self._robust_triangulate(views)
             used.update(members)
             votes = sum((1.0 if dets[x][2] == 1 else -1.0) * dets[x][3] for x in members)   # + = left
-            err = float(np.mean([self._view_error(p, r, xy) for r, xy in views]))
+            err = float(np.mean([self._view_error(p, v[0], v[1]) for v in views]))
             hands.append(dict(p3=p, members=members, votes=votes, err=err))
         return hands
 
@@ -190,8 +226,10 @@ class HandTracker3D:
         self.last_errors = [h['err'] for h in hands]
         pairs = []
         if self.tracks and hands:
-            C = np.array([[np.nanmean(np.linalg.norm(t['p3'][PALM] - h['p3'][PALM], axis=1))
-                           for h in hands] for t in self.tracks])
+            with warnings.catch_warnings():          # partial (dlc) hands can share no palm point: NaN -> no match
+                warnings.simplefilter('ignore', RuntimeWarning)
+                C = np.array([[np.nanmean(np.linalg.norm(t['p3'][PALM] - h['p3'][PALM], axis=1))
+                               for h in hands] for t in self.tracks])
             C = np.nan_to_num(C, nan=1e9)
             ti, hi = linear_sum_assignment(C)
             pairs = [(a, b) for a, b in zip(ti, hi) if C[a, b] < self.gate]

@@ -1,4 +1,5 @@
 """Generator: plays a recorded video into the store as if it were a live camera (replay graphs, no hardware)."""
+import re
 import time
 from pathlib import Path
 
@@ -13,23 +14,61 @@ from .run_paths import get_logger, run_folder
 logger = get_logger(__name__, "generator.log")
 
 
+def session_video(session, camera_num, subfolder=None):
+    """Recorded mp4 of one camera from a session name: '2026-10-07/111100' (or '2026-10-07 111100' / '_') ->
+    ~/<raw_chunks_path>/2026-10-07/111100[/<subfolder>]/camera_video_<N>_1007_1111.mp4, the converter's naming.
+    Falls back to the only camera_video_<N>_*.mp4 in the folder when the name's time differs."""
+    m = re.fullmatch(r'(\d{4})-(\d{2})-(\d{2})[/ _](\d{6})', str(session).strip())
+    if not m:
+        raise ValueError(f"session {session!r}: expected 'YYYY-MM-DD/HHMMSS'")
+    y, mo, d, hms = m.groups()
+    with open(Path(__file__).resolve().parent.parent / 'config' / 'video_config.yaml') as f:
+        root = Path.home() / yaml.safe_load(f).get('raw_chunks_path', 'camera_video')
+    folder = root / f'{y}-{mo}-{d}' / hms
+    if subfolder:
+        folder = folder / subfolder
+    path = folder / f'camera_video_{camera_num}_{mo}{d}_{hms[:4]}.mp4'
+    if not path.exists():
+        found = sorted(folder.glob(f'camera_video_{camera_num}_*.mp4'))
+        if len(found) == 1:
+            path = found[0]
+    return str(path)
+
+
+def frame_count(path):
+    """Frames in a video by its header (no decoding)."""
+    cap = cv2.VideoCapture(str(path))
+    n = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) if cap.isOpened() else 0
+    cap.release()
+    return n
+
+
 class Generator(Actor):
     """Reads a video at its own frame rate (config `fps` if it has none), converts BGR -> RGB and sends [store id, time, frame_num] on q_out.
 
-    Graph kwargs: camera_num (plays config.yaml video_paths[camera_num]) or video_path (any file). Without either
-    it plays config.yaml video_path.
+    Graph kwargs, first match wins:
+      session + camera_num   a recorded session, 'YYYY-MM-DD/HHMMSS' (session_video); subfolder: e.g. 'raw'
+      video_path             any file
+      camera_num             config.yaml video_paths[camera_num]
+      (none)                 config.yaml video_path
     """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.camera_num = kwargs.get('camera_num')
         self.video_path_kw = kwargs.get('video_path')     # graph-level override of config.yaml's video_paths
+        self.session = kwargs.get('session')               # 'YYYY-MM-DD/HHMMSS': path filled in from camera_num
+        self.subfolder = kwargs.get('subfolder')
 
     def setup(self):
         """Pick the video, open it and set up the timing logs."""
         with open(Path(__file__).resolve().parent.parent / 'config' / 'config.yaml') as f:
             config = yaml.safe_load(f)
-        if self.video_path_kw:
+        if self.session:
+            if self.camera_num is None:
+                raise ValueError(f"{self.name}: session needs camera_num")
+            self.video_path = session_video(self.session, self.camera_num, self.subfolder)
+        elif self.video_path_kw:
             self.video_path = self.video_path_kw
         elif self.camera_num is not None:
             self.video_path = config['video_paths'][self.camera_num]
@@ -61,8 +100,14 @@ class Generator(Actor):
         video_fps = self.cap.get(cv2.CAP_PROP_FPS)
         if video_fps and 1 <= video_fps <= 500:
             self.frame_interval = 1.0 / video_fps     # play at the recording's speed, whatever config `fps` says
-        logger.info(f"{self.name}: {self.video_path}, {int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))} frames "
-                    f"at {1 / self.frame_interval:.1f} fps")
+        n = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        logger.info(f"{self.name}: {self.video_path}, {n} frames at {1 / self.frame_interval:.1f} fps")
+        # A camera's video cut short (e.g. an interrupted conversion) silently turns an N-camera replay into N-1.
+        others = [frame_count(p) for p in Path(self.video_path).parent.glob('camera_video_*.mp4')
+                  if p.name != Path(self.video_path).name]
+        if others and n < 0.99 * max(others):
+            logger.warning(f"{self.name}: {n} frames, but other cameras in {Path(self.video_path).parent} have up to "
+                           f"{max(others)} -- this video is incomplete; re-convert it")
         self.done = False
 
     def stop(self):

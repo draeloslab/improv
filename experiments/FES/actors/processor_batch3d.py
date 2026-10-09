@@ -10,7 +10,7 @@ The pipeline per step is:
     frames{0..N-1}_in  ->  ONE pose-estimation step, all N cameras  (_infer)
                        ->  per-camera 2D keypoints + likelihood
                        ->  likelihood gate -> NaN
-                       ->  aniposelib CameraGroup.triangulate  -> (K, 3) mm
+                       ->  confidence-weighted DLT (actors/triangulate.py) -> (K, 3) mm
                        ->  joint angles (bone-to-bone angle)   -> {joint: deg}
                        ->  q_out
 
@@ -26,7 +26,7 @@ The pipeline per step is:
 
 Both backends produce the same per-camera (x, y, score) rows, so everything after `_infer` is shared.
 
-Triangulation uses aniposelib, as the rest of the lab does (see _triangulate()).
+Triangulation uses the aniposelib calibration with a confidence-weighted DLT (see _triangulate()).
 Joint angles are the same bone-to-bone angle dlc2kinematics computes, vectorised
 (see _joint_angles()).
 """
@@ -71,6 +71,8 @@ from .hand_assoc3d import HandTracker3D, glove_mask
 from .held_hand3d import HeldHandTracker
 from .continuity import ContinuousPose
 from .kalman3d import KalmanPose3D
+from .triangulate import triangulator
+from .kinematic_hand import KinematicHand, mirror_model
 from .run_paths import get_logger, run_folder
 from .chunk_log import ChunkLog
 
@@ -333,6 +335,13 @@ class ProcessorBatch3D(Actor):
             self._setup_calibration(config, source_folder)
         else:
             self.cgroup = None
+        self.tri_method = str(config.get('triangulation_method', 'weighted_dlt')).lower()
+        self.tri_min_weight = float(config.get('triangulation_min_weight', 0.05))
+        self.tri = (triangulator(self.cgroup, self.tri_method, self.tri_min_weight)
+                    if self.cgroup is not None else None)
+        if self.cgroup is not None:
+            logger.info(f"triangulation: {self.tri_method}"
+                        + (f", weights floored at {self.tri_min_weight}" if self.tri_method == 'weighted_dlt' else ""))
             logger.info("triangulate=False: 2D keypoints only, no 3D / joint angles")
 
         # ---------------- cross-camera hand association ----------------
@@ -346,12 +355,13 @@ class ProcessorBatch3D(Actor):
         self.association = str(config.get('hand_association', 'label')).lower()
         self.hand_tracker = None
         if self.association == 'geometric':
-            if self.backend != 'mediapipe' or self.cgroup is None:
-                logger.warning("hand_association: geometric needs the mediapipe backend and a "
-                               "calibration -- falling back to label association")
+            if self.cgroup is None:
+                logger.warning("hand_association: geometric needs a calibration -- falling back to label association")
                 self.association = 'label'
             else:
                 g = config.get('geometric_association') or {}
+                # dlc: each camera's right_* / left_* blocks are two candidate hands, keypoints below `threshold` NaN
+                self.dlc_min_keypoints = int(g.get('dlc_min_keypoints', 8))
                 smooth = g.get('smooth', {'min_cutoff': 1.0, 'beta': 0.05}) if self.smoothing_method == 'one_euro' else False
                 self.hand_tracker = HandTracker3D(
                     self.cgroup, tol_px=float(g.get('tol_px', 15.0)),
@@ -359,7 +369,7 @@ class ProcessorBatch3D(Actor):
                     gate_mm=float(g.get('gate_mm', 100.0)), max_miss=int(g.get('max_miss', 10)),
                     smooth=smooth if smooth else False, fps=float(config.get('fps', 30)),
                     hold_tol_px=g.get('hold_tol_px'), join_tol_px=g.get('join_tol_px'),
-                    keypoint_tol_px=g.get('keypoint_tol_px'))
+                    keypoint_tol_px=g.get('keypoint_tol_px'), triangulate=self.tri)
                 gl = g.get('reject_gloves') or {}
                 self.glove_teal = tuple(gl['teal']) if gl.get('teal') else None
                 self.glove_white = tuple(gl['white']) if gl.get('white') else None
@@ -417,6 +427,7 @@ class ProcessorBatch3D(Actor):
         logger.info(f"3D smoothing: {self.smoothing_method}"
                     + (f" {sm3.get('kalman') or {}}" if self.kalman3d else f", continuity {cont}" if self.continuity else ""))
         self.angles_log = L('batch3d_joint_angles')
+        self._setup_kinematic_fit(config, source_folder)
         self.timestamps = []
         self.frame_nums_received = L('batch3d_frame_nums')
         self.frame_skew = []           # max-min frame_num across cameras, per step
@@ -439,6 +450,47 @@ class ProcessorBatch3D(Actor):
         logger.info(f"likelihood threshold {self.likelihood_threshold}, "
                     f"min cameras per keypoint {self.min_cameras}")
         logger.info("Completed setup for ProcessorBatch3D")
+
+    def _setup_kinematic_fit(self, config, source_folder):
+        """config `kinematic_fit`: fit each 21-keypoint hand block to the fixed skeleton of a hand model file
+        (actors/kinematic_hand.py, built by scripts/build_hand_model.py). Off unless enabled and the model exists."""
+        import json
+        kf = dict(config.get('kinematic_fit') or {})
+        self.kin, self.kin_rms, self.kin_ms = {}, [], []
+        if not kf.get('enabled'):
+            return
+        path = Path(kf.get('model') or '')
+        path = path if path.is_absolute() else source_folder / path
+        if not path.is_file():
+            logger.error(f"kinematic_fit: hand model {path} not found -- fit off (build one: scripts/build_hand_model.py)")
+            return
+        model = json.loads(path.read_text())
+        params = dict(temporal_weight=float(kf.get('temporal_weight', 2.0)), max_rms_mm=float(kf.get('max_rms_mm', 15.0)),
+                      min_keypoints=int(kf.get('min_keypoints', 8)), max_iter=int(kf.get('max_iter', 15)))
+        self.kin_on_fail = str(kf.get('on_fail', 'raw')).lower()
+        offsets = {'right': 0, 'left': 21} if self.n_keypoints == 42 else {'right': 0}
+        for side, off in offsets.items():
+            other = 'left' if side == 'right' else 'right'
+            m = model.get(side) or (mirror_model(model[other]) if model.get(other) else None)
+            if m is not None:
+                self.kin[off] = KinematicHand(m, **params)
+        logger.info(f"kinematic_fit: {path.name}, blocks {sorted(self.kin)}, {params}, on_fail {self.kin_on_fail}")
+
+    def _kinematic(self, points_3d):
+        """Replace each fitted hand block by the skeleton's closest pose; on a failed fit keep the raw points
+        (on_fail: raw) or blank the hand (on_fail: nan)."""
+        out = points_3d.copy()
+        rms, ms = [np.nan] * 2, 0.0
+        for j, (off, fit) in enumerate(sorted(self.kin.items())):
+            hand, info = fit.step(points_3d[off:off + 21])
+            ms += info.get('ms', 0.0)
+            rms[j] = info.get('rms_mm', np.nan)
+            if hand is not None:
+                out[off:off + 21] = hand
+            elif self.kin_on_fail == 'nan':
+                out[off:off + 21] = np.nan
+        self.kin_rms.append(rms); self.kin_ms.append(ms)
+        return out
 
     def _setup_mediapipe(self, config):
         """One HandLandmarker instance per camera, run concurrently.
@@ -891,7 +943,7 @@ class ProcessorBatch3D(Actor):
         if self.association in ('geometric', 'region'):
             t0 = time.perf_counter()
             if self.association == 'geometric':
-                points_3d, raw_2d = self._geometric_3d(frames, batch_slots, stale)
+                points_3d, raw_2d = self._geometric_3d(frames, batch_slots, stale, raw_2d)
             else:
                 points_3d, raw_2d = self._region_3d(raw_2d, frames, batch_slots, stale)
             self.triangulate_latencies.append(time.perf_counter() - t0)
@@ -904,6 +956,7 @@ class ProcessorBatch3D(Actor):
         # is thus ignored by triangulate().
         n_calib = len(self.cgroup.cameras) if self.cgroup is not None else 0
         points_2d = np.full((max(n_calib, 1), self.n_keypoints, 2), np.nan)
+        weights = np.zeros((max(n_calib, 1), self.n_keypoints))
 
         for slot in batch_slots:
             row = self.calib_row[slot]
@@ -931,18 +984,40 @@ class ProcessorBatch3D(Actor):
                 xy[:, 0] *= size[0] / fw
                 xy[:, 1] *= size[1] / fh
             points_2d[row] = xy
+            weights[row] = np.where(bad, 0.0, np.nan_to_num(lik, nan=0.0))
 
         # --- 5. triangulate ---
         t0 = time.perf_counter()
-        points_3d = self._triangulate(points_2d)
+        points_3d = self._triangulate(points_2d, weights)
         self.triangulate_latencies.append(time.perf_counter() - t0)
 
         self._finish_step(points_3d, raw_2d, starts, fnums, batch_slots, step_start)
 
-    def _geometric_3d(self, frames, batch_slots, stale):
+    def _dlc_dets(self, raw_2d, batch_slots):
+        """dlc backend: slot -> [(xy (21, 2) frame px, label 0/1, score, weights (21,))], one candidate hand per
+        right_*/left_* block. Keypoints below `threshold` are NaN; a block needs dlc_min_keypoints of them.
+        score = median likelihood of the kept keypoints, weights = their likelihoods."""
+        out = {}
+        for slot in batch_slots:
+            dets = []
+            for side in (0, 1):
+                blk = raw_2d[slot, side * 21:side * 21 + 21]
+                lik = np.nan_to_num(blk[:, 2], nan=0.0)
+                keep = np.isfinite(blk[:, :2]).all(1) & (lik >= self.threshold)
+                if keep.sum() < self.dlc_min_keypoints:
+                    continue
+                xy = np.where(keep[:, None], blk[:, :2], np.nan)
+                dets.append((xy, side, float(np.median(lik[keep])), np.where(keep, lik, 0.0)))
+            out[slot] = dets
+        return out
+
+    def _geometric_3d(self, frames, batch_slots, stale, raw_2d=None):
         """Steps 4-5 for hand_association: geometric. Returns (points_3d (42, 3),
         raw_2d for the GUI: each camera's detections that went into the 3D hand,
         placed in its right/left block)."""
+        if self.backend == 'dlc':
+            self.points_2d_raw_log.append(raw_2d.copy())          # every keypoint, before the likelihood gate
+            self._mp_dets = self._dlc_dets(raw_2d, batch_slots)
         dets, origin = [], []
         for slot in batch_slots:
             row = self.calib_row[slot]
@@ -952,7 +1027,10 @@ class ProcessorBatch3D(Actor):
             size = self.calib_sizes[row]
             sx, sy = (size[0] / fw, size[1] / fh) if size is not None else (1.0, 1.0)
             hsv = None
-            for xy, label, score in getattr(self, '_mp_dets', {}).get(slot, []):
+            for det in getattr(self, '_mp_dets', {}).get(slot, []):
+                xy, label, score = det[:3]
+                # weights: dlc = per-keypoint likelihoods; mediapipe = its one per-hand score on every keypoint
+                w = det[3] if len(det) > 3 else np.full(21, score)
                 if score < self.threshold:
                     continue
                 if self.glove_teal or self.glove_white:
@@ -960,15 +1038,15 @@ class ProcessorBatch3D(Actor):
                         hsv = cv2.cvtColor(frames[slot], cv2.COLOR_RGB2HSV)   # store frames are RGB
                     if glove_mask(hsv, xy, self.glove_teal, self.glove_white):
                         continue
-                dets.append((row, xy * [sx, sy], label, score))
-                origin.append((slot, xy, score))
+                dets.append((row, xy * [sx, sy], label, score, w))
+                origin.append((slot, xy, w))
         # every detection the tracker saw this step (calibration pixels), so a run
         # can be replayed offline through hand_assoc3d exactly
         H = 4
         dx = np.full((self.num_cameras, H, 21, 2), np.nan); dl = np.full((self.num_cameras, H), -1)
         ds = np.zeros((self.num_cameras, H))
         k_of = {}
-        for (row, xy, label, score), (slot, _, _) in zip(dets, origin):
+        for (row, xy, label, score, _), (slot, _, _) in zip(dets, origin):
             k = k_of.get(slot, 0)
             if k < H:
                 dx[slot, k], dl[slot, k], ds[slot, k] = xy, label, score
@@ -976,10 +1054,10 @@ class ProcessorBatch3D(Actor):
         self.det_xy.append(dx); self.det_label.append(dl); self.det_score.append(ds)
         points_3d, side_of_det = self.hand_tracker.step(dets)
         raw_2d = np.full((self.num_cameras, self.n_keypoints, 3), np.nan)
-        for (slot, xy, score), side in zip(origin, side_of_det):
+        for (slot, xy, w), side in zip(origin, side_of_det):
             if side is not None:
                 raw_2d[slot, side * 21:side * 21 + 21, :2] = xy
-                raw_2d[slot, side * 21:side * 21 + 21, 2] = score
+                raw_2d[slot, side * 21:side * 21 + 21, 2] = w
         self.assoc_errors.append(np.median(self.hand_tracker.last_errors)
                                  if self.hand_tracker.last_errors else np.nan)
         return points_3d, raw_2d
@@ -1018,8 +1096,11 @@ class ProcessorBatch3D(Actor):
     def _finish_step(self, points_3d, raw_2d, starts, fnums, batch_slots, step_start):
         """Continuity (hold/glide), joint angles, logging and the output message for one step."""
         # --- 5b. continuity: hold through gaps, glide back (config `continuity`) ---
-        if points_3d is not None and (self.kalman3d is not None or self.continuity is not None):
+        if points_3d is not None and (self.kalman3d is not None or self.continuity is not None or self.kin):
             self.points_3d_raw_log.append(points_3d.copy())
+        if points_3d is not None and self.kin:
+            points_3d = self._kinematic(points_3d)        # skeleton fit before the smoothing
+        if points_3d is not None and (self.kalman3d is not None or self.continuity is not None):
             if self.kalman3d is not None:
                 points_3d = self.kalman3d.step(points_3d, self.timestamps[-1])
             else:
@@ -1232,15 +1313,14 @@ class ProcessorBatch3D(Actor):
 
     # ------------------------------------------------------------------- math
 
-    def _triangulate(self, points_2d):
-        """aniposelib DLT over every camera that kept a given keypoint.
+    def _triangulate(self, points_2d, weights=None):
+        """DLT over every camera that kept a given keypoint, each view weighted by its confidence
+        (triangulation_method: weighted_dlt; 'dlt' = aniposelib's unweighted solve).
 
-        `CameraGroup.triangulate` already does the right thing with NaN: a
-        keypoint is solved from whichever cameras still have it and comes back
-        NaN if fewer than two do, which is exactly the likelihood-gate semantics
-        we want. `triangulate_ransac` would be more robust to a confidently
-        wrong keypoint but measured 387 ms per call here against 0.55 ms for
-        this one, so it is not an option in a 33 ms budget.
+        NaN means "not seen": a keypoint is solved from whichever cameras still have it and comes back NaN if
+        fewer than two do, which is the likelihood-gate semantics we want. Kalman-estimated 2D points carry
+        likelihood 0 and count with weight triangulation_min_weight. `triangulate_ransac` would be more robust to
+        a confidently wrong keypoint but measured 387 ms per call against 0.55 ms, too slow for a frame budget.
         """
         if self.cgroup is None:
             return np.full((self.n_keypoints, 3), np.nan)
@@ -1253,7 +1333,7 @@ class ProcessorBatch3D(Actor):
             points_2d[:, seen < self.min_cameras, :] = np.nan
 
         try:
-            return np.asarray(self.cgroup.triangulate(points_2d, progress=False), dtype=float)
+            return self.tri(points_2d, weights)
         except Exception as e:
             logger.error(f"triangulation failed: {e}")
             return np.full((self.n_keypoints, 3), np.nan)
@@ -1298,6 +1378,9 @@ class ProcessorBatch3D(Actor):
                                     label=self.det_label.array(), score=self.det_score.array())
             for log in always + optional + (self.det_xy, self.det_label, self.det_score):
                 log.drop_parts()
+            if self.kin_rms:
+                np.save(self.out_folder / "batch3d_kin_rms_mm.npy", np.asarray(self.kin_rms))
+                np.save(self.out_folder / "batch3d_lat_kinematic.npy", np.asarray(self.kin_ms) / 1e3)
             if self.assoc_errors:
                 np.save(self.out_folder / "batch3d_assoc_reproj_px.npy", np.asarray(self.assoc_errors))
             np.save(self.out_folder / "batch3d_joint_names.npy", np.asarray(self.joint_names))

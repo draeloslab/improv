@@ -120,10 +120,16 @@ kalman_measurement_var: 10
 calibration_toml: 'calibration/2026-10-07_001400/calibration.toml'   # cams 0, 3, 5, 6 at 960x720 (7cam_test, 2026-10-02)
 calibration_camera_names: {}   # camera_num -> name in the toml (default "cam{N}"); the 10-02 toml uses cam0/cam3/cam5/cam6
 triangulation_min_cameras: 2          # cameras that must see a keypoint (2 is the geometric minimum)
+# "weighted_dlt": each camera's view of a keypoint counts in proportion to its confidence (DLC likelihood; MediaPipe
+#                 has only a per-hand score, so there it is close to equal weights) -- actors/triangulate.py.
+# "dlt":          aniposelib's CameraGroup.triangulate, every view equal (same result as weighted_dlt with equal weights).
+triangulation_method: weighted_dlt
+triangulation_min_weight: 0.05        # weight floor for a kept view (2D-Kalman estimates carry likelihood 0)
 
 # How hands are matched across cameras:
-#   "geometric" (mediapipe): a hand exists in 3D only where cameras agree geometrically (actors/hand_assoc3d.py);
-#               tracked frame to frame, right/left from accumulated handedness votes, then One-Euro smoothed.
+#   "geometric": a hand exists in 3D only where cameras agree geometrically (actors/hand_assoc3d.py); tracked frame
+#               to frame, right/left from accumulated handedness votes. mediapipe: every detected hand is a candidate;
+#               dlc: each camera's right_*/left_* blocks are, with keypoints below `threshold` dropped.
 #   "label":    match by MediaPipe's per-camera handedness label (+ the 2D Kalman filter above).
 #   "region"    (dlc): one hand held in a fixed place, see held_hand.
 hand_association: geometric
@@ -135,6 +141,7 @@ geometric_association:
   # run 1620, replayed: hold 40 -> 1.1-2.1 changes/s, >10-deg jumps index 2.6% -> 0.8-1.2%, ring 4.7% -> 1.0-2.2%).
   hold_tol_px: 40
   hand_size_mm: [20, 200]   # plausible wrist -> middle MCP length
+  dlc_min_keypoints: 8      # dlc: keypoints at or above `threshold` a right_*/left_* block needs to be a candidate
   gate_mm: 100              # palm movement between frames to stay the same track
   max_miss: 10              # frames a track survives unseen
   # One-Euro filter per keypoint (false = off). min_cutoff (Hz): smoothing at rest; beta: how quickly smoothing
@@ -148,6 +155,15 @@ geometric_association:
 # (glide_alpha of the remaining distance per frame, for glide_frames frames: 63% in ~6 frames). Continuously
 # measured keypoints pass through. Raw points are still saved (batch3d_points_3d_raw.npy). null = off.
 continuity: {glide_frames: 20, glide_alpha: 0.15, jump_mm: 40}   # used only with smoothing_3d.method: one_euro
+
+# Kinematic hand fit (actors/kinematic_hand.py), before the smoothing: each hand block is replaced by the closest pose
+# of a fixed skeleton -- constant bone lengths, joint limits, lost keypoints filled from the rest of the hand.
+# model: a hand model file from scripts/build_hand_model.py (built once from runs you trust; mm, so it carries over to
+# any session with a board-scaled calibration). A missing side is mirrored from the other.
+#   temporal_weight  mm of residual per radian of joint change since the last frame (higher = steadier, laggier)
+#   max_rms_mm       a fit further than this from the measured points counts as failed
+#   on_fail          raw: keep the measured points that frame; nan: drop the hand
+kinematic_fit: {enabled: false, model: null, temporal_weight: 2.0, max_rms_mm: 15, min_keypoints: 8, max_iter: 15, on_fail: raw}
 
 # Smoothing of the final 3D points (actors/kalman3d.py):
 #   kalman    constant-velocity Kalman filter per keypoint, timed from the real step times. ~2 ms lag (the One-Euro +

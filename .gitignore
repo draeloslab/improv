@@ -164,7 +164,7 @@ output_*
 experiments/FES/scripts/setup-xpc-link.sh
 
 calibration
-
+experiments/FES/hand_training
 experiments/FES/actors/xpc_link.py
 experiments/FES/calibration_20260903/_gen_nb.py
 experiments/FES/graphs/bo_stim_replay.yaml
@@ -173,6 +173,7 @@ experiments/FES/scripts/fake_brand.py
 experiments/FES/scripts/gather_selftest.py
 experiments/FES/models/hand_trt/
 experiments/FES/models/dlc_trt/
+
 
 # FES docs that belong in git
 !experiments/FES/README.md

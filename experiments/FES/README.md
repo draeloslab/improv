@@ -124,9 +124,9 @@ also stops the run. Add `alias fes-run=~/improv/experiments/FES/scripts/fes-run.
 ### Examples
 
 ```bash
-# Replay: MediaPipe on four recorded cameras, no hardware. Compare the stock and the ONNX/TensorRT engine:
-scripts/fes-run.sh mediapipe_gen.yaml
-scripts/fes-run.sh mediapipe_gen_onnx.yaml       # first start builds the TensorRT engines (~1 min), then cached
+# Replay: MediaPipe (ONNX/TensorRT) on a recorded session, no hardware. Pick the recording with `session:
+# 'YYYY-MM-DD/HHMMSS'` in the graph's Generator0; the other Generators inherit it and only set camera_num.
+FES_CONDA_ENV=improvDLC3 scripts/fes-run.sh mediapipe_gen.yaml   # first start builds the TensorRT engines (~1 min)
 
 # Live, GUI only: two cameras, ONNX/TensorRT engine. Watch the "infer N ms" lines in processor_batch3d.log:
 scripts/fes-run.sh mediapipe_live_onnx.yaml
@@ -136,9 +136,8 @@ tail -f ~/predictions/$(date +%Y%m%d)/*/logs/processor_batch3d.log
 SENDER_UDP_IP=192.168.137.201 scripts/fes-run.sh mediapipe_hand3d_brand_onnx.yaml   # fast engine
 SENDER_UDP_IP=192.168.137.201 scripts/fes-run.sh mediapipe_hand3d_brand.yaml        # stock MediaPipe
 
-# Replay with the DLC model and the held-hand association (stimulated hand), stock vs ONNX:
-scripts/fes-run.sh dlc_hand_gen.yaml
-scripts/fes-run.sh dlc_hand_gen_onnx.yaml        # needs models/dlc_trt/dlc_detector_960x540.onnx
+# Replay with the DLC two-hand model (ONNX engine, geometric association), same `session` scheme:
+FES_CONDA_ENV=improvDLC3 scripts/fes-run.sh dlc_hand_gen.yaml
 
 # Closed-loop stimulation (Bayesian optimisation over electrodes x pulse width x frequency x current):
 SENDER_UDP_IP=<brand ip> scripts/fes-run.sh bo_stim_live.yaml
@@ -157,8 +156,8 @@ scripts/fes-run.sh 2dof_test.yaml
 | `mediapipe_hand3d_brand[_onnx].yaml` | 4 live cameras (0, 3, 5, 6) | MediaPipe (stock / ONNX+TensorRT) | GUI, UDP to BRAND |
 | `mediapipe_live_onnx.yaml` | 4 live cameras (0, 3, 5, 6) | MediaPipe ONNX+TensorRT | GUI + raw video (test) |
 | `mediapipe_live.yaml`, `mediapipe_nosave.yaml` | 5 / 4 live cameras | MediaPipe | GUI (+ raw video) |
-| `mediapipe_gen[_onnx].yaml` | 4 recorded videos | MediaPipe (stock / ONNX+TensorRT) | GUI |
-| `dlc_hand_gen[_onnx].yaml` | 2 recorded videos | DLC top-down, held hand (stock / ONNX) | GUI |
+| `mediapipe_gen.yaml` | 4 recorded videos (`session`) | MediaPipe ONNX+TensorRT, geometric | GUI, UDP |
+| `dlc_hand_gen.yaml` | 4 recorded videos (`session`) | DLC top-down ONNX, geometric | GUI, UDP |
 | `3cam_3d` ... `7cam_3d.yaml` | 3-7 live cameras | per `config.yaml` | GUI, UDP, raw video |
 | `bo_stim_live.yaml`, `bo_stim_replay.yaml` | live / recorded | DLC, held hand | stim requests to BRAND |
 | `4cam_noproc.yaml`, `5cam_test.yaml`, `7cam_test.yaml` | live cameras | none | raw video |

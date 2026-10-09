@@ -82,6 +82,10 @@ class SenderUDP(Actor):
     keypoint_hand picks the block when both hands are tracked: "right" (rows
     0-20), "left" (rows 21-41) or "auto" (whichever has more points this step).
 
+    With `send_frame_num: true` the packet gets a third element, [packet_n, angles, {"frame_num": 1523,
+    "t_cam": 1759...}], where frame_num is the camera frame counter of the newest frame in the step (the video
+    frame number; packet_n is NOT, it skips whenever a step is dropped).
+
     Joint angles are in degrees, deviation from
     straight (0 = fully extended), from dlc2kinematics. A joint that could not
     be triangulated this frame (fewer than two confident views) is sent as
@@ -89,9 +93,12 @@ class SenderUDP(Actor):
     measured" from "measured as 0", which is a perfectly normal extended joint.
     """
 
-    def __init__(self, *args, keypoint_port=None, keypoint_hand="auto", **kwargs):
-        """keypoint_port: UDP port for the 3D keypoint stream (off if None). keypoint_hand: right / left / auto."""
+    def __init__(self, *args, keypoint_port=None, keypoint_hand="auto", send_frame_num=False, **kwargs):
+        """keypoint_port: UDP port for the 3D keypoint stream (off if None). keypoint_hand: right / left / auto.
+        send_frame_num: add a 3rd packet element {"frame_num", "t_cam"} (the camera frame counter, i.e. the video
+        frame number) in 3D mode; needs a BRAND vision node that accepts it (older builds drop the packet)."""
         super().__init__(*args, **kwargs)
+        self.send_frame_num = bool(send_frame_num)
         self.keypoint_port = int(keypoint_port) if keypoint_port else None
         self.keypoint_hand = keypoint_hand
 
@@ -377,6 +384,9 @@ class SenderUDP(Actor):
             angles_out = {str(cam): (float(a) if a is not None and np.isfinite(a) else None)
                           for cam, a in ((c, self.last_angle[c]) for c in sorted(self.last_angle))}
         payload = [self.packet_n, angles_out]
+        if self.send_frame_num and self.joints_seen:
+            payload.append({"frame_num": int(getattr(self, '_pending_joint_frame', -1)),
+                            "t_cam": getattr(self, '_pending_joint_start', None)})
 
         try:
             data_bytes = json.dumps(payload).encode('utf-8')
