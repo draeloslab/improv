@@ -24,6 +24,11 @@
 #   fes-run --no-check 5cam_test.yaml    # skip the camera/redis/link preflight
 #   fes-run --dry-run 5cam_test.yaml     # preflight only, launch nothing
 #
+# MASTER GRAPHS (mediapipe_live / dlc_live / mediapipe_gen / dlc_hand_gen: any yaml with a `fes:` block) are expanded
+# first by scripts/fes_graph.py; the resolved graph is kept as <run folder>/graph.yaml. Options for those:
+#   fes-run mediapipe_live.yaml --cameras 0,3,5,6    # camera count/order for this run (physical camera numbers)
+#   fes-run mediapipe_live.yaml --save-video         # live only: record raw video (--no-save-video forces it off)
+#
 set -uo pipefail
 
 # Camera capture allocates/frees large buffers at a high rate. Past glibc's
@@ -56,12 +61,15 @@ AUTO=0
 CHECKS=1
 DRY_RUN=0
 YAML=""
+GRAPH_ARGS=()
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --auto)     AUTO=1 ;;
         --no-check) CHECKS=0 ;;
         --dry-run)  DRY_RUN=1 ;;
+        --cameras)  shift; GRAPH_ARGS+=(--cameras "${1:?--cameras needs a list, e.g. 0,3,5,6}") ;;
+        --save-video|--no-save-video) GRAPH_ARGS+=("$1") ;;
         -h|--help)  awk 'NR>1 && /^#/ {sub(/^# ?/,""); print; next} NR>1 {exit}' \
                         "${BASH_SOURCE[0]}"; exit 0 ;;
         -*)         echo "unknown option: $1" >&2; exit 1 ;;
@@ -146,6 +154,20 @@ echo "[fes] run id : $IMPROV_RUN_ID"
 echo "[fes] output : $RUN_DIR"
 echo "[fes] logs   : $LOG_DIR"
 
+# ------------------------------------------------------------ master graph
+
+# A yaml with a `fes:` block is expanded into a plain improv graph in the run folder (cameras, savers, connections).
+if grep -qE '^fes:' "$YAML"; then
+    RESOLVED="$RUN_DIR/graph.yaml"
+    python "$FES_DIR/scripts/fes_graph.py" "$YAML" "$RESOLVED" "${GRAPH_ARGS[@]}" \
+        || { echo "error: could not expand $YAML" >&2; exit 1; }
+    echo "[fes] graph  : $YAML -> $RESOLVED"
+    YAML="$RESOLVED"
+elif [ "${#GRAPH_ARGS[@]}" -gt 0 ]; then
+    echo "error: --cameras / --save-video only apply to master graphs (a yaml with a fes: block)" >&2
+    exit 1
+fi
+
 # ----------------------------------------------------------------- preflight
 
 if [ "$CHECKS" -eq 1 ]; then
@@ -197,6 +219,7 @@ if [ "$DRY_RUN" -eq 1 ]; then
     fi
     # The run folder was created while resolving paths; leave nothing behind.
     # rmdir only removes empty directories, so this cannot touch a real run.
+    [ "$YAML" = "$RUN_DIR/graph.yaml" ] && rm -f "$RUN_DIR/graph.yaml"
     rmdir "$LOG_DIR" "$RUN_DIR" "$(dirname "$RUN_DIR")" 2>/dev/null
     exit 0
 fi

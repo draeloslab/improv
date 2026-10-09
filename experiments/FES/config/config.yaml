@@ -1,5 +1,5 @@
 # FES experiment config. Read by the actors at setup; a graph can override any key for ProcessorBatch3D only with
-# `config_overrides:` (see graphs/mediapipe_hand3d_brand.yaml). Paths are absolute or relative to experiments/FES/.
+# `config_overrides:` (see graphs/mediapipe_live.yaml). Paths are absolute or relative to experiments/FES/.
 # The README walks through what each block does to the live data.
 
 # ============================================================================
@@ -81,8 +81,8 @@ mediapipe_delegate: "CPU"   # MediaPipe's GPU delegate measured 2x slower (71 vs
 # onnx_providers (onnx only): null = CPU (12.6 ms), [CUDAExecutionProvider, CPUExecutionProvider] (3.4 ms),
 #   [[TensorrtExecutionProvider, {trt_fp16_enable: true}], CUDAExecutionProvider, CPUExecutionProvider] (2.4 ms; the
 #   first start builds and caches the TensorRT engines, ~1 min). Models: scripts/trt/export_onnx.sh -> models/hand_trt/.
-mediapipe_engine: "mediapipe"
-onnx_providers: null
+mediapipe_engine: "onnx"      # "mediapipe" = stock CPU wrapper (~35 ms per 4-camera step); set per graph in config_overrides to compare
+onnx_providers: [[TensorrtExecutionProvider, {trt_fp16_enable: true}], CUDAExecutionProvider, CPUExecutionProvider]
 # onnx only: landmark presence a hand needs to be kept (mediapipe_min_hand_presence_confidence applies to the stock
 # engine). Junk detections score ~0.04, real hands 0.96-0.99; at 0.3-0.5 the ONNX engine reports the same hands as
 # stock MediaPipe in 98% of frames on human video.
@@ -97,10 +97,11 @@ batch3d_detector_snapshot: "snapshot-detector-best-200.pt"   # unset for a botto
 # "onnx"    -> actors/dlc_onnx.py on onnxruntime (~5-7 ms, keypoints within 0.03 px of DLC's). Export first with
 #              scripts/trt/export_dlc_onnx.py (-> models/dlc_trt/), for the live frame size dlc_onnx_frame_size.
 #              Providers as above; the detector stays on CUDA (its NMS has data-dependent shapes TensorRT can't take).
-dlc_engine: "pytorch"
+dlc_engine: "onnx"            # "pytorch" = DeepLabCut's own runners, to compare (set per graph in config_overrides)
 dlc_onnx_frame_size: [960, 720]
 dlc_onnx_det_providers: null
-dlc_onnx_pose_providers: null
+# TensorRT for the pose net saves ~0.5 ms and logs a harmless parse error; the detector is CUDA-only
+dlc_onnx_pose_providers: [CUDAExecutionProvider, CPUExecutionProvider]
 
 # --- 2D Kalman filter (hand_association: label only; actors/kalmanfilter.py) ---
 # One filter per camera. Keypoints below `threshold` are estimated by the filter instead of dropped (likelihood 0).

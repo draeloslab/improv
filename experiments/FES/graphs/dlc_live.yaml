@@ -1,4 +1,4 @@
-# MediaPipe hand tracking on live cameras -> triangulate -> joint angles over UDP to BRAND.
+# DLC two-hand model (detector + pose net, 42 keypoints) on live cameras -> triangulate -> joint angles over UDP.
 #
 #   Generator{slot} -+-> ProcessorBatch3D --+-> SenderUDP.joints_in --UDP :11115 joint angles (BRAND vision node)
 #   (CameraReader)     |                      +-> VideoScreen3D.preds_in
@@ -8,11 +8,16 @@
 # MASTER GRAPH: the `fes:` block picks the cameras and whether raw video is saved; scripts/fes_graph.py (called by
 # fes-run) adds the Generator / VideoSaver actors and every connection, and sets num_cameras / camera_nums /
 # num_active_cameras. Change them here or per run:
-#     fes-run mediapipe_live.yaml --cameras 0,3,5,6 --save-video
+#     fes-run dlc_live.yaml --cameras 0,3,5,6 --save-video
 # Slot order = the order listed; the calibration toml (config.yaml calibration_toml) must contain every camera.
 # Engine (ONNX/TensorRT vs stock) is a config.yaml / config_overrides key, not a separate graph.
 #
-# Run: SENDER_UDP_IP=<brand ip> FES_CONDA_ENV=improvDLC3 fes-run mediapipe_live.yaml
+# Run: SENDER_UDP_IP=<brand ip> FES_CONDA_ENV=improvDLC3 fes-run dlc_live.yaml
+# hand_association: geometric -- each camera's right_*/left_* blocks are candidate hands, keypoints below
+# config.yaml `threshold` are dropped, and a hand exists in 3D only where cameras agree; the triangulation weights
+# each view by its DLC likelihood. "region" is the held-hand tracker of the 2026-09-16 stimulation runs (learns the
+# hand's place in the first 10 s, left_* block only) -- needs that day's calibration and videos.
+# dlc_onnx_frame_size must match the live frames (models/dlc_trt/dlc_detector_960x720.onnx; config.yaml default).
 
 fes:
   source: live
@@ -29,21 +34,15 @@ actors:
     pred_active: True
     triangulate: true
     config_overrides:
-      batch3d_backend: mediapipe
-      mediapipe_both_hands: true      # 42-keypoint layout, joint names right_* / left_* (what rhodes_2d_vision_bare expects)
-      mediapipe_num_hands: 1          # 2 = both hands tracked; costs speed, but does not latch onto the wrong hand
+      batch3d_backend: dlc
       hand_association: geometric
-      kalman_enabled: false           # no 2D Kalman filter
-      smoothing_3d: {method: kalman}
-      # mediapipe_engine: mediapipe   # stock CPU MediaPipe instead of the ONNX/TensorRT default (config.yaml)
+      # dlc_engine: pytorch           # DeepLabCut's own runners instead of the ONNX default (config.yaml), to compare
     method: spawn
 
   SenderUDP:
     package: actors.sender_udp
     class: SenderUDP
     send_frame_num: false      # true: camera frame number with every packet (needs the rebuilt BRAND vision node)
-    # keypoint_port: 11118     # also send one hand's 21 keypoints to BRAND's hand3d node (hand3d_task graphs)
-    # keypoint_hand: auto      # right / left / auto (whichever block has more points)
     method: spawn
 
 connections:

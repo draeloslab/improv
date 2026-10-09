@@ -113,9 +113,9 @@ xPC link, and launches improv. Every actor then writes its logs and data to `<ou
 
 ```bash
 cd ~/improv/experiments/FES
-scripts/fes-run.sh mediapipe_live_onnx.yaml      # bare names resolve from graphs/; opens improv's TUI
+scripts/fes-run.sh mediapipe_live.yaml           # bare names resolve from graphs/; opens improv's TUI
 scripts/fes-run.sh --auto mediapipe_gen.yaml     # headless: ENTER to start, ENTER to stop
-scripts/fes-run.sh --dry-run 7cam_3d.yaml        # preflight only
+scripts/fes-run.sh --dry-run mediapipe_live.yaml --cameras 0,1,3,5,6   # preflight only; 5 cameras
 ```
 
 In the TUI: `setup` (actors load models, cameras open), `run` (data flows), `stop`, `quit`. Closing the GUI window
@@ -125,16 +125,16 @@ also stops the run. Add `alias fes-run=~/improv/experiments/FES/scripts/fes-run.
 
 ```bash
 # Replay: MediaPipe (ONNX/TensorRT) on a recorded session, no hardware. Pick the recording with `session:
-# 'YYYY-MM-DD/HHMMSS'` in the graph's Generator0; the other Generators inherit it and only set camera_num.
+# 'YYYY-MM-DD/HHMMSS'` under `fes.generator` in the graph; `--cameras` picks which camera_video_<N> files play.
 FES_CONDA_ENV=improvDLC3 scripts/fes-run.sh mediapipe_gen.yaml   # first start builds the TensorRT engines (~1 min)
 
-# Live, GUI only: two cameras, ONNX/TensorRT engine. Watch the "infer N ms" lines in processor_batch3d.log:
-scripts/fes-run.sh mediapipe_live_onnx.yaml
+# Live, GUI only, any camera count; add --save-video to record the raw video. Watch "infer N ms" in processor_batch3d.log:
+scripts/fes-run.sh mediapipe_live.yaml --cameras 0,3,5,6
 tail -f ~/predictions/$(date +%Y%m%d)/*/logs/processor_batch3d.log
 
-# Live hand-control task with BRAND (joint angles on :11115, 21 keypoints to BRAND's hand3d node on :11118):
-SENDER_UDP_IP=192.168.137.201 scripts/fes-run.sh mediapipe_hand3d_brand_onnx.yaml   # fast engine
-SENDER_UDP_IP=192.168.137.201 scripts/fes-run.sh mediapipe_hand3d_brand.yaml        # stock MediaPipe
+# Live with BRAND (joint angles on :11115; uncomment keypoint_port in SenderUDP for the hand3d node's 21 keypoints on :11118):
+SENDER_UDP_IP=192.168.137.201 scripts/fes-run.sh mediapipe_live.yaml
+SENDER_UDP_IP=192.168.137.201 scripts/fes-run.sh dlc_live.yaml        # same with the DLC two-hand model
 
 # Replay with the DLC two-hand model (ONNX engine, geometric association), same `session` scheme:
 FES_CONDA_ENV=improvDLC3 scripts/fes-run.sh dlc_hand_gen.yaml
@@ -153,19 +153,23 @@ scripts/fes-run.sh 2dof_test.yaml
 
 | Graph | Input | Pose | Output |
 |---|---|---|---|
-| `mediapipe_hand3d_brand[_onnx].yaml` | 4 live cameras (0, 3, 5, 6) | MediaPipe (stock / ONNX+TensorRT) | GUI, UDP to BRAND |
-| `mediapipe_live_onnx.yaml` | 4 live cameras (0, 3, 5, 6) | MediaPipe ONNX+TensorRT | GUI + raw video (test) |
-| `mediapipe_live.yaml`, `mediapipe_nosave.yaml` | 5 / 4 live cameras | MediaPipe | GUI (+ raw video) |
-| `mediapipe_gen.yaml` | 4 recorded videos (`session`) | MediaPipe ONNX+TensorRT, geometric | GUI, UDP |
-| `dlc_hand_gen.yaml` | 4 recorded videos (`session`) | DLC top-down ONNX, geometric | GUI, UDP |
-| `3cam_3d` ... `7cam_3d.yaml` | 3-7 live cameras | per `config.yaml` | GUI, UDP, raw video |
+| `mediapipe_live.yaml` | N live cameras (`--cameras`) | MediaPipe | GUI, UDP to BRAND, raw video with `--save-video` |
+| `dlc_live.yaml` | N live cameras (`--cameras`) | DLC top-down, 42 keypoints | GUI, UDP to BRAND, raw video with `--save-video` |
+| `mediapipe_gen.yaml` | N recorded videos (`session`) | MediaPipe, geometric | GUI, UDP (never saves video) |
+| `dlc_hand_gen.yaml` | N recorded videos (`session`) | DLC top-down, geometric | GUI, UDP (never saves video) |
 | `bo_stim_live.yaml`, `bo_stim_replay.yaml` | live / recorded | DLC, held hand | stim requests to BRAND |
 | `4cam_noproc.yaml`, `5cam_test.yaml`, `7cam_test.yaml` | live cameras | none | raw video |
 | `1dof_dlc_udp.yaml`, `2dof_*.yaml`, `latency_benchmarking.yaml` | live cameras | 2D DLC per camera | UART / UDP to the xPC |
 
-A graph can change any `config.yaml` key for ProcessorBatch3D with `config_overrides:` (that is how the `_onnx`
-graphs switch engine). `camera_nums` maps each `frames{slot}_in` slot to a physical camera (index into
-`camera_config.yaml` `active_cameras`, and the camera's name in the calibration).
+The first four are **master graphs**: a `fes:` block (`source`, `cameras`, `save_video`, `generator`) that
+`scripts/fes_graph.py` expands at launch into the real improv graph (one reader per camera, a VideoSaver per camera if
+saving, every connection, `num_cameras` / `camera_nums` / `num_active_cameras`), saved as `<run folder>/graph.yaml`.
+`fes-run <graph> --cameras 0,3,5 [--save-video | --no-save-video]` overrides the yaml for one run. Cameras are physical
+camera numbers in slot order (index into `camera_config.yaml` `active_cameras`, and the camera's name in the
+calibration), so the calibration toml must contain each one.
+
+A graph can change any `config.yaml` key for ProcessorBatch3D with `config_overrides:`. The ONNX/TensorRT engines
+are the `config.yaml` default; set `mediapipe_engine: mediapipe` / `dlc_engine: pytorch` to compare with the stock ones.
 
 ## What happens to the data, live
 
@@ -251,7 +255,8 @@ slow was the code around the networks:
   CPU float conversion), keeps DLC's crop and heatmap-decode maths in numpy, and runs on CUDA / TensorRT:
   5-7 ms per 2-camera step, keypoints within 0.03 px of DLC's.
 
-Both are opt-in (`mediapipe_engine: onnx`, `dlc_engine: onnx`; default off) and the `_onnx` graphs turn them on.
+Both are the default (`mediapipe_engine: onnx`, `dlc_engine: onnx` in `config.yaml`); set `mediapipe_engine: mediapipe` /
+`dlc_engine: pytorch` in a graph's `config_overrides` to use the stock engines.
 Export / benchmark / validation scripts are in `scripts/trt/`.
 
 ## What a run saves
@@ -279,7 +284,7 @@ assembles them.
   re-enumerating; replug, or reset the controller.
 - **A camera opens but gives no frames**: `camera_reader.log` says "pipeline could not be started" / "no frames for
   2 s". Check `tcam-ctrl -l` and the serial in `camera_config.yaml`.
-- **First `_onnx` run is slow to start**: TensorRT is building engines (~1 min); they are cached in `models/*/trt_cache`.
+- **First run is slow to start**: TensorRT is building engines (~1 min); they are cached in `models/*/trt_cache`.
 - **`TensorrtExecutionProvider` not available**: `pip install --no-deps "tensorrt-cu12-libs>=10.13,<10.14"`; without
   it the providers list falls back to CUDA (3.4 ms instead of 2.4 ms).
 - **xPC receiver records nothing**: the spoofed xPC link is not up (see `scripts/setup-xpc-link.sh`).
