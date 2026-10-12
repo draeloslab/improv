@@ -35,11 +35,16 @@ class Processor(Actor):
     """DLC inference on one camera's frames (frames_in) -> [prediction, angle, camera_start, frame_num, camera_num]."""
 
     def __init__(self, *args, **kwargs):
-        """Graph kwargs: pred_active (False = pass-through no-op), camera_num (selects config model_path_N)."""
+        """Graph kwargs: pred_active (False = pass-through no-op), camera_num (selects config model_path_N),
+        dlc_engine ('pytorch' = DeepLabCut's runner, the default; 'onnx' = onnxruntime. Not read from config.yaml: that key is
+        ProcessorBatch3D's) and onnx_model
+        (default models/dlc_trt/dlc_bu_cam<N>.onnx, from scripts/trt/export_dlc_bu_onnx.py)."""
         super().__init__(*args, **kwargs)
 
         self.pred_active = kwargs['pred_active']
         self.camera_num = kwargs.get('camera_num', 0)  # Default to camera 0 if not specified
+        self.dlc_engine = str(kwargs.get('dlc_engine', 'pytorch')).lower()
+        self.onnx_model = kwargs.get('onnx_model')
 
     def setup(self):
         """Initializes all class variables."""
@@ -84,61 +89,69 @@ class Processor(Actor):
             batch_size = 1
             detector_batch_size = 8
 
-            # read model configuration
-            model_cfg = read_config_as_dict(pytorch_config_path)
+            if self.dlc_engine == 'onnx':
+                # Bottom-up net on onnxruntime (no torch / deeplabcut at run time). The heatmap decode matches the
+                # HeatmapPredictor override below, so no PAF dropouts either.
+                from .dlc_onnx import DlcOnnxBottomUp
+                onnx_path = Path(self.onnx_model or source_folder / 'models' / 'dlc_trt' / f'dlc_bu_cam{self.camera_num}.onnx')
+                self.pose_runner = DlcOnnxBottomUp(onnx_path, providers=config.get('dlc_onnx_pose_providers'))
+                logger.info(f"Camera {self.camera_num}: ONNX engine {onnx_path}")
+            else:
+                # read model configuration
+                model_cfg = read_config_as_dict(pytorch_config_path)
 
-            # --- Predictor override -------------------------------------------------
-            # These models are trained with num_animals=1, but ship a
-            # PartAffinityFieldPredictor. PAF exists to group keypoints into
-            # *individuals* -- meaningless for a single animal, and it is the sole
-            # source of blanked-out keypoints: Assembly.data starts as all-NaN and
-            # only the joints that PAF can link (affinity >= min_affinity, and at
-            # least min_n_links=2 links) get filled in. Everything else stays NaN,
-            # and if assembly fails outright the whole pose comes back as the -1
-            # sentinel. That NaN then propagates into the angle and the GUI drops
-            # the keypoint (front_end5 only draws when likelihood > 0).
-            #
-            # HeatmapPredictor takes a per-bodypart argmax instead, so it always
-            # returns a coordinate and a score for every keypoint. Measured against
-            # PAF on real hand footage, where PAF is confident (score > 0.3) the two
-            # agree to a median of 1.5 px and a max of 4.6 px on a 960x540 frame
-            # (100% within 5 px) -- so this does not move the keypoints, it only
-            # stops them disappearing. On the same footage PAF returned a finite
-            # coordinate for just 60.8% of keypoints vs 100% for Heatmap.
-            #
-            # Set `single_animal_predictor: false` in config.yaml to restore PAF.
-            if config.get('single_animal_predictor', True):
-                try:
-                    head_cfg = model_cfg['model']['heads']['bodypart']
-                    old_pred = head_cfg.get('predictor', {})
-                    if old_pred.get('type') != 'HeatmapPredictor':
-                        # PAF spells it locref_stdev, HeatmapPredictor locref_std
-                        locref_std = old_pred.get('locref_stdev', old_pred.get('locref_std', 7.2801))
-                        head_cfg['predictor'] = {
-                            'type': 'HeatmapPredictor',
-                            'apply_sigmoid': old_pred.get('apply_sigmoid', True),
-                            'clip_scores': old_pred.get('clip_scores', False),
-                            'location_refinement': True,
-                            'locref_std': locref_std,
-                        }
-                        logger.info(f"Camera {self.camera_num}: predictor "
-                                    f"{old_pred.get('type')} -> HeatmapPredictor "
-                                    f"(single-animal; always emits every keypoint)")
-                except (KeyError, TypeError) as e:
-                    logger.warning(f"Camera {self.camera_num}: could not override predictor "
-                                   f"({e}); keeping the model's own predictor")
+                # --- Predictor override -------------------------------------------------
+                # These models are trained with num_animals=1, but ship a
+                # PartAffinityFieldPredictor. PAF exists to group keypoints into
+                # *individuals* -- meaningless for a single animal, and it is the sole
+                # source of blanked-out keypoints: Assembly.data starts as all-NaN and
+                # only the joints that PAF can link (affinity >= min_affinity, and at
+                # least min_n_links=2 links) get filled in. Everything else stays NaN,
+                # and if assembly fails outright the whole pose comes back as the -1
+                # sentinel. That NaN then propagates into the angle and the GUI drops
+                # the keypoint (front_end5 only draws when likelihood > 0).
+                #
+                # HeatmapPredictor takes a per-bodypart argmax instead, so it always
+                # returns a coordinate and a score for every keypoint. Measured against
+                # PAF on real hand footage, where PAF is confident (score > 0.3) the two
+                # agree to a median of 1.5 px and a max of 4.6 px on a 960x540 frame
+                # (100% within 5 px) -- so this does not move the keypoints, it only
+                # stops them disappearing. On the same footage PAF returned a finite
+                # coordinate for just 60.8% of keypoints vs 100% for Heatmap.
+                #
+                # Set `single_animal_predictor: false` in config.yaml to restore PAF.
+                if config.get('single_animal_predictor', True):
+                    try:
+                        head_cfg = model_cfg['model']['heads']['bodypart']
+                        old_pred = head_cfg.get('predictor', {})
+                        if old_pred.get('type') != 'HeatmapPredictor':
+                            # PAF spells it locref_stdev, HeatmapPredictor locref_std
+                            locref_std = old_pred.get('locref_stdev', old_pred.get('locref_std', 7.2801))
+                            head_cfg['predictor'] = {
+                                'type': 'HeatmapPredictor',
+                                'apply_sigmoid': old_pred.get('apply_sigmoid', True),
+                                'clip_scores': old_pred.get('clip_scores', False),
+                                'location_refinement': True,
+                                'locref_std': locref_std,
+                            }
+                            logger.info(f"Camera {self.camera_num}: predictor "
+                                        f"{old_pred.get('type')} -> HeatmapPredictor "
+                                        f"(single-animal; always emits every keypoint)")
+                    except (KeyError, TypeError) as e:
+                        logger.warning(f"Camera {self.camera_num}: could not override predictor "
+                                       f"({e}); keeping the model's own predictor")
 
-            logger.info(f"Camera {self.camera_num}: Using model from {train_dir}")
-            logger.info(f"Camera {self.camera_num}: Using snapshot {config[model_snapshot_key]}")
+                logger.info(f"Camera {self.camera_num}: Using model from {train_dir}")
+                logger.info(f"Camera {self.camera_num}: Using snapshot {config[model_snapshot_key]}")
 
-            self.pose_runner, detector_runner = get_inference_runners(
-                model_config=model_cfg,
-                snapshot_path=snapshot_path,
-                max_individuals=max_num_animals,
-                batch_size=batch_size,
-                detector_batch_size=detector_batch_size,
-                detector_path=detector_snapshot_path,
-            )
+                self.pose_runner, detector_runner = get_inference_runners(
+                    model_config=model_cfg,
+                    snapshot_path=snapshot_path,
+                    max_individuals=max_num_animals,
+                    batch_size=batch_size,
+                    detector_batch_size=detector_batch_size,
+                    detector_path=detector_snapshot_path,
+                )
         
 
             # Initializing Kalman Filter with smoother parameters
@@ -146,12 +159,12 @@ class Processor(Actor):
                 adapt=False,
                 forward=0.002,
                 fps=60,  
-                nderiv=2,
-                priors=[1, 1],  #[1e5, 1e5]
+                nderiv=1,
+                priors=[1],  #[1e5, 1e5]
                 initial_var=10,    
-                process_var=1,     
+                process_var=0.3,     
                 dlc_var=10,        
-                lik_thresh=0.7    
+                lik_thresh=0.6    
             )
             logger.info(f'Kalman filter initialized for camera {self.camera_num}')
 
@@ -326,7 +339,11 @@ class Processor(Actor):
                     # --- Step 4: DLC Inference ---
                     t0 = time.perf_counter()
                     try:
-                        raw_prediction = self.pose_runner.inference([frame])
+                        if self.dlc_engine == 'onnx':
+                            # (K, 3) [x, y, score], already location-refined; wrapped to look like DLC's runner output
+                            raw_prediction = [{'bodyparts': [self.pose_runner.inference([frame])[0]]}]
+                        else:
+                            raw_prediction = self.pose_runner.inference([frame])
                         logger.debug(f"Raw prediction shape: {np.array(raw_prediction).shape}")
                     except Exception as e:
                         logger.error(f"DLC inference error: {e}")

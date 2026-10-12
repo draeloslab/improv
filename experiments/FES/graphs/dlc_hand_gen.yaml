@@ -18,7 +18,7 @@
 fes:
   source: replay
   cameras: [0, 1, 3, 6]
-  generator: {session: '2026-10-07/111100'}
+  generator: {session: '2026-10-09/123100'}
 
 actors:
   GUI: {package: actors.video_screen_3d, class: Visual3D, visual: VideoScreen3D}

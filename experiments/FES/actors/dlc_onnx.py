@@ -116,3 +116,31 @@ class DlcOnnxTopDown:
             p[:, 1] = p[:, 1] * sy + oy
             out[i] = p
         return out
+
+
+class DlcOnnxBottomUp:
+    """DLC bottom-up (single stage, no detector) pose estimation on onnxruntime, e.g. the per-camera 1-keypoint models
+    (config.yaml model_path_N). Made with scripts/trt/export_dlc_bu_onnx.py. Takes any frame size the model was exported for
+    (dynamic h/w) and decodes like DLC's HeatmapPredictor, so keypoints match DLC's own runner to a fraction of a pixel."""
+
+    def __init__(self, model_path, providers=None):
+        """model_path: dlc_bu_cam<N>.onnx. providers: onnxruntime providers (see prepare_providers; default CUDA)."""
+        model_path = Path(model_path)
+        prov = prepare_providers(providers or ['CUDAExecutionProvider', 'CPUExecutionProvider'], model_path.parent / 'trt_cache')
+        self.sess = ort.InferenceSession(str(model_path), providers=prov)
+        meta = self.sess.get_modelmeta().custom_metadata_map       # stride / locref_std written by the exporter
+        self.stride, self.locref_std = float(meta.get('stride', 8)), float(meta.get('locref_std', 7.2801))
+
+    def inference(self, frames):
+        """Frames (h, w, 3 uint8, the channel order DLC was fed before) -> (K, 3) [x, y, score] per frame, in frame pixels."""
+        heat, loc = self.sess.run(None, {'x': np.ascontiguousarray(np.stack(frames))})
+        b, k, hh, ww = heat.shape
+        s = self.stride                  # DLC's model stride, not frame / heatmap size (the heatmap is padded up)
+        flat = heat.reshape(b, k, hh * ww)
+        top = flat.argmax(2)
+        ys, xs = top // ww, top % ww
+        score = np.clip(np.take_along_axis(flat, top[..., None], 2)[..., 0], 0, 1)
+        lr = loc.reshape(b, k, 2, hh * ww)
+        dx = np.take_along_axis(lr[:, :, 0], top[..., None], 2)[..., 0] * self.locref_std
+        dy = np.take_along_axis(lr[:, :, 1], top[..., None], 2)[..., 0] * self.locref_std
+        return np.stack([xs * s + 0.5 * s + dx, ys * s + 0.5 * s + dy, score], -1).astype(np.float32)
