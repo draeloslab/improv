@@ -17,7 +17,7 @@ actors:
   VideoScreen:
     package: actors.video_screen
     class: VideoScreen
-    num_active_cameras: 4  # <-- must match the number of slots enabled below
+    num_active_cameras: 5  # <-- must match the number of slots enabled below
 
   Generator0:
     package: actors.camera_reader
@@ -32,12 +32,17 @@ actors:
   Generator2:
     package: actors.camera_reader
     class: CameraReader
-    camera_num: 2
+    camera_num: 3
 
   Generator3:
     package: actors.camera_reader
     class: CameraReader
-    camera_num: 3
+    camera_num: 5
+
+  Generator4:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 6
 
   VideoSaver0:
     package: actors.video_saver
@@ -54,13 +59,19 @@ actors:
   VideoSaver2:
     package: actors.video_saver
     class: VideoSaver
-    camera_num: 2
+    camera_num: 3
     method: spawn
 
   VideoSaver3:
     package: actors.video_saver
     class: VideoSaver
-    camera_num: 3
+    camera_num: 5
+    method: spawn
+
+  VideoSaver4:
+    package: actors.video_saver
+    class: VideoSaver
+    camera_num: 6
     method: spawn
 
   Sender:
@@ -73,6 +84,7 @@ connections:
   Generator1.q_out: [VideoScreen.images1_in, Sender.preds1_in , VideoSaver1.q_in]
   Generator2.q_out: [VideoScreen.images2_in, Sender.preds2_in , VideoSaver2.q_in]
   Generator3.q_out: [VideoScreen.images3_in, Sender.preds3_in , VideoSaver3.q_in]
+  Generator4.q_out: [VideoScreen.images4_in, Sender.preds4_in , VideoSaver4.q_in]
 
 redis_config:
   port: 6379
