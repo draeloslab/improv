@@ -324,14 +324,17 @@ class BayesOptimizer(Actor):
                     logger.info(f"condition 1. initialize with {self.X.shape} stim")  # not run in general
                     logger.info(f"X has shape {self.X[:, :].T.shape}, y has shape {self.y0[self.nID, -self.X.shape[1]:].T.shape}")
                     self.optim.initialize_GP(self.X[:, :].T, self.y0[self.nID, -self.X.shape[1]:].T)
+                    # self.optim.initialize_GP(*self._recent_window(self.X[:, :], self.y0[self.nID, -self.X.shape[1]:]))
                 elif self.y0.shape[1] < self.maxT:
                     # get number of leading zeros/nans
                     y0_with_nan = self.y0[self.nID, -self.y0.shape[1]:].T
                     leading_zeros = np.argmax(~np.isnan(y0_with_nan))
+                    n = self.y0.shape[1] - leading_zeros
                     logger.info(f"leading zeros for neuron {self.nID} is {leading_zeros}")
-                    logger.info(f"condition 2. initialize with {self.y0.shape[1]-leading_zeros} stim")
-                    logger.info(f"X has shape {self.X[:, -(self.y0.shape[1]-leading_zeros):].T.shape}, y has shape {self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T.shape}")
+                    logger.info(f"condition 2. initialize with {n} stim")
+                    logger.info(f"X has shape {self.X[:, -n:].T.shape}, y has shape {self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T.shape}")
                     self.optim.initialize_GP(self.X[:, -(self.y0.shape[1]-leading_zeros):].T, self.y0[self.nID, -(self.y0.shape[1]-leading_zeros):].T)
+                    # self.optim.initialize_GP(*self._recent_window(self.X[:, -n:], self.y0[self.nID, -n:]))
                 else:
                     # get number of leading zeros/nans
                     y0_with_nan = self.y0[self.nID, :].T
@@ -340,7 +343,7 @@ class BayesOptimizer(Actor):
                     logger.info(f"condition 3. initialize with all {self.X[:, leading_zeros:].T.shape[0]} stim")
                     logger.info(f"X has shape {self.X[:, leading_zeros:].T.shape}, y has shape {self.y0[self.nID, leading_zeros:].T.shape}")
                     self.optim.initialize_GP(self.X[:, leading_zeros:].T, self.y0[self.nID, leading_zeros:].T)
-                    
+                    # self.optim.initialize_GP(*self._recent_window(self.X[:, leading_zeros:], self.y0[self.nID, leading_zeros:]))
                 self.test_count = 0
                 self.newN = False
                 self.stopping = np.zeros(self.maxT)
@@ -447,6 +450,12 @@ class BayesOptimizer(Actor):
     def _obs_count(self, n_idx: int) -> int:
         # robust count of observed values even if the row is all-NaN
         return int(np.count_nonzero(~np.isnan(self.y0[n_idx, :])))
+    def _recent_window(self, X, y, max_n=100):
+        # X: (d, n), y: (n,) -> last <=max_n end-aligned points, NaNs dropped
+        n = min(max_n, X.shape[1], y.shape[0])
+        Xw, yw = X[:, -n:].T, y[-n:]
+        keep = ~np.isnan(yw)
+        return Xw[keep], yw[keep]
 
 class RandomSampler(Actor):
     def __init__(self, *args, stimuli=None, param_file=None, calibration=False, **kwargs):

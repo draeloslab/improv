@@ -82,6 +82,8 @@ class StimulusSpace():
         
         calibration_stim = []
         drift_grating = self.param_space[(self.param_space[:,7] == 1) & (self.param_space[:,1] == 0.02) & (self.param_space[:,3] == 3) & (self.param_space[:,6] == 50)]
+        grating_order = [0, 4, 2, 6, 1, 5, 3, 7]  # 0, 180, 90, 270, 45, 225, 135, 315 deg
+        drift_grating = drift_grating[grating_order]
         for param in drift_grating:
             row_index = self.param_to_ridx(param, tag = 'calibration')
             calibration_stim.append(row_index)
