@@ -177,3 +177,9 @@ experiments/FES/models/dlc_trt/
 
 # FES docs that belong in git
 !experiments/FES/README.md
+experiments/FES/scripts/trt/validate_dlc_rtmpose.py
+.gitignore
+experiments/FES/models/dlc_rtmpose/dlc_rtmpose_detector_960x720.onnx
+experiments/FES/models/dlc_rtmpose/dlc_rtmpose_pose.onnx
+experiments/FES/scripts/trt/export_dlc_rtmpose_onnx.py
+experiments/FES/models/dlc_rtmpose/meta.json

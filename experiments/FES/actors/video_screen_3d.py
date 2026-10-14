@@ -100,7 +100,7 @@ class VideoScreen3D(ManagedActor):
         self.out_folder = run_folder()
         logger.info(f"3D Video GUI setup completed, {self.num_cameras} cameras")
 
-    def getLastFrame(self):
+    def getLastFrames(self):
         """Newest image for every camera, fetched with ONE store (redis) round trip.
 
         Returns a list of length num_cameras: the frame, or None for a camera
