@@ -102,6 +102,17 @@ dlc_onnx_frame_size: [960, 720]
 dlc_onnx_det_providers: null
 # TensorRT for the pose net saves ~0.5 ms and logs a harmless parse error; the detector is CUDA-only
 dlc_onnx_pose_providers: [CUDAExecutionProvider, CPUExecutionProvider]
+# dlc_engine "rtmpose_onnx": the one-hand-per-crop hand model trained in hand_training/ (SSDLite detector + RTMPose-m, 21
+# keypoints per hand, no left/right: see hand_side below). Export first: python scripts/trt/export_dlc_rtmpose_onnx.py
+# --project <project> (-> models/dlc_rtmpose/). Uses dlc_onnx_frame_size and the dlc_onnx_*_providers above.
+dlc_rtmpose_models_dir: null            # null = models/dlc_rtmpose
+dlc_rtmpose_det_score: 0.3              # detector confidence for a box to count as a hand (the detector reports from 0.01)
+dlc_rtmpose_max_hands: 2                # boxes kept per camera
+dlc_rtmpose_keypoint_min_likelihood: 0.3  # keypoints below this are dropped before association (SimCC peak probability)
+# Which output block a tracked hand goes in. votes = MediaPipe's handedness (default). position = no handedness needed:
+# the hand further left in `camera`'s image gets the `leftmost` block (right|left), the other the other; a lone hand keeps its
+# block. Used automatically with dlc_engine rtmpose_onnx (camera: first wired camera, leftmost: right) unless set here.
+hand_side: {mode: votes}
 
 # --- 2D Kalman filter (hand_association: label only; actors/kalmanfilter.py) ---
 # One filter per camera. Keypoints below `threshold` are estimated by the filter instead of dropped (likelihood 0).

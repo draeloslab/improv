@@ -1,0 +1,65 @@
+# One-hand-per-crop DLC hand model (hand_training/: SSDLite detector + RTMPose-m, 21 keypoints per hand) on a recorded
+# session, no cameras.
+#
+#   Generator{slot} -+-> ProcessorBatch3D --> SenderUDP.joints_in, VideoScreen3D.preds_in
+#                      +-> VideoScreen3D.images{slot}_in
+#
+# MASTER GRAPH (see mediapipe_live.yaml): `fes:` picks the cameras; scripts/fes_graph.py adds one Generator per camera and the
+# connections. `session` = 'YYYY-MM-DD/HHMMSS' under ~/camera_video; add `subfolder: raw` for the session's raw/ copies.
+#   fes-run dlc_rtmpose_gen.yaml --cameras 0,3,6
+#
+# BEFORE THE FIRST RUN, export the trained model to ONNX (once per trained model, and once per frame size):
+#   python ~/improv/experiments/FES/scripts/trt/export_dlc_rtmpose_onnx.py --project ~/dlc_projects/FESHand21-jake-2026-10-09
+#   -> models/dlc_rtmpose/ (best pose + detector snapshots; meta.json says which)
+#
+# Run:  FES_CONDA_ENV=improvDLC3 fes-run dlc_rtmpose_gen.yaml        (improvDLC3 has onnxruntime-gpu; stock DLC is enough)
+#
+# What the overrides do:
+#   dlc_engine rtmpose_onnx       the ONNX hand model above instead of the old two-hand DLC model
+#   dlc_rtmpose_det_score         detector confidence for a box to count as a hand (0.3; lower = more hands, more false boxes)
+#   dlc_rtmpose_max_hands         boxes kept per camera
+#   hand_side                     the model has no left/right: the hand further LEFT in camera `camera`'s image goes to the
+#                                 `leftmost` output block (right_* or left_*); flip `leftmost` if the blocks come out swapped
+#   calibration_toml              MUST be the calibration of that session's camera positions. Set for 10-07 below (the 10-07 board
+#                                 calibration refined with hand keypoints). NOTE this session is one the model was trained on
+#                                 (a few hundred frames of it), so it shows that the pipeline works, not how well it generalises.
+#                                 For the 10-13 sessions use cameras [0, 3, 5, 6] and calibration/2026-10-13_131500: tried on
+#                                 10-13/124900 it gave NO 3D hands (cameras probably moved between 12:49 and the 13:15 board
+#                                 recording) -- recalibrate right after a session before trusting it.
+
+fes:
+  source: replay
+  cameras: [0, 1, 3, 6]
+  generator: {session: '2026-10-07/111800'}
+
+actors:
+  GUI: {package: actors.video_screen_3d, class: Visual3D, visual: VideoScreen3D}
+  VideoScreen3D: {package: actors.video_screen_3d, class: VideoScreen3D}
+
+  ProcessorBatch3D:
+    package: actors.processor_batch3d
+    class: ProcessorBatch3D
+    pred_active: True
+    triangulate: true
+    align_frames: true       # replay: every camera's view in a step is the same video frame
+    compute_cores: 7
+    config_overrides:
+      batch3d_backend: dlc
+      dlc_engine: rtmpose_onnx
+      dlc_onnx_frame_size: [960, 720]      # must match the videos (the detector is exported per frame size)
+      dlc_onnx_det_providers: [CUDAExecutionProvider, CPUExecutionProvider]     # NMS inside: no TensorRT
+      dlc_onnx_pose_providers: [CUDAExecutionProvider, CPUExecutionProvider]
+      dlc_rtmpose_det_score: 0.3
+      dlc_rtmpose_max_hands: 2
+      hand_association: geometric
+      hand_side: {mode: position, camera: 3, leftmost: right}
+      calibration_toml: 'calibration/2026-10-07_001400/refined/calibration_board_hands.toml'
+    method: spawn
+
+  SenderUDP: {package: actors.sender_udp, class: SenderUDP, method: spawn}
+
+connections:
+  ProcessorBatch3D.q_out: [SenderUDP.joints_in, VideoScreen3D.preds_in]
+
+redis_config:
+  port: 6379

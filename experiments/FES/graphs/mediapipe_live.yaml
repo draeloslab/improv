@@ -51,3 +51,4 @@ connections:
 
 redis_config:
   port: 6379
+`  

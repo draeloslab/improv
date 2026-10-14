@@ -369,7 +369,8 @@ class ProcessorBatch3D(Actor):
                     gate_mm=float(g.get('gate_mm', 100.0)), max_miss=int(g.get('max_miss', 10)),
                     smooth=smooth if smooth else False, fps=float(config.get('fps', 30)),
                     hold_tol_px=g.get('hold_tol_px'), join_tol_px=g.get('join_tol_px'),
-                    keypoint_tol_px=g.get('keypoint_tol_px'), triangulate=self.tri)
+                    keypoint_tol_px=g.get('keypoint_tol_px'), triangulate=self.tri,
+                    side_rule=self._side_rule(config))
                 gl = g.get('reject_gloves') or {}
                 self.glove_teal = tuple(gl['teal']) if gl.get('teal') else None
                 self.glove_white = tuple(gl['white']) if gl.get('white') else None
@@ -492,6 +493,27 @@ class ProcessorBatch3D(Actor):
         self.kin_rms.append(rms); self.kin_ms.append(ms)
         return out
 
+    def _side_rule(self, config):
+        """config `hand_side`: how a tracked hand gets its right_* / left_* block. "votes" (default; MediaPipe's handedness) or
+        "position": the hand further left in `camera`'s image gets the `leftmost` block, the other the other one, and a lone hand
+        keeps the block it had (a new one is placed by which half of that image it is in). rtmpose_onnx has no handedness, so it
+        uses "position" unless config says otherwise. Which block is "leftmost" depends on how that camera faces the subject."""
+        hs = dict(config.get('hand_side') or {})
+        mode = str(hs.get('mode') or ('position' if getattr(self, 'dlc_engine', '') == 'rtmpose_onnx' else 'votes')).lower()
+        if mode != 'position':
+            return None
+        cam = hs.get('camera', self.camera_nums[0])
+        row = self.calib_row[self.camera_nums.index(cam)] if cam in self.camera_nums else None
+        if row is None:
+            logger.warning(f"hand_side: camera {cam} is not a calibrated wired camera -- falling back to handedness votes")
+            return None
+        size = self.calib_sizes[row]
+        rule = dict(row=row, center_x=(size[0] / 2) if size is not None else 480.0,
+                    leftmost_side=0 if str(hs.get('leftmost', 'right')).lower() == 'right' else 1)
+        logger.info(f"hand_side: position in camera {cam}'s image; the leftmost hand is "
+                    f"{'right' if rule['leftmost_side'] == 0 else 'left'}_*")
+        return rule
+
     def _setup_mediapipe(self, config):
         """One HandLandmarker instance per camera, run concurrently.
 
@@ -586,6 +608,24 @@ class ProcessorBatch3D(Actor):
         # time): 5.2 ms vs 25.9 ms per 2-camera step in scripts/trt/validate_dlc_onnx.py, keypoints within 0.03 px (median) of DLC's.
         # Needs models/dlc_trt/*.onnx from scripts/trt/export_dlc_onnx.py, exported for the live frame size (dlc_onnx_frame_size).
         self.dlc_engine = str(config.get('dlc_engine', 'pytorch')).lower()
+        # dlc_engine: "rtmpose_onnx" is the one-hand-per-crop model from hand_training/ (SSDLite + RTMPose-m, 21 keypoints per hand,
+        # chirality-free): up to dlc_rtmpose_max_hands boxes per camera, each a hand candidate for the geometric association (the
+        # same route MediaPipe's hands take). Needs models/dlc_rtmpose from scripts/trt/export_dlc_rtmpose_onnx.py.
+        if self.dlc_engine == 'rtmpose_onnx':
+            from .dlc_rtmpose_onnx import RTMPoseHands
+            models = Path(config.get('dlc_rtmpose_models_dir') or Path(__file__).resolve().parents[1] / 'models' / 'dlc_rtmpose').expanduser()
+            fs = config.get('dlc_onnx_frame_size')
+            self.rtm = RTMPoseHands(models, frame_size=tuple(fs) if fs else None, det_providers=config.get('dlc_onnx_det_providers'),
+                                    pose_providers=config.get('dlc_onnx_pose_providers'), det_score=float(config.get('dlc_rtmpose_det_score', 0.3)),
+                                    max_hands=int(config.get('dlc_rtmpose_max_hands', 2)))
+            self.rtm_min_lik = float(config.get('dlc_rtmpose_keypoint_min_likelihood', 0.3))
+            self.bodyparts = ([_prefixed_hand_names("right")[n] for n in MEDIAPIPE_LANDMARK_NAMES]
+                              + [_prefixed_hand_names("left")[n] for n in MEDIAPIPE_LANDMARK_NAMES])
+            self.n_keypoints = len(self.bodyparts)
+            self.pose_runner = self.detector_runner = None
+            logger.info(f"dlc engine: rtmpose_onnx ({models}; {self.rtm.meta['pose_snapshot']} + {self.rtm.meta['detector_snapshot']}), "
+                        f"det_score {self.rtm.det_score}, max_hands {self.rtm.max_hands}, keypoint likelihood >= {self.rtm_min_lik}")
+            return
         if self.dlc_engine == 'onnx':
             import yaml as _yaml
             from .dlc_onnx import DlcOnnxTopDown
@@ -1017,7 +1057,8 @@ class ProcessorBatch3D(Actor):
         placed in its right/left block)."""
         if self.backend == 'dlc':
             self.points_2d_raw_log.append(raw_2d.copy())          # every keypoint, before the likelihood gate
-            self._mp_dets = self._dlc_dets(raw_2d, batch_slots)
+            if self.dlc_engine != 'rtmpose_onnx':                  # rtmpose_onnx filled self._mp_dets in _infer_dlc
+                self._mp_dets = self._dlc_dets(raw_2d, batch_slots)
         dets, origin = [], []
         for slot in batch_slots:
             row = self.calib_row[slot]
@@ -1188,7 +1229,30 @@ class ProcessorBatch3D(Actor):
             raw[slot] = out
         return raw
 
+    def _infer_rtmpose(self, frames, batch_slots):
+        """rtmpose_onnx: every hand box in every camera -> (num_cameras, 42, 3) for the GUI (first two hands, right/left block) and
+        self._mp_dets[slot] = [(xy (21, 2) with NaN below the likelihood cut, -1 = handedness unknown, box score, per-keypoint likelihood)]."""
+        raw_2d = np.full((self.num_cameras, self.n_keypoints, 3), np.nan)
+        self._mp_dets = {}
+        min_kp = getattr(self, 'dlc_min_keypoints', 8)
+        for slot, hands in zip(batch_slots, self.rtm.inference([frames[s] for s in batch_slots])):
+            dets = []
+            for h in hands:
+                keep = np.isfinite(h['xy']).all(1) & (h['lik'] >= self.rtm_min_lik)
+                if keep.sum() < min_kp:
+                    continue
+                xy = np.where(keep[:, None], h['xy'], np.nan)
+                dets.append((xy, -1, h['det_score'], np.where(keep, h['lik'], 0.0)))
+                k = len(dets) - 1
+                if k < 2:
+                    raw_2d[slot, k * 21:k * 21 + 21, :2] = xy
+                    raw_2d[slot, k * 21:k * 21 + 21, 2] = h['lik']
+            self._mp_dets[slot] = dets
+        return raw_2d
+
     def _infer_dlc(self, frames, batch_slots):
+        if self.dlc_engine == 'rtmpose_onnx':
+            return self._infer_rtmpose(frames, batch_slots)
         """DLC pose estimation for the cameras in batch_slots -> (num_cameras, K, 3) x, y, likelihood."""
         batch = [frames[s] for s in batch_slots]
         if self.dlc_engine == 'onnx':

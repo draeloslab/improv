@@ -79,7 +79,7 @@ class HandTracker3D:
 
     def __init__(self, cgroup, tol_px=15.0, size_mm=(20.0, 200.0), gate_mm=100.0,
                  max_miss=10, smooth=None, fps=30.0, join_tol_px=None, keypoint_tol_px=None, hold_tol_px=None,
-                 triangulate=None, min_common=6):
+                 triangulate=None, min_common=6, side_rule=None):
         """cgroup: aniposelib CameraGroup. tol_px: reprojection error for two detections to seed a hand.
         size_mm: plausible wrist -> middle-MCP length. gate_mm: palm distance to stay the same track. max_miss:
         frames a track survives unseen. smooth: OneEuroHand kwargs, or False for raw output.
@@ -92,7 +92,8 @@ class HandTracker3D:
         landmarks pushed a whole camera out.
         triangulate: fn(points (C, N, 2), weights (C, N) or None) -> (N, 3), e.g. actors/triangulate.triangulator
         (None = aniposelib's unweighted DLT). min_common: keypoints two detections must share to be compared (only
-        matters for partial hands)."""
+        matters for partial hands). side_rule: None = a hand's right/left comes from accumulated handedness votes; a dict
+        {row, center_x, leftmost_side} = from where it is in camera `row`'s image (for detectors with no handedness)."""
         self.cg = cgroup
         self.nrows = len(cgroup.cameras)
         self.tol, self.size_mm, self.gate, self.max_miss = tol_px, size_mm, gate_mm, max_miss
@@ -108,6 +109,7 @@ class HandTracker3D:
         self.prev_rows = set()           # cameras in the output hands last frame (for hold_tol_px)
         self.tri = triangulate or (lambda p, w=None: cgroup.triangulate(p, progress=False))
         self.min_common = min_common
+        self.side_rule = side_rule
 
     @staticmethod
     def _w(det):
@@ -219,6 +221,29 @@ class HandTracker3D:
         return hands
 
     # ------------------------------------------------------------ tracking
+    def _lateral(self, p3, row):
+        """Palm position along camera `row`'s image x (calibration pixels); inf if the hand has no palm keypoint."""
+        with np.errstate(all='ignore'):
+            pts = p3[PALM]
+            ok = np.isfinite(pts).all(1)
+            if not ok.any():
+                ok = np.isfinite(p3).all(1); pts = p3
+            if not ok.any():
+                return np.inf
+            return float(np.nanmean(self.cg.project(pts[ok].mean(0, keepdims=True))[row][:, 0]))
+
+    def _assign_sides(self, live):
+        """side_rule: set t['side'] on the live tracks. Two or more: the two oldest, ordered left to right in the reference image;
+        otherwise a track that already has a side keeps it, and a new one goes by which half of the image it is in."""
+        r = self.side_rule
+        xs = {id(t): self._lateral(t['p3'], r['row']) for t in live}
+        if len(live) >= 2:
+            pair = sorted(sorted(live, key=lambda t: -t['age'])[:2], key=lambda t: xs[id(t)])
+            pair[0]['side'], pair[1]['side'] = r['leftmost_side'], 1 - r['leftmost_side']
+        for t in live:
+            if t.get('side') is None:
+                t['side'] = r['leftmost_side'] if xs[id(t)] < r['center_x'] else 1 - r['leftmost_side']
+
     def step(self, dets):
         """Returns (points_3d (42, 3) right block then left, side_of_det list:
         0/1 for detections that ended up in an output hand, else None)."""
@@ -252,8 +277,11 @@ class HandTracker3D:
         out = np.full((42, 3), np.nan)
         side_of_det = [None] * len(dets)
         live = [t for t in self.tracks if t['miss'] == 0]
+        if self.side_rule is not None and live:
+            self._assign_sides(live)
         for side in (0, 1):
-            cands = [t for t in live if (t['votes'] > 0) == bool(side)]
+            cands = ([t for t in live if t.get('side') == side] if self.side_rule is not None
+                     else [t for t in live if (t['votes'] > 0) == bool(side)])
             best = max(cands, key=lambda t: t['age']) if cands else None
             raw = best['p3'] if best is not None else None
             if best is not None:

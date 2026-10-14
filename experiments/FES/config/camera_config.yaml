@@ -1,53 +1,23 @@
-# Cameras (actors/camera_reader.py, actors/TIS.py). active_cameras[camera_num] is the camera a CameraReader with that
-# camera_num opens; camera_nums in a graph index this list.
+
 camera_params:
   # Native sensor capture format.
   resolution:
     width: 960  
     height: 720
-  # GStreamer downscales to this before frames reach numpy / the object store /
-  # the model. Consumers reading frames back from the store (Processor,
-  # VideoSaver, VideoScreen) size against this, not `resolution`.
-  # stream_resolution:
-  #   width: 960
-  #   height: 540
-  fps: "60/1"   # both rig cameras support 30/60/120; keep config.yaml `fps` the same
 
-  # appsink queue depth per camera.
-  #   5 = a briefly stalled reader loses no frame (use when RECORDING).
-  #   1 = only the newest frame is delivered, so all cameras share the same
-  #       latency (use for LIVE tracking).
+  fps: "60/1"  
   appsink_max_buffers: 1
 
-  # tcam properties applied to every camera once its pipeline is PLAYING, in
-  # order (put each *Auto before its manual value). Auto modes drift with the
-  # scene: exposure pegs at one frame period in dim light, frame rate sags, and
-  # colour differs between cameras. Exposure must stay under one frame period
-  # (33333 us at 30 fps). Tune ExposureTime/Gain under real experiment lighting
-  # (shorter exposure = less blur but darker; compensate with Gain). Set to {}
-  # to leave cameras untouched. A per-camera `settings:` mapping under an
-  # active_cameras entry overrides these.
   camera_settings:
     ExposureAuto: "Off"
     ExposureTime: 2000
     GainAuto: "Off"
     Gain: 0
-    # BalanceWhiteAuto accepts "Off" or "Continuous". With Off and no gains the
-    # image is green (Bayer sensor needs ~R 1.27 / B 3.3), so gains are explicit.
-    # Values converged to by all 7 cameras under lab lights on 2026-09-24
-    # (spread R 1.20-1.33, B 3.2-3.45). Re-measure if lighting changes a lot:
-    # set "Continuous" briefly and read BalanceWhiteRed/Blue.
     BalanceWhiteAuto: "Off"
     BalanceWhiteRed: 1.27
     BalanceWhiteGreen: 1.0
     BalanceWhiteBlue: 3.34
-
-  # Offsets each free-running camera by 1/`slots` of a frame period so GPU
-  # inference requests spread out instead of bunching (run 20260804-1432:
-  # corr(submission phase, inference time) = -0.999). `slots` defaults to
-  # config.yaml's max_camera_slots; over-estimating is harmless, under-
-  # estimating brings the collisions back. Turn OFF once cameras are hardware
-  # triggered: triangulation needs the cameras in phase.
+    
   capture_stagger:
     enabled: false
     slots: 4
