@@ -51,11 +51,14 @@ class RTMPoseHands:
     """Detector + pose net for every frame passed in; one box -> one hand."""
 
     def __init__(self, models_dir, frame_size=None, det_providers=None, pose_providers=None, det_score=0.3, max_hands=2,
-                 margin=None, max_overlap=0.6):
+                 margin=None, max_overlap=0.6, pad_batch=0):
         """models_dir: folder with meta.json, dlc_rtmpose_detector_<W>x<H>.onnx and dlc_rtmpose_pose.onnx.
         det_score: detector confidence a box needs to count as a hand (the detector itself reports from 0.01).
         max_hands: boxes kept per frame (best first). margin: pixels added around each box before cropping (default:
-        the training config's bbox_margin). max_overlap: of two boxes overlapping more than this (IoU), only the better stays."""
+        the training config's bbox_margin). max_overlap: of two boxes overlapping more than this (IoU), only the better stays.
+        pad_batch: always run the pose net on exactly this many crops (the last crop repeated, extra outputs dropped). With a
+        varying batch size the GPU re-plans every time the number of hands changes: ~32 ms instead of ~2 ms (measured 2026-10-15,
+        100% of size changes, 18% of steps over a 60 fps budget). Set it to max_hands x number of cameras; 0 = off."""
         models_dir = Path(models_dir)
         self.meta = json.loads((models_dir / 'meta.json').read_text())
         self.frame_size = tuple(frame_size or self.meta['frame_size'])
@@ -63,6 +66,7 @@ class RTMPoseHands:
         self.margin = self.meta['bbox_margin'] if margin is None else margin
         self.simcc = self.meta['simcc']
         self.det_score, self.max_hands, self.max_overlap = float(det_score), int(max_hands), float(max_overlap)
+        self.pad_batch = int(pad_batch)
         det_p = prepare_providers(det_providers or ['CUDAExecutionProvider', 'CPUExecutionProvider'], models_dir / 'trt_cache')
         pose_p = prepare_providers(pose_providers or ['CUDAExecutionProvider', 'CPUExecutionProvider'], models_dir / 'trt_cache')
         w, h = self.frame_size
@@ -98,7 +102,12 @@ class RTMPoseHands:
         out = [[] for _ in frames]
         if not crops:
             return out
-        sx, sy = self.pose.run(None, {'x': np.stack(crops)})
+        batch = np.stack(crops)
+        n = len(batch)
+        if n < self.pad_batch:
+            batch = np.concatenate([batch, np.repeat(batch[-1:], self.pad_batch - n, 0)])
+        sx, sy = self.pose.run(None, {'x': batch})
+        sx, sy = sx[:n], sy[:n]
         xy, lik = simcc_decode(sx, sy, self.simcc['split_ratio'], self.simcc['sigma'], self.simcc['decode_beta'],
                                self.simcc['apply_softmax'])
         for j, (fi, score, box, (ox, oy), (scx, scy)) in enumerate(meta):

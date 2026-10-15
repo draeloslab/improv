@@ -617,7 +617,8 @@ class ProcessorBatch3D(Actor):
             fs = config.get('dlc_onnx_frame_size')
             self.rtm = RTMPoseHands(models, frame_size=tuple(fs) if fs else None, det_providers=config.get('dlc_onnx_det_providers'),
                                     pose_providers=config.get('dlc_onnx_pose_providers'), det_score=float(config.get('dlc_rtmpose_det_score', 0.3)),
-                                    max_hands=int(config.get('dlc_rtmpose_max_hands', 2)))
+                                    max_hands=int(config.get('dlc_rtmpose_max_hands', 2)),
+                                    pad_batch=int(config.get('dlc_rtmpose_max_hands', 2)) * self.num_cameras)
             self.rtm_min_lik = float(config.get('dlc_rtmpose_keypoint_min_likelihood', 0.3))
             self.bodyparts = ([_prefixed_hand_names("right")[n] for n in MEDIAPIPE_LANDMARK_NAMES]
                               + [_prefixed_hand_names("left")[n] for n in MEDIAPIPE_LANDMARK_NAMES])

@@ -183,3 +183,7 @@ experiments/FES/models/dlc_rtmpose/dlc_rtmpose_detector_960x720.onnx
 experiments/FES/models/dlc_rtmpose/dlc_rtmpose_pose.onnx
 experiments/FES/scripts/trt/export_dlc_rtmpose_onnx.py
 experiments/FES/models/dlc_rtmpose/meta.json
+experiments/FES/scripts/trt/bench_mediapipe_to_cache.py
+experiments/FES/scripts/trt/bench_rtmpose_cache.py
+experiments/FES/tests/test_hw_trigger.py
+experiments/FES/scripts/trt/bench_rtmpose_variants.py

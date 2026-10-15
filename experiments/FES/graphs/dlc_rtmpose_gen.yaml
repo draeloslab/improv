@@ -52,6 +52,7 @@ actors:
       dlc_rtmpose_det_score: 0.3
       dlc_rtmpose_max_hands: 2
       hand_association: geometric
+      triangulation_method: dlt            # equal-weight DLT: the likelihood-weighted one gave 2.7x more joint-angle jitter and no better held-out accuracy (2026-10-15)
       hand_side: {mode: position, camera: 3, leftmost: right}
       calibration_toml: 'calibration/2026-10-07_001400/refined/calibration_board_hands.toml'
     method: spawn
