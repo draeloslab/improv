@@ -8,6 +8,7 @@ shared actors (GUI, VideoScreen3D, ProcessorBatch3D, SenderUDP) and a `fes:` blo
       source: live            # live: CameraReader per camera | replay: Generator per camera (recorded video, never saved)
       cameras: [0, 1, 3, 6]   # physical camera numbers in slot order (slot i = frames{i}_in / images{i}_in)
       save_video: false       # live only: one VideoSaver per camera
+      record_only: [1]        # live only: extra cameras that are recorded (need save_video) and shown, but not run through 2D / 3D
       generator: {session: '2026-10-07/111100'}    # replay only: extra kwargs for every Generator (subfolder: raw ...)
 
 This fills in what depends on the camera count -- one reader (+ saver) per camera, the connections, VideoScreen3D
@@ -23,7 +24,7 @@ import yaml
 READER = {"live": ("actors.camera_reader", "CameraReader"), "replay": ("actors.generator", "Generator")}
 
 
-def expand(graph, cameras=None, save_video=None):
+def expand(graph, cameras=None, save_video=None, record_only=None):
     fes = graph.pop("fes", None)
     if fes is None:
         return graph
@@ -32,8 +33,15 @@ def expand(graph, cameras=None, save_video=None):
         raise ValueError(f"fes.source must be live or replay, not {source!r}")
     cams = list(cameras if cameras is not None else fes.get("cameras") or [])
     save = bool(fes.get("save_video", False) if save_video is None else save_video)
+    rec = list(record_only if record_only is not None else fes.get("record_only") or [])
     if not cams:
         raise ValueError("fes.cameras is empty")
+    if rec and source != "live":
+        raise ValueError("record_only is for live graphs")
+    if rec and not save:
+        raise ValueError("record_only cameras are only recorded: turn on save_video (--save-video)")
+    if set(rec) & set(cams) or len(set(rec)) != len(rec):
+        raise ValueError(f"record_only {rec} overlaps cameras {cams}")
     if len(set(cams)) != len(cams):
         raise ValueError(f"duplicate camera in {cams}: each slot needs its own physical camera")
     if source == "replay" and save:
@@ -52,7 +60,14 @@ def expand(graph, cameras=None, save_video=None):
             sinks.append(f"VideoSaver{slot}.q_in")
         conns[f"Generator{slot}.q_out"] = sinks
 
-    actors["VideoScreen3D"]["num_active_cameras"] = len(cams)
+    for i, cam in enumerate(rec):       # after the processed slots, so those stay dense 0..k-1
+        slot = len(cams) + i
+        actors[f"Generator{slot}"] = {"package": package, "class": cls, "camera_num": cam}
+        actors[f"VideoSaver{slot}"] = {"package": "actors.video_saver", "class": "VideoSaver",
+                                       "camera_num": cam, "method": "spawn"}
+        conns[f"Generator{slot}.q_out"] = [f"VideoScreen3D.images{slot}_in", f"VideoSaver{slot}.q_in"]
+
+    actors["VideoScreen3D"]["num_active_cameras"] = len(cams) + len(rec)
     actors["ProcessorBatch3D"]["num_cameras"] = len(cams)
     actors["ProcessorBatch3D"]["camera_nums"] = cams
     if len(cams) < 2 and actors["ProcessorBatch3D"].get("triangulate", True):
@@ -65,6 +80,7 @@ def main():
     ap.add_argument("graph")
     ap.add_argument("out")
     ap.add_argument("--cameras", help="comma-separated physical camera numbers, e.g. 0,3,5,6")
+    ap.add_argument("--record-only", help="comma-separated cameras shown and recorded but not processed")
     ap.add_argument("--save-video", dest="save_video", action="store_true", default=None)
     ap.add_argument("--no-save-video", dest="save_video", action="store_false")
     a = ap.parse_args()
@@ -72,7 +88,8 @@ def main():
         graph = yaml.safe_load(f)
     cams = [int(c) for c in a.cameras.split(",")] if a.cameras else None
     try:
-        graph = expand(graph, cams, a.save_video)
+        rec = [int(c) for c in a.record_only.split(",") if c] if a.record_only is not None else None
+        graph = expand(graph, cams, a.save_video, rec)
     except ValueError as e:
         sys.exit(f"[fes_graph] {a.graph}: {e}")
     with open(a.out, "w") as f:

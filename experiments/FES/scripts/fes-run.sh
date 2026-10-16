@@ -23,6 +23,12 @@
 #   fes-run --auto 5cam_test.yaml
 #   fes-run --no-check 5cam_test.yaml    # skip the camera/redis/link preflight
 #   fes-run --dry-run 5cam_test.yaml     # preflight only, launch nothing
+#   fes-run --minutes 45 dlc_live.yaml   # planned run length: the disk/RAM preflight sizes the run against it
+#
+# OUT-OF-MEMORY / OUT-OF-DISK GUARD (scripts/resource_guard.py, thresholds in config/resource_guard.yaml):
+#   before launch it estimates RAM and raw-video disk for the planned length and asks before going on if the
+#   run won't fit; during the run it stops the run cleanly (stop -> flush -> quit) before RAM or disk is
+#   exhausted, instead of dropping frames or being OOM-killed. A stopped run leaves ABORTED_LOW_RESOURCES.txt.
 #
 # MASTER GRAPHS (mediapipe_live / dlc_live / mediapipe_gen / dlc_hand_gen: any yaml with a `fes:` block) are expanded
 # first by scripts/fes_graph.py; the resolved graph is kept as <run folder>/graph.yaml. Options for those:
@@ -60,6 +66,7 @@ taskset -pc "$FES_CPUS" $$ >/dev/null 2>&1 || echo "[fes] warning: could not pin
 AUTO=0
 CHECKS=1
 DRY_RUN=0
+MINUTES=""
 YAML=""
 GRAPH_ARGS=()
 
@@ -68,7 +75,9 @@ while [ $# -gt 0 ]; do
         --auto)     AUTO=1 ;;
         --no-check) CHECKS=0 ;;
         --dry-run)  DRY_RUN=1 ;;
+        --minutes)  shift; MINUTES="${1:?--minutes needs a number}" ;;
         --cameras)  shift; GRAPH_ARGS+=(--cameras "${1:?--cameras needs a list, e.g. 0,3,5,6}") ;;
+        --record-only) shift; GRAPH_ARGS+=(--record-only "${1?--record-only needs a list, e.g. 1}") ;;
         --save-video|--no-save-video) GRAPH_ARGS+=("$1") ;;
         -h|--help)  awk 'NR>1 && /^#/ {sub(/^# ?/,""); print; next} NR>1 {exit}' \
                         "${BASH_SOURCE[0]}"; exit 0 ;;
@@ -180,9 +189,38 @@ if [ "$CHECKS" -eq 1 ]; then
     have_cams=$(lsusb -d 199e: 2>/dev/null | wc -l)
     if [ "$want_cams" -gt 0 ] && [ "$have_cams" -lt "$want_cams" ]; then
         echo "  ! $YAML wants $want_cams camera(s), USB shows $have_cams."
-        echo "    Post-reboot cameras often need re-enumerating:  usb-camera-rebind"
+        echo "    Missing after a reboot? Unplug the camera, wait a few seconds, replug (or try another port)."
     elif [ "$want_cams" -gt 0 ]; then
         echo "  ok cameras: $have_cams visible, $want_cams wanted"
+    fi
+
+    # Camera USB link speed: one that fell back to USB2 (480 Mbit/s) can't carry its stream.
+    slow_cams=0
+    for d in /sys/bus/usb/devices/*; do
+        [ -r "$d/idVendor" ] && [ "$(cat "$d/idVendor")" = 199e ] && [ "$(cat "$d/speed")" -lt 5000 ] && slow_cams=$((slow_cams + 1))
+    done
+    [ "$slow_cams" -gt 0 ] && echo "  ! $slow_cams camera(s) negotiated USB2 speed (480 Mbit/s) -- unplug and replug them"
+
+    # libusb transfer pool: the 16 MB default can't feed 7 cameras at 60 fps (setup_realtime.sh on raises it).
+    usbfs_mb=$(cat /sys/module/usbcore/parameters/usbfs_memory_mb 2>/dev/null || echo 0)
+    if [ "$want_cams" -gt 1 ] && [ "$usbfs_mb" -lt 1000 ]; then
+        echo "  ! usbfs_memory_mb is $usbfs_mb: too small for $want_cams cameras -- run  sudo scripts/setup_realtime.sh on"
+    fi
+
+    # RAM / disk estimate against what's free now, for the planned length.
+    echo "  resources (planned ${MINUTES:-default} min):"
+    python "$FES_DIR/scripts/resource_guard.py" preflight "$YAML" ${MINUTES:+--minutes "$MINUTES"}
+    res_status=$?
+    if [ "$res_status" -ne 0 ] && [ "$DRY_RUN" -eq 0 ]; then
+        echo
+        echo "  The run is likely to run out of $([ "$res_status" -eq 2 ] && echo 'room and be stopped early' || echo 'headroom')."
+        echo "  Options: fewer cameras (--cameras), no raw video (--no-save-video), a shorter --minutes, or free disk first."
+        if [ -t 0 ]; then
+            read -r -p "  Continue anyway? [y/N] " reply
+            case "$reply" in y|Y|yes) ;; *) echo "  aborted."; exit 1 ;; esac
+        else
+            echo "  (not interactive: continuing, the guard will stop the run before it starves)"
+        fi
     fi
 
     # Redis, if the yaml declares a port.
@@ -236,6 +274,18 @@ printf 'y\n' | improv cleanup 2>&1 | sed 's/^/  /'
 FES_CPUS="${FES_CPUS:-2-$(( $(nproc --all) - 1 ))}"
 echo
 echo "[fes] CPUs: $FES_CPUS (cpu0/cpu1 excluded: faulty core)"
+
+# Resource guard: stops the run cleanly before RAM or disk runs out. In the TUI its output goes to a file (it
+# would scribble over the screen); headless, it prints straight to this terminal.
+if [ "$AUTO" -eq 1 ]; then
+    python "$FES_DIR/scripts/resource_guard.py" watch --logfile "$GLOBAL_LOG" --run-folder "$RUN_DIR" \
+        --headless --exit-when-gone $$ &
+else
+    python "$FES_DIR/scripts/resource_guard.py" watch --logfile "$GLOBAL_LOG" --run-folder "$RUN_DIR" \
+        --tui --exit-when-gone $$ >> "$LOG_DIR/resource_guard.log" 2>&1 &
+fi
+GUARD_PID=$!
+trap 'kill "$GUARD_PID" 2>/dev/null' EXIT
 if [ "$AUTO" -eq 1 ]; then
     echo "[fes] launching $YAML (headless)"
     taskset -c "$FES_CPUS" python "$FES_DIR/scripts/improv_drive.py" \
@@ -253,6 +303,13 @@ fi
 
 # -------------------------------------------------------------------- report
 
+kill "$GUARD_PID" 2>/dev/null
+echo
+if [ -f "$RUN_DIR/ABORTED_LOW_RESOURCES.txt" ]; then
+    echo "[fes] !!! THIS RUN WAS STOPPED EARLY by the resource guard (out of RAM or disk):"
+    sed 's/^/[fes]     /' "$RUN_DIR/ABORTED_LOW_RESOURCES.txt"
+    echo "[fes]     the data up to that point was flushed; see $LOG_DIR/resource_guard.log"
+fi
 echo
 if [ -d "$RUN_DIR" ]; then
     npy_count=$(find "$RUN_DIR" -maxdepth 1 -name '*.npy' | wc -l)

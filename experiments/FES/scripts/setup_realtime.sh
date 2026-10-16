@@ -43,6 +43,26 @@
 #              work on their own schedule, with no regard for whether a
 #              latency-critical recording is in progress.
 #
+#   usbfs      libusb (which tiscamera's Aravis backend uses for the USB3 Vision
+#              cameras) draws every transfer buffer from ONE system-wide pool,
+#              usbcore.usbfs_memory_mb, default 16 MB. 7 cameras x 60 fps x
+#              ~2.1 MB/frame (960x720 RGB) is ~870 MB/s, so even 1 s of in-flight
+#              buffering is ~0.9 GB -- the default pool is exhausted by the first
+#              camera or two, and the rest fail to submit transfers (a camera
+#              that "drops" when another is plugged in). 2000 MB leaves >2x
+#              headroom for 7 cameras at 60 fps; the pool is only an accounting
+#              limit, memory is taken as buffers are allocated. `off` restores
+#              whatever it was before.
+#
+#   cameras    The cameras are bus-powered and run warm even when idle. `on`
+#              power-cycles them (which also forces a fresh USB3 link, the same
+#              thing replugging does -- cameras that came up at USB2 speed after a
+#              reboot recover), `off` cuts their port power. Needs hubs that
+#              support per-port power switching + uhubctl; see
+#              scripts/usb-camera-power.sh. DISABLED by default (it hung on this
+#              machine: uhubctl blocks in the kernel on the Intel root hubs);
+#              opt in with FES_CAMERA_POWER=1.
+#
 # Not done here, deliberately:
 #   - isolcpus / nohz_full would need a kernel cmdline change and a reboot.
 #   - CUDA MPS is a separate opt-in; see MULTICAM_3D_PLAN.md.
@@ -52,6 +72,10 @@ set -euo pipefail
 MODE="${1:-on}"
 IRQ_TARGET_CPU=31          # an E-core, well away from the pinned P-cores
 IRQ_MATCH="xhci_hcd"
+USBFS_MB=2000              # 7 cameras x 60 fps; see the usbfs note above
+USBFS_PARAM=/sys/module/usbcore/parameters/usbfs_memory_mb
+USBFS_PREV=/run/fes_usbfs_memory_mb.prev
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 QUIET_TIMERS=(sysstat fwupd-refresh.timer anacron.timer apt-daily.timer
               apt-daily-upgrade.timer man-db.timer)
 
@@ -121,6 +145,26 @@ for irq_dir in /proc/irq/*/; do
     fi
 done
 
+echo "== usbfs buffer pool (libusb camera transfers)"
+if [[ -w "$USBFS_PARAM" ]]; then
+    if [[ "$MODE" == "on" ]]; then
+        # Remember the original once; a second `on` must not record our own value as the original.
+        [[ -f "$USBFS_PREV" ]] || cat "$USBFS_PARAM" > "$USBFS_PREV"
+        echo "$USBFS_MB" > "$USBFS_PARAM"
+        echo "   usbfs_memory_mb: $(cat "$USBFS_PREV") -> $(cat "$USBFS_PARAM")"
+    else
+        if [[ -f "$USBFS_PREV" ]]; then
+            cat "$USBFS_PREV" > "$USBFS_PARAM"
+            rm -f "$USBFS_PREV"
+        else
+            echo 16 > "$USBFS_PARAM"       # the kernel default
+        fi
+        echo "   usbfs_memory_mb restored to $(cat "$USBFS_PARAM")"
+    fi
+else
+    echo "   $USBFS_PARAM not writable, skipping"
+fi
+
 # irqbalance will happily undo the above on its next pass.
 if systemctl is-active --quiet irqbalance 2>/dev/null; then
     if [[ "$MODE" == "on" ]]; then
@@ -175,8 +219,21 @@ for t in "${QUIET_TIMERS[@]}"; do
     fi
 done
 
+# Last, so the cameras are power-cycled after every other setting is in place and are
+# fully enumerated (at USB3 speed) by the time you start improv.
+if [[ "${FES_CAMERA_POWER:-0}" == "1" ]]; then
+    echo "== Cameras"
+    if [[ -x "$SCRIPT_DIR/usb-camera-power.sh" ]]; then
+        "$SCRIPT_DIR/usb-camera-power.sh" "$MODE" || echo "   camera power step failed (see above); the rest of the setup is unaffected"
+    else
+        echo "   $SCRIPT_DIR/usb-camera-power.sh missing, skipping"
+    fi
+fi
+
 echo
 echo "Done ($MODE). Verify during a run with:"
+echo "  cat $USBFS_PARAM        # $USBFS_MB while on"
+echo "  scripts/usb-camera-power.sh status      # (read-only; camera power switching is off unless FES_CAMERA_POWER=1)"
 echo "  grep -E 'MHz' /proc/cpuinfo | sort -u | head"
 echo "  grep xhci /proc/interrupts"
 echo "  for p in \$(pgrep -f actors.processor); do echo -n \"\$p: \"; taskset -cp \$p; done"

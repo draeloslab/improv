@@ -12,7 +12,7 @@ camera_params:
     ExposureAuto: "Off"
     ExposureTime: 2000
     GainAuto: "Off"
-    Gain: 0
+    Gain: 5
     BalanceWhiteAuto: "Off"
     BalanceWhiteRed: 1.27
     BalanceWhiteGreen: 1.0

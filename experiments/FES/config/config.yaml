@@ -108,7 +108,20 @@ dlc_onnx_pose_providers: [CUDAExecutionProvider, CPUExecutionProvider]
 dlc_rtmpose_models_dir: null            # null = models/dlc_rtmpose
 dlc_rtmpose_det_score: 0.3              # detector confidence for a box to count as a hand (the detector reports from 0.01)
 dlc_rtmpose_max_hands: 2                # boxes kept per camera
+# Tracking (actors/dlc_rtmpose_onnx.py): a camera holding a hand skips the detector; the next crop is the box around the hand's own
+# keypoints from the previous step, grown by track_pad (fraction of the box's long side). The detector (one batched call for all
+# cameras that need it) runs only on a camera with no hand, every redetect_every steps on a camera holding fewer than max_hands
+# (to find the second hand), and every refresh_every steps on any camera (0 = never). A hand is lost when fewer than
+# dlc_min_keypoints keypoints reach dlc_rtmpose_keypoint_min_likelihood. false = detector on every frame, as before 2026-10-16.
+dlc_rtmpose_track: true
+dlc_rtmpose_redetect_every: 15
+dlc_rtmpose_refresh_every: 0
+dlc_rtmpose_track_pad: 0.1
 dlc_rtmpose_keypoint_min_likelihood: 0.3  # keypoints below this are dropped before association (SimCC peak probability)
+# Detector box score a hand needs to enter the geometric association. null = dlc_rtmpose_det_score (the box gate above). It was
+# the MediaPipe-oriented `threshold` (0.7) until 2026-10-16: this model's boxes score 0.35-0.54 on a new subject, so every hand
+# was dropped before the cameras could agree on it (10-13: 0% 3D hands). The reprojection check does the filtering.
+dlc_rtmpose_hand_score: null
 # Which output block a tracked hand goes in. votes = MediaPipe's handedness (default). position = no handedness needed:
 # the hand further left in `camera`'s image gets the `leftmost` block (right|left), the other the other; a lone hand keeps its
 # block. Used automatically with dlc_engine rtmpose_onnx (camera: first wired camera, leftmost: right) unless set here.
@@ -129,7 +142,7 @@ kalman_measurement_var: 10
 # 3D: calibration, association, smoothing
 # ============================================================================
 # anipose calibration. Live 2D points are rescaled to each camera's calibrated frame size automatically.
-calibration_toml: 'calibration/2026-10-07_001400/calibration.toml'   # cams 0, 3, 5, 6 at 960x720 (7cam_test, 2026-10-02)
+calibration_toml: 'calibration/2026-10-13_131500/calibration.toml'   # cams 0, 3, 5, 6 at 960x720 (7cam_test, 2026-10-02)
 calibration_camera_names: {}   # camera_num -> name in the toml (default "cam{N}"); the 10-02 toml uses cam0/cam3/cam5/cam6
 triangulation_min_cameras: 2          # cameras that must see a keypoint (2 is the geometric minimum)
 # "weighted_dlt": each camera's view of a keypoint counts in proportion to its confidence (DLC likelihood; MediaPipe

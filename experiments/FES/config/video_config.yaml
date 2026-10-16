@@ -9,4 +9,4 @@ buffer_length: 5                  # [s] of frames per buffer file
 #   pix_fmt  yuv444p = full colour resolution (some players, e.g. QuickTime, can't play it);
 #            yuv420p = colour at quarter resolution, plays everywhere (every video up to 2026-10-01).
 #   preset   ultrafast ... medium ... slow ... veryslow: slower = smaller file at the SAME quality, not better quality.
-encoding: {crf: 17, pix_fmt: yuv444p, preset: slow}
+encoding: {crf: 17, pix_fmt: yuv444p, preset: medium}

@@ -84,7 +84,11 @@ class SenderUDP(Actor):
 
     With `send_frame_num: true` the packet gets a third element, [packet_n, angles, {"frame_num": 1523,
     "t_cam": 1759...}], where frame_num is the camera frame counter of the newest frame in the step (the video
-    frame number; packet_n is NOT, it skips whenever a step is dropped).
+    frame number; packet_n is NOT, it skips whenever a step is dropped). It also carries "keypoints":
+    {"right_WRIST": [x, y, z], "right_INDEX_FINGER_TIP": [...], "left_...": ...} -- the triangulated points the joint
+    angles come from, in METRES, in the calibration frame (origin = camera 0, the frame points_3d is in; mm there).
+    A point that is not triangulated this step is left out (never null / NaN); no finite point -> no "keypoints" key.
+    Keys carry the same right_ / left_ prefix as the angle keys (two-hand layout only).
 
     Joint angles are in degrees, deviation from
     straight (0 = fully extended), from dlc2kinematics. A joint that could not
@@ -253,6 +257,23 @@ class SenderUDP(Actor):
         self._pending_joint_frame = msg.get('frame_num', -1)
         return msg
 
+    def _packet_keypoints(self, msg):
+        """{"right_WRIST": [x, y, z] metres, ...} for the wrist and index tip of each tracked hand in this step's
+        points_3d; unresolved points are left out."""
+        pts = msg.get('points_3d')
+        if pts is None:
+            return {}
+        pts = np.asarray(pts, dtype=float).reshape(-1, 3)
+        if len(pts) < 42:
+            return {}      # one bare hand has unprefixed angle keys; the right_/left_ names are for the two-hand layout
+        out = {}
+        for side, o in (("right", 0), ("left", 21)):
+            for name, i in (("WRIST", 0), ("INDEX_FINGER_TIP", 8)):
+                p = pts[o + i]
+                if np.isfinite(p).all():
+                    out[f"{side}_{name}"] = [round(float(v) / 1000.0, 5) for v in p]
+        return out
+
     def _send_keypoints(self, msg):
         """One hand's 21 keypoints -> BRAND's hand3d node (see class docstring)."""
         pts = msg.get('points_3d')
@@ -385,8 +406,12 @@ class SenderUDP(Actor):
                           for cam, a in ((c, self.last_angle[c]) for c in sorted(self.last_angle))}
         payload = [self.packet_n, angles_out]
         if self.send_frame_num and self.joints_seen:
-            payload.append({"frame_num": int(getattr(self, '_pending_joint_frame', -1)),
-                            "t_cam": getattr(self, '_pending_joint_start', None)})
+            extra = {"frame_num": int(getattr(self, '_pending_joint_frame', -1)),
+                     "t_cam": getattr(self, '_pending_joint_start', None)}
+            kps = self._packet_keypoints(fresh_joints) if fresh_joints is not None else {}
+            if kps:
+                extra["keypoints"] = kps
+            payload.append(extra)
 
         try:
             data_bytes = json.dumps(payload).encode('utf-8')

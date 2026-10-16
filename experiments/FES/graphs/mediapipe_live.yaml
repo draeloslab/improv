@@ -16,8 +16,8 @@
 
 fes:
   source: live
-  cameras: [0, 1, 3, 5, 6]
-  save_video: true
+  cameras: [0, 1, 2,  3, 4,5,6]
+  save_video: false
 
 actors:
   GUI: {package: actors.video_screen_3d, class: Visual3D, visual: VideoScreen3D}
@@ -26,8 +26,8 @@ actors:
   ProcessorBatch3D:
     package: actors.processor_batch3d
     class: ProcessorBatch3D
-    pred_active: false
-    triangulate: false
+    pred_active: true
+    triangulate: true
     config_overrides:
       batch3d_backend: mediapipe
       mediapipe_both_hands: true      # 42-keypoint layout, joint names right_* / left_* (what rhodes_2d_vision_bare expects)
@@ -35,6 +35,7 @@ actors:
       hand_association: geometric
       kalman_enabled: false           # no 2D Kalman filter
       smoothing_3d: {method: kalman}
+      calibration_toml: 'calibration/2026-10-16_183000/calibration.toml'
       # mediapipe_engine: mediapipe   # stock CPU MediaPipe instead of the ONNX/TensorRT default (config.yaml)
     method: spawn
 
@@ -51,4 +52,3 @@ connections:
 
 redis_config:
   port: 6379
-`  

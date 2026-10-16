@@ -342,6 +342,7 @@ class ProcessorBatch3D(Actor):
         if self.cgroup is not None:
             logger.info(f"triangulation: {self.tri_method}"
                         + (f", weights floored at {self.tri_min_weight}" if self.tri_method == 'weighted_dlt' else ""))
+        else:
             logger.info("triangulate=False: 2D keypoints only, no 3D / joint angles")
 
         # ---------------- cross-camera hand association ----------------
@@ -618,14 +619,27 @@ class ProcessorBatch3D(Actor):
             self.rtm = RTMPoseHands(models, frame_size=tuple(fs) if fs else None, det_providers=config.get('dlc_onnx_det_providers'),
                                     pose_providers=config.get('dlc_onnx_pose_providers'), det_score=float(config.get('dlc_rtmpose_det_score', 0.3)),
                                     max_hands=int(config.get('dlc_rtmpose_max_hands', 2)),
-                                    pad_batch=int(config.get('dlc_rtmpose_max_hands', 2)) * self.num_cameras)
+                                    pad_batch=int(config.get('dlc_rtmpose_max_hands', 2)) * self.num_cameras,
+                                    track=bool(config.get('dlc_rtmpose_track', True)),
+                                    redetect_every=int(config.get('dlc_rtmpose_redetect_every', 15)),
+                                    refresh_every=int(config.get('dlc_rtmpose_refresh_every', 0)),
+                                    track_pad=float(config.get('dlc_rtmpose_track_pad', 0.1)),
+                                    min_keypoints=int((config.get('geometric_association') or {}).get('dlc_min_keypoints', 8)),
+                                    min_likelihood=float(config.get('dlc_rtmpose_keypoint_min_likelihood', 0.3)))
             self.rtm_min_lik = float(config.get('dlc_rtmpose_keypoint_min_likelihood', 0.3))
+            # Detector box score a hand needs to enter the geometric association. It used to be `threshold` (0.7, a per-hand
+            # score for MediaPipe), which cut hands this model reports at 0.35-0.54 on a new subject (10-13: 0% 3D hands);
+            # the geometry (reprojection agreement across cameras) is the real filter, so by default the box score only has to
+            # clear the detector gate dlc_rtmpose_det_score.
+            self.hand_gate = float(config.get('dlc_rtmpose_hand_score') or self.rtm.det_score)
             self.bodyparts = ([_prefixed_hand_names("right")[n] for n in MEDIAPIPE_LANDMARK_NAMES]
                               + [_prefixed_hand_names("left")[n] for n in MEDIAPIPE_LANDMARK_NAMES])
             self.n_keypoints = len(self.bodyparts)
             self.pose_runner = self.detector_runner = None
             logger.info(f"dlc engine: rtmpose_onnx ({models}; {self.rtm.meta['pose_snapshot']} + {self.rtm.meta['detector_snapshot']}), "
-                        f"det_score {self.rtm.det_score}, max_hands {self.rtm.max_hands}, keypoint likelihood >= {self.rtm_min_lik}")
+                        f"det_score {self.rtm.det_score}, max_hands {self.rtm.max_hands}, keypoint likelihood >= {self.rtm_min_lik}, "
+                        f"tracking {'on (redetect every %d, refresh every %d, pad %.2f)' % (self.rtm.redetect_every, self.rtm.refresh_every, self.rtm.track_pad) if self.rtm.track else 'off'}, "
+                        f"detector {'batched x%d' % self.rtm.det_batch if self.rtm.det_b is not None else 'one frame per call'}")
             return
         if self.dlc_engine == 'onnx':
             import yaml as _yaml
@@ -1081,7 +1095,7 @@ class ProcessorBatch3D(Actor):
                 xy, label, score = det[:3]
                 # weights: dlc = per-keypoint likelihoods; mediapipe = its one per-hand score on every keypoint
                 w = det[3] if len(det) > 3 else np.full(21, score)
-                if score < self.threshold:
+                if score < getattr(self, 'hand_gate', self.threshold):       # hand_gate: rtmpose_onnx's own, see _setup_dlc
                     continue
                 if self.glove_teal or self.glove_white:
                     if hsv is None:
@@ -1244,7 +1258,7 @@ class ProcessorBatch3D(Actor):
         raw_2d = np.full((self.num_cameras, self.n_keypoints, 3), np.nan)
         self._mp_dets = {}
         min_kp = getattr(self, 'dlc_min_keypoints', 8)
-        for slot, hands in zip(batch_slots, self.rtm.inference([frames[s] for s in batch_slots])):
+        for slot, hands in zip(batch_slots, self.rtm.inference([frames[s] for s in batch_slots], keys=batch_slots)):
             dets = []
             for h in hands:
                 keep = np.isfinite(h['xy']).all(1) & (h['lik'] >= self.rtm_min_lik)
@@ -1440,6 +1454,12 @@ class ProcessorBatch3D(Actor):
                         lm.close()
             except Exception:
                 logger.error(f"error closing mediapipe landmarkers: {traceback.format_exc()}")
+
+        if getattr(self, 'rtm', None) is not None:
+            st = self.rtm.stats
+            logger.info(f"rtmpose: {st['steps']} steps, detector ran on {st['detector_frames']} of {st['frames']} camera-frames "
+                        f"({st['detector_calls']} calls), {st['tracked_crops']} crops from tracks / {st['detected_crops']} from boxes, "
+                        f"{st['lost_tracks']} tracks lost")
 
         try:
             always = (self.points_2d_log, self.points_3d_log, self.angles_log, self.frame_nums_received)
