@@ -58,6 +58,8 @@ class TIS:
         self.camera_latenciesFull = []   # the whole callback, including frames dropped before the run started
         self.cameraStarts = []           # camera_start per frame (TISstarts_*)
         self.captureTimes = []           # capture_time per frame, NaN without a buffer timestamp (TIScapture_*)
+        self.frameNums = []              # frame_num this frame was given (TISframe_*): row i of TISstarts/TIScapture/TISsent
+        self.frameSent = []              # True once the frame was announced on q_out; False if the store put failed (TISsent_*)
         self.convert_latencies = []      # GStreamer buffer -> numpy view
         self.store_put_latencies = []    # client.put
         self.queue_put_latencies = []    # q_out.put
@@ -289,6 +291,8 @@ class TIS:
             buf = sample.get_buffer()
             camera_start = time.time()
             self.cameraStarts.append(camera_start)
+            self.frameNums.append(self.frame_num)
+            self.frameSent.append(False)
             capture_time = self._capture_time(buf)
             self.captureTimes.append(capture_time if capture_time is not None else float('nan'))
 
@@ -307,6 +311,7 @@ class TIS:
                 t0 = time.perf_counter()
                 self.q_out.put([data_id, camera_start, self.frame_num, capture_time])
                 self.queue_put_latencies.append(time.perf_counter() - t0)
+                self.frameSent[-1] = True
 
                 self.camera_latencies.append(time.perf_counter() - frame_time)
 
@@ -372,6 +377,9 @@ class TIS:
         np.save(self.out_folder / f"TIS_store_put_{self.camera_name}.npy", self.store_put_latencies)
         np.save(self.out_folder / f"TIS_queue_put_{self.camera_name}.npy", self.queue_put_latencies)
         np.save(self.out_folder / f"TIScapture_{self.camera_name}.npy", self.captureTimes)
+        # frame_num and sent flag of every row of TISstarts / TIScapture (a failed store put leaves frame_num unused, so it repeats)
+        np.save(self.out_folder / f"TISframe_{self.camera_name}.npy", np.asarray(self.frameNums, dtype=np.int64))
+        np.save(self.out_folder / f"TISsent_{self.camera_name}.npy", np.asarray(self.frameSent, dtype=bool))
 
         logger.info(f"TIS latencies saved to {self.out_folder}")
 

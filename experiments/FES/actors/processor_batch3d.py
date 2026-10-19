@@ -31,6 +31,7 @@ Joint angles are the same bone-to-bone angle dlc2kinematics computes, vectorised
 (see _joint_angles()).
 """
 
+import json
 import os
 import faulthandler
 # Limit numpy/BLAS threading to avoid contention with PyTorch in multiprocessing
@@ -73,7 +74,7 @@ from .continuity import ContinuousPose
 from .kalman3d import KalmanPose3D
 from .triangulate import triangulator
 from .kinematic_hand import KinematicHand, mirror_model
-from .run_paths import get_logger, run_folder
+from .run_paths import get_logger, run_folder, run_id
 from .chunk_log import ChunkLog
 
 logger = get_logger(__name__, "processor_batch3d.log")
@@ -289,6 +290,7 @@ class ProcessorBatch3D(Actor):
         self.camera_prescaled = config.get('camera_prescaled', False)
         self._wd_file = None
         self.out_folder = run_folder()
+        self._write_run_meta()
         L = lambda name: ChunkLog(self.out_folder, name)      # bounded memory, blocks written as the run goes
         self.kalman_on = bool(config.get('kalman_enabled', False))
         self.threshold = float(config['threshold'])
@@ -771,6 +773,16 @@ class ProcessorBatch3D(Actor):
         # into it per camera from the actual frame size (see _run_step).
         self.calib_sizes = [cam.get_size() for cam in self.cgroup.cameras]
 
+    def _write_run_meta(self):
+        """run_meta.json in the run folder: the run id (also sent in every UDP packet) and the cameras in slot order, the column
+        order of batch3d_frame_nums, with the camera_num, name and serial of each. Written at setup so it survives a crash."""
+        with open(Path(__file__).resolve().parent.parent / 'config' / 'camera_config.yaml') as f:
+            active = yaml.safe_load(f)['active_cameras']
+        cameras = [{'slot': slot, 'camera_num': num, 'name': active[num]['camera']['name'],
+                    'serial_id': active[num]['camera']['serial_id']} for slot, num in enumerate(self.camera_nums)]
+        with open(self.out_folder / 'run_meta.json', 'w') as f:
+            json.dump({'run_id': run_id(), 'setup_wall_time': time.time(), 'cameras': cameras}, f, indent=1)
+
     # ------------------------------------------------------------------- step
 
     def _gather_frames(self):
@@ -1217,6 +1229,7 @@ class ProcessorBatch3D(Actor):
                 'frame_num': gen_frame_num,
                 'camera_slots': batch_slots,
                 'camera_nums': [self.camera_nums[s] for s in batch_slots],
+                'frame_nums': {self.camera_nums[s]: int(fnums[s]) for s in batch_slots},    # every camera's own frame number
             }
             self.q_out.put(msg)
         except Exception as e:

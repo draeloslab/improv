@@ -12,7 +12,7 @@ from improv.actor import Actor
 
 from . import cpu_affinity
 from .brand_link import link_settings
-from .run_paths import get_logger, run_folder
+from .run_paths import get_logger, run_folder, run_id
 
 logger = get_logger(__name__, "sender_udp.log")
 
@@ -88,6 +88,11 @@ class SenderUDP(Actor):
     {"right_WRIST": [x, y, z], "right_INDEX_FINGER_TIP": [...], "left_...": ...} -- the triangulated points the joint
     angles come from, in METRES, in the calibration frame (origin = camera 0, the frame points_3d is in; mm there).
     A point that is not triangulated this step is left out (never null / NaN); no finite point -> no "keypoints" key.
+    The same dict also carries, for syncing with the receiver's recording (a receiver may ignore any of them):
+    "seq" (this sender's packet counter, = packet_n), "t_send" (time.time() on this machine just before the send; its
+    difference from the receiver's own clock at arrival tracks the clock offset), "run_id" (the improv run id, the
+    predictions folder name) and "frame_nums" ({camera_num: that camera's frame counter} of every camera in the step;
+    frame_num above is the newest of them).
     Keys carry the same right_ / left_ prefix as the angle keys (two-hand layout only).
 
     Joint angles are in degrees, deviation from
@@ -167,6 +172,7 @@ class SenderUDP(Actor):
         self.joint_names = []         # stable order, from the processor
         self.sent_joint_angles = []   # one row per SENT packet, in joint_names order
         self.joint_frame_nums = []
+        self.joint_cam_frame_nums = []   # per sent joint packet: {camera_num: frame_num} of every camera in the step
         self.joint_e2e = []
         self.joints_seen = False
 
@@ -255,6 +261,7 @@ class SenderUDP(Actor):
         if camera_start is not None:
             self._pending_joint_start = camera_start
         self._pending_joint_frame = msg.get('frame_num', -1)
+        self._pending_joint_frame_nums = {int(c): int(n) for c, n in (msg.get('frame_nums') or {}).items()}
         return msg
 
     def _packet_keypoints(self, msg):
@@ -407,7 +414,9 @@ class SenderUDP(Actor):
         payload = [self.packet_n, angles_out]
         if self.send_frame_num and self.joints_seen:
             extra = {"frame_num": int(getattr(self, '_pending_joint_frame', -1)),
-                     "t_cam": getattr(self, '_pending_joint_start', None)}
+                     "t_cam": getattr(self, '_pending_joint_start', None),
+                     "seq": self.packet_n, "t_send": time.time(), "run_id": run_id(),
+                     "frame_nums": {str(c): n for c, n in getattr(self, '_pending_joint_frame_nums', {}).items()}}
             kps = self._packet_keypoints(fresh_joints) if fresh_joints is not None else {}
             if kps:
                 extra["keypoints"] = kps
@@ -429,6 +438,7 @@ class SenderUDP(Actor):
             self.sent_joint_angles.append(
                 [self.last_joint_angles.get(n, np.nan) for n in self.joint_names])
             self.joint_frame_nums.append(getattr(self, '_pending_joint_frame', -1))
+            self.joint_cam_frame_nums.append(dict(getattr(self, '_pending_joint_frame_nums', {})))
             start = getattr(self, '_pending_joint_start', None)
             if start is not None:
                 self.joint_e2e.append(send_time - start)
@@ -499,6 +509,12 @@ class SenderUDP(Actor):
                     np.asarray(self.sent_joint_angles, dtype=float))
             np.save(self.out_folder / "sender_joint_frame_nums.npy",
                     np.asarray(self.joint_frame_nums))
+            # every camera's frame number per packet (rows = sender_joint_frame_nums, -1 = camera not in the step)
+            cams = sorted({c for d in self.joint_cam_frame_nums for c in d})
+            np.save(self.out_folder / "sender_joint_camera_nums.npy", np.asarray(cams, dtype=int))
+            np.save(self.out_folder / "sender_joint_cam_frame_nums.npy",
+                    np.asarray([[d.get(c, -1) for c in cams] for d in self.joint_cam_frame_nums],
+                               dtype=np.int64).reshape(len(self.joint_cam_frame_nums), len(cams)))
             np.save(self.out_folder / "sender_joint_e2e.npy", np.asarray(self.joint_e2e))
             if self.joint_e2e:
                 logger.info(f"Joint-angle E2E: mean={np.mean(self.joint_e2e)*1000:.1f}ms, "
