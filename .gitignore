@@ -173,6 +173,9 @@ experiments/FES/scripts/fake_brand.py
 experiments/FES/scripts/gather_selftest.py
 experiments/FES/models/hand_trt/
 experiments/FES/models/dlc_trt/
+scripts
+models
+experiments/FES/tests
 
 
 # FES docs that belong in git
@@ -187,3 +190,4 @@ experiments/FES/scripts/trt/bench_mediapipe_to_cache.py
 experiments/FES/scripts/trt/bench_rtmpose_cache.py
 experiments/FES/tests/test_hw_trigger.py
 experiments/FES/scripts/trt/bench_rtmpose_variants.py
+experiments/FES/tests/test_rtmpose_tracking.py

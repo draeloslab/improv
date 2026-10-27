@@ -283,7 +283,12 @@ class ProcessorBatch3D(Actor):
         self._getStoreInterface()
 
         if not self.pred_active:
-            logger.info("ProcessorBatch3D: pred_active=False, running as a no-op")
+            logger.info("ProcessorBatch3D: pred_active=False, no pose estimation; forwarding frame numbers only")
+            self.out_folder = run_folder()
+            self._wd_file = None
+            self.joint_names, self.skeleton_idx, self.bodyparts = [], [], []
+            self.frame_num = 0
+            self.queue_put_latencies, self.total_latencies = [], []
             return
 
         self.resize = config['resize']
@@ -931,6 +936,11 @@ class ProcessorBatch3D(Actor):
     def _run_step(self):
         """Gather -> store get -> pose estimation -> (association) -> triangulation -> _finish_step."""
         if not self.pred_active:
+            # frame-number passthrough: same message as triangulate=False, with no keypoints or angles
+            step_start = time.perf_counter()
+            _, starts, fnums, present, _ = self._gather_frames()
+            if present:
+                self._emit(None, {}, starts, fnums, present, None, step_start)
             return
 
         step_start = time.perf_counter()

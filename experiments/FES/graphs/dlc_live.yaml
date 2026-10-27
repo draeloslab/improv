@@ -22,7 +22,7 @@
 fes:
   source: live
   cameras: [0, 1, 2, 3, 4, 5, 6]
-  save_video: true
+  save_video: false
 
 actors:
   GUI: {package: actors.video_screen_3d, class: Visual3D, visual: VideoScreen3D}
@@ -54,6 +54,7 @@ actors:
     class: SenderUDP
     send_frame_num: true      # true: camera frame number with every packet (needs the rebuilt BRAND vision node)
     method: spawn
+    port: 11115
 
 connections:
   ProcessorBatch3D.q_out: [SenderUDP.joints_in, VideoScreen3D.preds_in]
