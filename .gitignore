@@ -187,3 +187,12 @@ experiments/FES/scripts/trt/validate_rtmpose_tracking.py
 
 # FES docs that belong in git
 !experiments/FES/README.md
+experiments/FES/actors/stim_gp.py
+experiments/FES/scripts/trt/bench_dlc_pipeline.py
+experiments/FES/scripts/trt/bench_dlc.py
+experiments/FES/scripts/trt/bench_mediapipe.py
+experiments/FES/scripts/trt/bench_onnx_tracker.py
+experiments/FES/scripts/trt/bench_onnx.py
+experiments/FES/scripts/trt/make_reference.py
+experiments/FES/scripts/trt/validate_dlc_onnx.py
+experiments/FES/scripts/trt/validate_onnx.py
