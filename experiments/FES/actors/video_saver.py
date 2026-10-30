@@ -24,10 +24,9 @@ class VideoSaver(ManagedActor):
     """Streams one camera's frames to buffer_NNNNN.bin files (buffer_length s each, length-prefixed raw
     frames) for VideoConverter to turn into an mp4 afterwards.
 
-    Each frame is fetched from the store as soon as its id arrives and handed to a writer thread. The saver
-    used to hold buffer_length s of ids and then fetch them all at once, which every 5 s hit Redis with
-    ~150 x 1.5 MB reads per camera -- Redis is single-threaded, so the cameras' writes queued behind them
-    (the frame-acquisition spikes every 5 s in run 20260917-1557).
+    Each frame is fetched from the store as soon as its id arrives and handed to a writer thread. Fetching a
+    whole buffer's ids at once would hit Redis with ~150 x 1.5 MB reads per camera every 5 s -- Redis is
+    single-threaded, so the cameras' writes would queue behind them.
     """
 
     def __init__(self, *args, **kwargs):
@@ -203,8 +202,7 @@ class VideoSaver(ManagedActor):
 
     def wait_conversion_process(self):
         """Wait for the GUI's video_conversion message on msg_in. Graphs that don't wire msg_in (the 3D
-        graphs) convert offline, so return at once -- this used to loop forever there and every quit had to
-        kill the saver."""
+        graphs) convert offline, so return at once."""
         link = self.links.get("msg_in")
         if link is None:
             logger.info(f"[Camera {self.camera_name}] no msg_in link: buffers left for offline conversion")

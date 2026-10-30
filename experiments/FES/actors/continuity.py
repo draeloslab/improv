@@ -4,7 +4,7 @@ step's points before joint angles, so the GUI, the angles and the UDP sender nev
 Per keypoint: hold the last value through a gap; when it comes back (or jumps more than jump_mm,
 e.g. another hand took over) glide to the new measurement over ~glide_frames (exponential,
 glide_alpha per frame) instead of stepping. Continuously measured keypoints pass straight through.
-NaN only before a keypoint is first seen. Same rule as analysis/fes_figures.continuous().
+NaN only before a keypoint is first seen.
 """
 import numpy as np
 

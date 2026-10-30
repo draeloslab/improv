@@ -12,7 +12,7 @@
 # Slot order = the order listed; the calibration toml (config.yaml calibration_toml) must contain every camera.
 # Engine (ONNX/TensorRT vs stock) is a config.yaml / config_overrides key, not a separate graph.
 #
-# Run: SENDER_UDP_IP=<brand ip> FES_CONDA_ENV=improvDLC3 fes-run mediapipe_live.yaml
+# Run: SENDER_UDP_IP=<brand ip> fes-run mediapipe_live.yaml
 
 fes:
   source: live

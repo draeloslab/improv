@@ -220,7 +220,7 @@ def main():
             raise RuntimeError(
                 f"actors were not all ready within {args.setup_timeout}s. "
                 f"A camera that failed to open is the usual reason -- check "
-                f"the log above and try scripts/usb-camera-rebind.sh."
+                f"the log above, and replug the camera if it is missing."
             )
         print("[drive] all actors ready")
 

@@ -69,7 +69,7 @@ class RTMPoseHands:
         max_hands: boxes kept per frame (best first). margin: pixels added around each box before cropping (default:
         the training config's bbox_margin). max_overlap: of two boxes overlapping more than this (IoU), only the better stays.
         pad_batch: always run the pose net on exactly this many crops (the last crop repeated, extra outputs dropped). With a
-        varying batch size the GPU re-plans every time the number of hands changes: ~32 ms instead of ~2 ms (measured 2026-10-15,
+        varying batch size the GPU re-plans every time the number of hands changes: ~32 ms instead of ~2 ms (on
         100% of size changes, 18% of steps over a 60 fps budget). Set it to max_hands x number of cameras; 0 = off.
         track: follow each hand from its previous keypoints instead of running the detector every step (see the module
         docstring). redetect_every / refresh_every: steps between detector runs on a camera that holds fewer than max_hands hands /

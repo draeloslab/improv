@@ -1,6 +1,6 @@
 """improv actor pair backing the 3D GUI (actors/front_end_3d.Camera3DWidget).
 
-Same shape as video_screen.Visual/VideoScreen, but the prediction side is a
+Same shape as old_rig/video_screen.Visual/VideoScreen, but the prediction side is a
 single link carrying one dict for all cameras (from ProcessorBatch3D) rather
 than one [pred, angle] message per camera.
 """
@@ -156,7 +156,7 @@ class VideoScreen3D(ManagedActor):
                 logger.debug(f"error decoding frame for camera {camera_id}: "
                              f"{traceback.format_exc()}")
 
-        # One entry per GUI tick (all cameras), not per camera as before.
+        # One entry per GUI tick (all cameras).
         self.frame_latencies.append(time.perf_counter() - frame_start)
         return frames
 

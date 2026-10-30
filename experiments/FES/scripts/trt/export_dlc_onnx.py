@@ -1,6 +1,6 @@
 """
 Export the DLC top-down models (SSDLite detector + ResNet pose net) to ONNX for actors/dlc_onnx.py, and check them against DLC's own
-runners on recorded frames. improvDLC3 env, run from ~ (not from a folder with utils.py):
+runners on recorded frames. fes env, run from ~ (not from a folder with utils.py):
 
     python export_dlc_onnx.py [--frame-size 960 720]
 

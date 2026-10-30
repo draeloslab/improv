@@ -2,38 +2,21 @@
 #
 # Start an FES experiment with one command.
 #
-# Replaces this sequence:
-#   conda activate improvPytorch2
-#   cd improv/experiments/FES
-#   rm *.log                      # because everything appended to one file
-#   improv cleanup
-#   improv run latency_benchmarking.yaml
-#   ...setup / run / stop / quit...
-#   copy the logs into the predictions folder by hand
-#
-# The log deletion and the copying are both gone: this picks a run id up front,
-# exports it as $IMPROV_RUN_ID, and every actor writes its logs and its .npy
-# files straight into ~/predictions/<date>/<run id>/. One folder per run, no
-# cleanup, nothing to move afterwards.
+# Picks a run id up front, exports it as $IMPROV_RUN_ID, and every actor writes its logs and its .npy files
+# into <output_path>/<date>/<run id>/ (output_path in config/config.yaml).
 #
 # USAGE
-#   fes-run                              # latency_benchmarking.yaml, with the TUI
-#   fes-run 5cam_test.yaml               # any yaml in experiments/FES
-#   fes-run --auto                       # headless: prompts ENTER to start/stop
-#   fes-run --auto 5cam_test.yaml
-#   fes-run --no-check 5cam_test.yaml    # skip the camera/redis/link preflight
-#   fes-run --dry-run 5cam_test.yaml     # preflight only, launch nothing
-#   fes-run --minutes 45 dlc_live.yaml   # planned run length: the disk/RAM preflight sizes the run against it
-#
-# OUT-OF-MEMORY / OUT-OF-DISK GUARD (scripts/resource_guard.py, thresholds in config/resource_guard.yaml):
-#   before launch it estimates RAM and raw-video disk for the planned length and asks before going on if the
-#   run won't fit; during the run it stops the run cleanly (stop -> flush -> quit) before RAM or disk is
-#   exhausted, instead of dropping frames or being OOM-killed. A stopped run leaves ABORTED_LOW_RESOURCES.txt.
+#   fes-run                                   # mediapipe_live.yaml, with the TUI
+#   fes-run dlc_live.yaml                     # a graph in graphs/, or any path to a yaml
+#   fes-run old_rig/graphs/2dof_test.yaml     # 2D xPC graphs
+#   fes-run --auto mediapipe_gen.yaml         # headless: prompts ENTER to start/stop
+#   fes-run --no-check dlc_live.yaml          # skip the camera/redis preflight
+#   fes-run --dry-run dlc_live.yaml           # preflight only, launch nothing
 #
 # MASTER GRAPHS (mediapipe_live / dlc_live / mediapipe_gen / dlc_hand_gen: any yaml with a `fes:` block) are expanded
 # first by scripts/fes_graph.py; the resolved graph is kept as <run folder>/graph.yaml. Options for those:
 #   fes-run mediapipe_live.yaml --cameras 0,3,5,6    # camera count/order for this run (physical camera numbers)
-#   fes-run mediapipe_live.yaml --save-video         # live only: record raw video (--no-save-video forces it off)
+#   fes-run mediapipe_live.yaml --save false         # record raw video? true (default) or false; overrides save_video in the yaml
 #
 set -uo pipefail
 
@@ -54,20 +37,19 @@ export IMPROV_STORE_TTL_S="${IMPROV_STORE_TTL_S:-15}"
 
 FES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONDA_ENV="${FES_CONDA_ENV:-improvDLC3}"
-DEFAULT_YAML="graphs/latency_benchmarking.yaml"
+DEFAULT_YAML="graphs/mediapipe_live.yaml"
 
-# Pin THIS script (and so everything it starts: the preflight checks, `improv cleanup`, improv) off the faulty
-# cores before anything runs. Only the final `improv run` used to be pinned, so `improv cleanup` ran on cpu0/1
-# and hit a kernel oops there at the start of every run (journalctl -k: "Comm: improv", CPU 0/1, seconds before
-# "new improv server session"). FES_CPUS overrides; cpu_affinity.exclude_cpus in config.yaml is the same list.
+# Pin THIS script (and so everything it starts: the preflight checks, `improv cleanup`, improv) to FES_CPUS
+# before anything runs. The default leaves out cpu0/1 (unstable on our rig); cpu_affinity.exclude_cpus in
+# config.yaml is the same list. Set FES_CPUS=0-$(( $(nproc --all) - 1 )) to use every core.
 FES_CPUS="${FES_CPUS:-2-$(( $(nproc --all) - 1 ))}"
 taskset -pc "$FES_CPUS" $$ >/dev/null 2>&1 || echo "[fes] warning: could not pin to CPUs $FES_CPUS" >&2
 
 AUTO=0
 CHECKS=1
 DRY_RUN=0
-MINUTES=""
 YAML=""
+SAVE=true
 GRAPH_ARGS=()
 
 while [ $# -gt 0 ]; do
@@ -75,10 +57,10 @@ while [ $# -gt 0 ]; do
         --auto)     AUTO=1 ;;
         --no-check) CHECKS=0 ;;
         --dry-run)  DRY_RUN=1 ;;
-        --minutes)  shift; MINUTES="${1:?--minutes needs a number}" ;;
         --cameras)  shift; GRAPH_ARGS+=(--cameras "${1:?--cameras needs a list, e.g. 0,3,5,6}") ;;
         --record-only) shift; GRAPH_ARGS+=(--record-only "${1?--record-only needs a list, e.g. 1}") ;;
-        --save-video|--no-save-video) GRAPH_ARGS+=("$1") ;;
+        --save)     shift; SAVE="${1:?--save needs true or false}"
+                    case "$SAVE" in true|false) ;; *) echo "error: --save must be true or false, got '$SAVE'" >&2; exit 1 ;; esac ;;
         -h|--help)  awk 'NR>1 && /^#/ {sub(/^# ?/,""); print; next} NR>1 {exit}' \
                         "${BASH_SOURCE[0]}"; exit 0 ;;
         -*)         echo "unknown option: $1" >&2; exit 1 ;;
@@ -143,10 +125,8 @@ fi
 
 # ------------------------------------------------------------------- run id
 
-# Computed once, here, and inherited by every actor process. This is what makes
-# them all agree on one output folder -- previously each actor called strftime
-# in its own setup(), so a run whose setup crossed a minute boundary split its
-# outputs across two folders. See actors/run_paths.py.
+# Computed once, here, and inherited by every actor process, so they all agree on one output folder even if
+# setup crosses a minute boundary. See actors/run_paths.py.
 export IMPROV_RUN_ID="${IMPROV_RUN_ID:-$(date +%Y%m%d-%H%M)}"
 
 RUN_DIR="$(python -c "
@@ -168,12 +148,13 @@ echo "[fes] logs   : $LOG_DIR"
 # A yaml with a `fes:` block is expanded into a plain improv graph in the run folder (cameras, savers, connections).
 if grep -qE '^fes:' "$YAML"; then
     RESOLVED="$RUN_DIR/graph.yaml"
+    [ "$SAVE" = true ] && GRAPH_ARGS+=(--save-video) || GRAPH_ARGS+=(--no-save-video)
     python "$FES_DIR/scripts/fes_graph.py" "$YAML" "$RESOLVED" "${GRAPH_ARGS[@]}" \
         || { echo "error: could not expand $YAML" >&2; exit 1; }
     echo "[fes] graph  : $YAML -> $RESOLVED"
     YAML="$RESOLVED"
 elif [ "${#GRAPH_ARGS[@]}" -gt 0 ]; then
-    echo "error: --cameras / --save-video only apply to master graphs (a yaml with a fes: block)" >&2
+    echo "error: --cameras / --record-only only apply to master graphs (a yaml with a fes: block)" >&2
     exit 1
 fi
 
@@ -207,22 +188,6 @@ if [ "$CHECKS" -eq 1 ]; then
         echo "  ! usbfs_memory_mb is $usbfs_mb: too small for $want_cams cameras -- run  sudo scripts/setup_realtime.sh on"
     fi
 
-    # RAM / disk estimate against what's free now, for the planned length.
-    echo "  resources (planned ${MINUTES:-default} min):"
-    python "$FES_DIR/scripts/resource_guard.py" preflight "$YAML" ${MINUTES:+--minutes "$MINUTES"}
-    res_status=$?
-    if [ "$res_status" -ne 0 ] && [ "$DRY_RUN" -eq 0 ]; then
-        echo
-        echo "  The run is likely to run out of $([ "$res_status" -eq 2 ] && echo 'room and be stopped early' || echo 'headroom')."
-        echo "  Options: fewer cameras (--cameras), no raw video (--no-save-video), a shorter --minutes, or free disk first."
-        if [ -t 0 ]; then
-            read -r -p "  Continue anyway? [y/N] " reply
-            case "$reply" in y|Y|yes) ;; *) echo "  aborted."; exit 1 ;; esac
-        else
-            echo "  (not interactive: continuing, the guard will stop the run before it starves)"
-        fi
-    fi
-
     # Redis, if the yaml declares a port.
     redis_port=$(awk '/^redis_config:/{f=1;next} f&&/port:/{print $2;exit}' "$YAML")
     if [ -n "${redis_port:-}" ]; then
@@ -231,16 +196,6 @@ if [ "$CHECKS" -eq 1 ]; then
             echo "  ok redis on $redis_port"
         else
             echo "  . redis not answering on $redis_port (improv will start its own)"
-        fi
-    fi
-
-    # xPC link, only when the yaml actually uses the Receiver.
-    if grep -qE '^\s*Receiver:' "$YAML"; then
-        if python -m actors.xpc_link >/dev/null 2>&1; then
-            echo "  ok xPC link"
-        else
-            echo "  ! xPC link is NOT ready -- the Receiver will get no packets:"
-            python -m actors.xpc_link 2>&1 | sed 's/^/    /'
         fi
     fi
 fi
@@ -269,23 +224,9 @@ printf 'y\n' | improv cleanup 2>&1 | sed 's/^/  /'
 
 # ----------------------------------------------------------------------- run
 
-# Keep every process (including unpinned ones) off faulty cores; see
-# cpu_affinity.exclude_cpus in config.yaml. FES_CPUS overrides.
-FES_CPUS="${FES_CPUS:-2-$(( $(nproc --all) - 1 ))}"
 echo
-echo "[fes] CPUs: $FES_CPUS (cpu0/cpu1 excluded: faulty core)"
+echo "[fes] CPUs: $FES_CPUS"
 
-# Resource guard: stops the run cleanly before RAM or disk runs out. In the TUI its output goes to a file (it
-# would scribble over the screen); headless, it prints straight to this terminal.
-if [ "$AUTO" -eq 1 ]; then
-    python "$FES_DIR/scripts/resource_guard.py" watch --logfile "$GLOBAL_LOG" --run-folder "$RUN_DIR" \
-        --headless --exit-when-gone $$ &
-else
-    python "$FES_DIR/scripts/resource_guard.py" watch --logfile "$GLOBAL_LOG" --run-folder "$RUN_DIR" \
-        --tui --exit-when-gone $$ >> "$LOG_DIR/resource_guard.log" 2>&1 &
-fi
-GUARD_PID=$!
-trap 'kill "$GUARD_PID" 2>/dev/null' EXIT
 if [ "$AUTO" -eq 1 ]; then
     echo "[fes] launching $YAML (headless)"
     taskset -c "$FES_CPUS" python "$FES_DIR/scripts/improv_drive.py" \
@@ -303,13 +244,6 @@ fi
 
 # -------------------------------------------------------------------- report
 
-kill "$GUARD_PID" 2>/dev/null
-echo
-if [ -f "$RUN_DIR/ABORTED_LOW_RESOURCES.txt" ]; then
-    echo "[fes] !!! THIS RUN WAS STOPPED EARLY by the resource guard (out of RAM or disk):"
-    sed 's/^/[fes]     /' "$RUN_DIR/ABORTED_LOW_RESOURCES.txt"
-    echo "[fes]     the data up to that point was flushed; see $LOG_DIR/resource_guard.log"
-fi
 echo
 if [ -d "$RUN_DIR" ]; then
     npy_count=$(find "$RUN_DIR" -maxdepth 1 -name '*.npy' | wc -l)
@@ -323,7 +257,6 @@ if [ -d "$RUN_DIR" ]; then
     video_dir="$HOME/camera_video/${IMPROV_RUN_ID:0:4}-${IMPROV_RUN_ID:4:2}-${IMPROV_RUN_ID:6:2}/${IMPROV_RUN_ID:9:4}00"
     if [ -d "$video_dir" ]; then
         echo "[fes]   video: $video_dir ($(du -sh "$video_dir" | cut -f1))"
-        echo "[fes]   convert it later with:  convert-day ${IMPROV_RUN_ID:0:4}-${IMPROV_RUN_ID:4:2}-${IMPROV_RUN_ID:6:2}"
     fi
 else
     echo "[fes] ! run folder was never created: $RUN_DIR"

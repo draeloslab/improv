@@ -216,7 +216,7 @@ class TIS:
 
     def _watch(self):
         """Report pipeline errors (a USB camera dropping out posts one) and cameras that stop delivering
-        frames. Nothing else listens to the bus, so a disconnect used to leave a silent, frameless actor."""
+        frames. Nothing else listens to the bus, so without this a disconnect leaves a silent, frameless actor."""
         bus = self.pipeline.get_bus()
         kinds = Gst.MessageType.ERROR | Gst.MessageType.EOS | Gst.MessageType.WARNING
         stalled = False

@@ -2,8 +2,8 @@
 
 Replaces "match hands across cameras by MediaPipe's handedness label", which on
 the rig pairs the monkey's hand in one camera with an experimenter's glove or the
-other hand in another (09-25 130900: ~95 px median reprojection error, bone
-lengths varying ~60%). Here a hand only exists in 3D if its detections in
+other hand in another (~95 px median reprojection error, bone lengths varying
+~60%). Here a hand only exists in 3D if its detections in
 different cameras actually agree geometrically.
 
 Per frame (HandTracker3D.step):
@@ -15,7 +15,7 @@ Per frame (HandTracker3D.step):
   3. hands are matched to tracks by palm-centre distance (Hungarian, gate_mm);
      a track's side (right/left) is the sign of its accumulated handedness votes
      (score-weighted, across cameras and frames), so one camera's wrong label
-     no longer flips a hand;
+     does not flip a hand;
   4. each side's output goes through a One-Euro filter per keypoint (MediaPipe's
      own landmark smoother); when a side is lost the last hand is held whole for
      hold_frames, and the filter resets when the palm jumps > reset_mm.
@@ -83,11 +83,11 @@ class HandTracker3D:
         """cgroup: aniposelib CameraGroup. tol_px: reprojection error for two detections to seed a hand.
         size_mm: plausible wrist -> middle-MCP length. gate_mm: palm distance to stay the same track. max_miss:
         frames a track survives unseen. smooth: OneEuroHand kwargs, or False for raw output.
-        join_tol_px: a further camera joins the hand if its MEDIAN keypoint error is below this (None = the old rule:
-        mean error below tol_px). keypoint_tol_px: per keypoint, views reprojecting worse than this are dropped (the
+        join_tol_px: a further camera joins the hand if its MEDIAN keypoint error is below this (None = mean error
+        below tol_px). keypoint_tol_px: per keypoint, views reprojecting worse than this are dropped (the
         worst first, down to 2 views) and the keypoint re-triangulated (None = off). hold_tol_px: hysteresis -- a
         camera that was in the hand last frame stays in while its median keypoint error is below this (None = off).
-        Why: with all-or-nothing camera membership the hand's camera set changed ~8x/s on 4 cameras (2026-10-02) and
+        Why: with all-or-nothing camera membership the hand's camera set changed ~8x/s on 4 cameras and
         each change moved the joint angles ~4-5 deg (>10 deg in ~20% of changes); one occluded finger's guessed
         landmarks pushed a whole camera out.
         triangulate: fn(points (C, N, 2), weights (C, N) or None) -> (N, 3), e.g. actors/triangulate.triangulator
@@ -296,7 +296,7 @@ class HandTracker3D:
 
 def glove_mask(frame_hsv, xy, teal=(85, 112, 60), white=None):
     """True if the hand's keypoints sit on an experimenter's glove (OpenCV HSV).
-    Measured 09-25: teal nitrile glove H~98 S~100; monkey hand H~8 S~48 V~47."""
+    Measured: teal nitrile glove H~98 S~100; monkey hand H~8 S~48 V~47."""
     h, w = frame_hsv.shape[:2]
     samples = []
     for x, y in np.asarray(xy, dtype=float):

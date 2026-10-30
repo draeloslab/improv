@@ -1,9 +1,9 @@
 """Bounded-memory, crash-safe per-step logs.
 
-A long run used to keep every step's 2D/3D keypoints in RAM and write them only in stop() (GBs per hour at 7
-cameras; a crash or kill lost the run). A ChunkLog keeps at most `every` rows in memory; each full block is
+Keeping every step's 2D/3D keypoints in RAM until stop() costs GBs per hour at 7 cameras, and a crash or kill
+loses the run. A ChunkLog keeps at most `every` rows in memory; each full block is
 written to <folder>/.parts/<name>/NNNNN.npy by one background thread per process, so the step never waits on
-the disk. stop() calls array() for the whole series and saves it as before, then drop_parts().
+the disk. stop() calls array() for the whole series and saves it, then drop_parts().
 
 After a crash, assemble what was written:  python -m actors.chunk_log <run folder>
 """

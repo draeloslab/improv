@@ -10,15 +10,14 @@
 #
 # hand_association: geometric -- each camera's right_*/left_* blocks are candidate hands, keypoints below
 # config.yaml `threshold` are dropped, and a hand exists in 3D only where cameras agree. "region" is the held-hand
-# tracker of the 2026-09-16 stimulation runs (learns the hand's place in the first 10 s, left_* block only) -- needs
-# that day's calibration, videos and a 960x540 detector export.
+# tracker (learns the hand's place in the first 10 s, left_* block only).
 #
-# Run: FES_CONDA_ENV=improvDLC3 fes-run dlc_hand_gen.yaml
+# Run: fes-run dlc_hand_gen.yaml
 
 fes:
   source: replay
   cameras: [0, 1, 3, 6]
-  generator: {session: '2026-10-09/123100'}
+  generator: {session: 'YYYY-MM-DD/HHMMSS'}   # REPLACE with a recorded session under ~/camera_video
 
 actors:
   GUI: {package: actors.video_screen_3d, class: Visual3D, visual: VideoScreen3D}
@@ -36,9 +35,8 @@ actors:
       dlc_onnx_frame_size: [960, 720]      # must match the videos (models/dlc_trt/dlc_detector_960x720.onnx)
       # dlc_engine: pytorch                # DeepLabCut's own runners instead of the ONNX default (config.yaml), to compare
       hand_association: geometric
-      # 10-07 00:14 board + 111100 hand keypoints (calibration/refine_calibration.py): hand in 3D 37% -> 43% of frames
-      # on held-out 111100 frames. cam0/cam6 seem to have moved since 00:14 -- use this for that day's sessions only.
-      calibration_toml: 'calibration/2026-10-07_001400/refined/calibration_board_hands.toml'
+      # must be the calibration of the replayed session's camera positions
+      calibration_toml: 'calibration/<session>/calibration.toml'
     method: spawn
 
   SenderUDP: {package: actors.sender_udp, class: SenderUDP, method: spawn}

@@ -408,7 +408,7 @@ class SenderUDP(Actor):
                 for name, v in ((n, self.last_joint_angles.get(n)) for n in self.joint_names)
             }
         else:
-            # None (no detection yet this run) / NaN -> null, as in 3D mode; float(None) used to raise here
+            # None (no detection yet this run) / NaN -> null, as in 3D mode
             angles_out = {str(cam): (float(a) if a is not None and np.isfinite(a) else None)
                           for cam, a in ((c, self.last_angle[c]) for c in sorted(self.last_angle))}
         payload = [self.packet_n, angles_out]
@@ -481,8 +481,8 @@ class SenderUDP(Actor):
         # --- Save all timing/data logs, one set of files per camera_num ---
         # Filenames are `_cam{N}.npy` where N is the REAL camera_num, so a
         # 1- or 2-camera run using camera_num 0 (and 2) reproduces the exact
-        # filenames actors.sender.Sender always wrote -- existing analysis
-        # tooling (freebie's loader) keeps working unmodified for those cases.
+        # filenames old_rig.sender.Sender writes, so the same analysis code
+        # reads both.
         # Any other camera_num used (1, 3, ...) gets its own files the same way.
         np.save(self.out_folder / "sender_timestamps.npy", self.send_timestamps)
         np.save(self.out_folder / "sender_step_latencies.npy", self.step_latencies)

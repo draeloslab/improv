@@ -1,23 +1,16 @@
 """Run-scoped output paths and logging, shared by every FES actor.
 
-Two problems this solves.
+**One run id.** The run id is computed once -- by the launcher, into
+``$IMPROV_RUN_ID`` -- and every actor reads it back. If each actor took the
+clock in its own ``setup()``, a run whose setup straddles a minute boundary
+(``camera_reader`` sleeps ~2 s for the capture stagger, processors load models)
+would scatter its ``.npy`` files across two sibling folders.
 
-**Split runs.** Each actor used to call ``time.strftime("%Y%m%d-%H%M")`` in its
-own ``setup()``, in its own process. They agreed only because the format is
-minute-resolution and setup normally finishes inside one minute. But
-``camera_reader`` deliberately sleeps ~2 s for the capture stagger and
-``processor`` loads a DLC model, so a run whose setup straddles a minute
-boundary scattered its ``.npy`` files across two sibling folders. Now the run id
-is computed once -- by the launcher, into ``$IMPROV_RUN_ID`` -- and every actor
-reads it back.
+**Logs in the run folder.** Every actor logs to ``<run folder>/logs/``, not to
+the directory ``improv run`` happened to be invoked from.
 
-**Logs in the CWD.** Each actor also opened ``logging.FileHandler("<name>.log")``
-with a bare relative path, at import time, so the logs landed wherever
-``improv run`` happened to be invoked from and were appended to across every run
-ever. Now they go to ``<run folder>/logs/``.
-
-Both fall back sanely when an actor is run directly, outside the launcher: the
-run id becomes the current minute, exactly as before.
+When an actor is run directly, outside the launcher, the run id is the current
+minute.
 """
 
 import logging
@@ -67,7 +60,7 @@ def output_root():
         try:
             with open(_CONFIG_PATH, "r") as fh:
                 config = yaml.safe_load(fh) or {}
-            _output_root = Path(config["output_path"])
+            _output_root = Path(config["output_path"]).expanduser()
         except Exception:
             # Never let a config problem stop an actor from starting: a run that
             # writes to the fallback is recoverable, one that dies in setup
@@ -105,13 +98,10 @@ def video_session_folder(raw_chunks_path="camera_video"):
     offline converter's output naming parses. Only the *source* of the
     timestamp changes here.
 
-    Each ``VideoSaver`` used to call ``time.strftime("%H%M%S")`` in its own
-    process, so the four savers of one run could straddle a second boundary and
-    scatter ``camera_0``..``camera_3`` across sibling folders. That is worse
-    than it sounds: the batch converter sizes each session folder to decide
-    whether it was a real run, so a split session can fall under the threshold
-    and be skipped as a debug run. Deriving from the shared run id makes all
-    savers agree. Seconds are always ``00`` -- the run id is minute-resolution.
+    Deriving it from the shared run id makes every ``VideoSaver`` of a run
+    agree, so ``camera_0``..``camera_N`` never scatter across sibling folders
+    (which the batch converter could then skip as too-small debug runs).
+    Seconds are always ``00`` -- the run id is minute-resolution.
     """
     rid = run_id()
     match = _RUN_ID_RE.match(rid)

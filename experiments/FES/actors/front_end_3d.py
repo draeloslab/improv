@@ -5,7 +5,7 @@ Layout (camera block 2 wide up to 4 cameras, 3 wide beyond; plots in the last co
     cam0        cam1        joint-angle plot   (one curve per joint)
     cam2        cam3        3D skeleton        (software-projected, no GL)
 
-Differs from front_end5.CameraStreamWidget in what it consumes: that one reads
+Differs from old_rig/front_end5.CameraStreamWidget in what it consumes: that one reads
 a per-camera [prediction, angle] message from one Processor per camera, this one
 reads a single dict from ProcessorBatch3D carrying every camera's 2D keypoints,
 the shared 3D keypoints, and the full joint-angle set.
@@ -165,8 +165,7 @@ class Camera3DWidget(QWidget):
             # Window (mm) around a slowly-tracked centre, fitted to the hand: it
             # shrinks to the skeleton's projected extent + margin, never below
             # view_half_range_mm, and changes slowly so it doesn't jitter as
-            # keypoints come and go. The old fixed 400 mm left a hand (~180 mm)
-            # a fifth of the panel.
+            # keypoints come and go.
             self._view_half_min = float(config.get('view_half_range_mm', 120))
             self._view_half = self._view_half_min
             self._view_centre = None
@@ -184,8 +183,7 @@ class Camera3DWidget(QWidget):
             self.kp_scatter = pg.ScatterPlotItem(
                 pen=pg.mkPen('k'), brush=pg.mkBrush(255, 80, 80, 255), size=10)
             self.plot3d_widget.addItem(self.kp_scatter)
-            # One PlotCurveItem per bone -- like the old GLLinePlotItem pool,
-            # each is independently shown/hidden depending on whether both its
+            # One PlotCurveItem per bone, each independently shown/hidden depending on whether both its
             # keypoints triangulated this frame.
             self.bone_items = []
             layout.addWidget(self.plot3d_widget, angle_span, cam_cols, cam_rows - angle_span, 1)
@@ -372,7 +370,7 @@ class Camera3DWidget(QWidget):
 
         # Fit the window to the skeleton (both hands when both are tracked):
         # grow at once when something would leave the panel, shrink slowly.
-        # (capped at the old 400 mm so one mis-triangulated point can't shrink the hand to a dot)
+        # (capped at 400 mm so one mis-triangulated point can't shrink the hand to a dot)
         need = min(400.0, max(self._view_half_min, 1.15 * float(np.abs(proj[finite]).max())))
         self._view_half = need if need > self._view_half else 0.97 * self._view_half + 0.03 * need
         self.plot3d_widget.setRange(xRange=(-self._view_half, self._view_half),

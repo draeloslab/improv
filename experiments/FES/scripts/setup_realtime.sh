@@ -54,18 +54,9 @@
 #              limit, memory is taken as buffers are allocated. `off` restores
 #              whatever it was before.
 #
-#   cameras    The cameras are bus-powered and run warm even when idle. `on`
-#              power-cycles them (which also forces a fresh USB3 link, the same
-#              thing replugging does -- cameras that came up at USB2 speed after a
-#              reboot recover), `off` cuts their port power. Needs hubs that
-#              support per-port power switching + uhubctl; see
-#              scripts/usb-camera-power.sh. DISABLED by default (it hung on this
-#              machine: uhubctl blocks in the kernel on the Intel root hubs);
-#              opt in with FES_CAMERA_POWER=1.
-#
 # Not done here, deliberately:
 #   - isolcpus / nohz_full would need a kernel cmdline change and a reboot.
-#   - CUDA MPS is a separate opt-in; see MULTICAM_3D_PLAN.md.
+#   - CUDA MPS (a separate opt-in).
 
 set -euo pipefail
 
@@ -75,7 +66,6 @@ IRQ_MATCH="xhci_hcd"
 USBFS_MB=2000              # 7 cameras x 60 fps; see the usbfs note above
 USBFS_PARAM=/sys/module/usbcore/parameters/usbfs_memory_mb
 USBFS_PREV=/run/fes_usbfs_memory_mb.prev
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 QUIET_TIMERS=(sysstat fwupd-refresh.timer anacron.timer apt-daily.timer
               apt-daily-upgrade.timer man-db.timer)
 
@@ -219,24 +209,12 @@ for t in "${QUIET_TIMERS[@]}"; do
     fi
 done
 
-# Last, so the cameras are power-cycled after every other setting is in place and are
-# fully enumerated (at USB3 speed) by the time you start improv.
-if [[ "${FES_CAMERA_POWER:-0}" == "1" ]]; then
-    echo "== Cameras"
-    if [[ -x "$SCRIPT_DIR/usb-camera-power.sh" ]]; then
-        "$SCRIPT_DIR/usb-camera-power.sh" "$MODE" || echo "   camera power step failed (see above); the rest of the setup is unaffected"
-    else
-        echo "   $SCRIPT_DIR/usb-camera-power.sh missing, skipping"
-    fi
-fi
-
 echo
 echo "Done ($MODE). Verify during a run with:"
 echo "  cat $USBFS_PARAM        # $USBFS_MB while on"
-echo "  scripts/usb-camera-power.sh status      # (read-only; camera power switching is off unless FES_CAMERA_POWER=1)"
 echo "  grep -E 'MHz' /proc/cpuinfo | sort -u | head"
 echo "  grep xhci /proc/interrupts"
-echo "  for p in \$(pgrep -f actors.processor); do echo -n \"\$p: \"; taskset -cp \$p; done"
+echo "  for p in \$(pgrep -f processor); do echo -n \"\$p: \"; taskset -cp \$p; done"
 echo "  nvidia-smi --query-gpu=persistence_mode,clocks.sm,clocks.max.sm --format=csv"
 echo "  nmcli radio wifi"
 echo "  systemctl list-timers --all | head -20"

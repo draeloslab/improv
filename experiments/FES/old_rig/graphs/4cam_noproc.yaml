@@ -9,13 +9,13 @@
 
 actors:
   GUI:
-    package: actors.video_screen
+    package: old_rig.video_screen
     class: Visual
     visual: VideoScreen
 
   # video screen: displaying the camera video frames
   VideoScreen:
-    package: actors.video_screen
+    package: old_rig.video_screen
     class: VideoScreen
     num_active_cameras: 5  # <-- must match the number of slots enabled below
 

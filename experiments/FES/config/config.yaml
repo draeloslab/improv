@@ -7,7 +7,7 @@
 # ============================================================================
 fps: 60                                      # replay frame rate and the One-Euro / 2D Kalman time step; the CAMERAS' rate is
                                              # camera_config.yaml `fps` -- keep the two the same
-output_path: '/home/chesteklab/predictions'  # run folders: <output_path>/<YYYYMMDD>/<run id>/ (logs + every .npy)
+output_path: '~/predictions'                # run folders: <output_path>/<YYYYMMDD>/<run id>/ (logs + every .npy)
 
 # Scale between the native camera resolution and the frames in the store. With camera_prescaled: true (live TIS
 # cameras, which downscale in GStreamer) nothing is resized again; the 2D Processor still uses `resize` to scale its
@@ -23,23 +23,23 @@ max_camera_slots: 4
 # ============================================================================
 # Generator{N} with camera_num: k plays video_paths[k]; without camera_num it plays video_path.
 video_paths:
-  0: '/home/chesteklab/camera_video/2026-09-25/130900/camera_video_0_0925_1309.mp4'
-  1: '/home/chesteklab/camera_video/2026-09-25/130900/camera_video_1_0925_1309.mp4'
-  2: '/home/chesteklab/camera_video/2026-09-25/130900/camera_video_2_0925_1309.mp4'
-  3: '/home/chesteklab/camera_video/2026-09-25/130900/camera_video_3_0925_1309.mp4'
-  4: '/home/chesteklab/camera_video/2026-09-25/130900/camera_video_4_0925_1309.mp4'
-  5: '/home/chesteklab/camera_video/2026-09-25/130900/camera_video_5_0925_1309.mp4'
-  6: '/home/chesteklab/camera_video/2026-09-25/130900/camera_video_6_0925_1309.mp4'
-video_path: '/home/chesteklab/camera_video/2026-10-09/123100/camera_video_2_1009_1231.mp4'
+  0: '/path/to/camera_video_0.mp4'
+  1: '/path/to/camera_video_1.mp4'
+  2: '/path/to/camera_video_2.mp4'
+  3: '/path/to/camera_video_3.mp4'
+  4: '/path/to/camera_video_4.mp4'
+  5: '/path/to/camera_video_5.mp4'
+  6: '/path/to/camera_video_6.mp4'
+video_path: '/path/to/camera_video_2.mp4'
 
 # ============================================================================
-# 2D per-camera DLC models (actors/processor.py, the xPC graphs)
+# 2D per-camera DLC models (old_rig/processor.py, the xPC graphs)
 # ============================================================================
-model_path_0: '/home/chesteklab/Desktop/Rhodes_NoDoors-Jake-2026-10-09/dlc-models-pytorch/iteration-1/Rhodes_NoDoorsOct9-trainset95shuffle1/train'
+model_path_0: '/path/to/dlc-project/dlc-models-pytorch/iteration-0/<shuffle>/train'
 model_snapshot_0: "snapshot-best-010.pt"
-model_path_1: '/home/chesteklab/Downloads/all_videos_side_viewFeb8-trainset95shuffle5/train'
+model_path_1: '/path/to/dlc-project/dlc-models-pytorch/iteration-0/<shuffle>/train'
 model_snapshot_1: "snapshot-best-010.pt"
-model_path_2: '/home/chesteklab/Desktop/Rhodes_NoDoors-Jake-2026-10-09/dlc-models-pytorch/iteration-1/Rhodes_NoDoorsOct9-trainset95shuffle1/train'
+model_path_2: '/path/to/dlc-project/dlc-models-pytorch/iteration-0/<shuffle>/train'
 model_snapshot_2: "snapshot-best-010.pt"
 
 # THE confidence threshold.
@@ -60,7 +60,7 @@ single_animal_predictor: true
 batch3d_backend: "mediapipe"
 
 # --- mediapipe backend ---
-mediapipe_model_path: '/home/chesteklab/Desktop/hand-tracking-notebooks-jake-2026-08-17/mediapipe/hand_landmarker.task'
+mediapipe_model_path: '/path/to/hand_landmarker.task'   # MediaPipe's HandLandmarker model file
 # Hands followed per camera. 2 = the palm detector keeps running while only one hand is visible (~10 ms more per step);
 # 1 = faster, but MediaPipe can latch onto a different hand run to run.
 mediapipe_num_hands: 2
@@ -89,8 +89,8 @@ onnx_providers: [[TensorrtExecutionProvider, {trt_fp16_enable: true}], CUDAExecu
 onnx_min_presence: 0.5
 
 # --- dlc backend ---
-# HandTrackingVideo1Aug7 shuffle 12: top-down (detector + pose net), 42 keypoints (right_*, then left_*, MP21 order).
-batch3d_model_path: '/home/chesteklab/HandTrackingVideo1Aug7-trainset80shuffle14/train'
+# Top-down DLC model (detector + pose net), 42 keypoints (right_*, then left_*, MediaPipe's 21-keypoint order).
+batch3d_model_path: '/path/to/dlc-project/dlc-models-pytorch/iteration-0/<shuffle>/train'
 batch3d_model_snapshot: "snapshot-best-160.pt"
 batch3d_detector_snapshot: "snapshot-detector-best-200.pt"   # unset for a bottom-up model
 # "pytorch" -> DeepLabCut's inference runners (~26 ms per 2-camera step).
@@ -102,9 +102,9 @@ dlc_onnx_frame_size: [960, 720]
 dlc_onnx_det_providers: null
 # TensorRT for the pose net saves ~0.5 ms and logs a harmless parse error; the detector is CUDA-only
 dlc_onnx_pose_providers: [CUDAExecutionProvider, CPUExecutionProvider]
-# dlc_engine "rtmpose_onnx": the one-hand-per-crop hand model trained in hand_training/ (SSDLite detector + RTMPose-m, 21
-# keypoints per hand, no left/right: see hand_side below). Export first: python scripts/trt/export_dlc_rtmpose_onnx.py
-# --project <project> (-> models/dlc_rtmpose/). Uses dlc_onnx_frame_size and the dlc_onnx_*_providers above.
+# dlc_engine "rtmpose_onnx": a one-hand-per-crop DLC hand model (SSDLite detector + RTMPose-m, 21 keypoints per hand, no
+# left/right: see hand_side below). Export first: python scripts/trt/export_dlc_rtmpose_onnx.py --project <project>
+# (-> models/dlc_rtmpose/). Uses dlc_onnx_frame_size and the dlc_onnx_*_providers above.
 dlc_rtmpose_models_dir: null            # null = models/dlc_rtmpose
 dlc_rtmpose_det_score: 0.3              # detector confidence for a box to count as a hand (the detector reports from 0.01)
 dlc_rtmpose_max_hands: 2                # boxes kept per camera
@@ -112,15 +112,15 @@ dlc_rtmpose_max_hands: 2                # boxes kept per camera
 # keypoints from the previous step, grown by track_pad (fraction of the box's long side). The detector (one batched call for all
 # cameras that need it) runs only on a camera with no hand, every redetect_every steps on a camera holding fewer than max_hands
 # (to find the second hand), and every refresh_every steps on any camera (0 = never). A hand is lost when fewer than
-# dlc_min_keypoints keypoints reach dlc_rtmpose_keypoint_min_likelihood. false = detector on every frame, as before 2026-10-16.
+# dlc_min_keypoints keypoints reach dlc_rtmpose_keypoint_min_likelihood. false = detector on every frame.
 dlc_rtmpose_track: true
 dlc_rtmpose_redetect_every: 15
 dlc_rtmpose_refresh_every: 0
 dlc_rtmpose_track_pad: 0.1
 dlc_rtmpose_keypoint_min_likelihood: 0.3  # keypoints below this are dropped before association (SimCC peak probability)
-# Detector box score a hand needs to enter the geometric association. null = dlc_rtmpose_det_score (the box gate above). It was
-# the MediaPipe-oriented `threshold` (0.7) until 2026-10-16: this model's boxes score 0.35-0.54 on a new subject, so every hand
-# was dropped before the cameras could agree on it (10-13: 0% 3D hands). The reprojection check does the filtering.
+# Detector box score a hand needs to enter the geometric association. null = dlc_rtmpose_det_score (the box gate above). Not
+# `threshold` (0.7, MediaPipe-oriented): this model's boxes score 0.35-0.54 on a new subject, so every hand would be dropped
+# before the cameras could agree on it. The reprojection check does the filtering.
 dlc_rtmpose_hand_score: null
 # Which output block a tracked hand goes in. votes = MediaPipe's handedness (default). position = no handedness needed:
 # the hand further left in `camera`'s image gets the `leftmost` block (right|left), the other the other; a lone hand keeps its
@@ -142,8 +142,8 @@ kalman_measurement_var: 10
 # 3D: calibration, association, smoothing
 # ============================================================================
 # anipose calibration. Live 2D points are rescaled to each camera's calibrated frame size automatically.
-calibration_toml: 'calibration/2026-10-13_131500/calibration.toml'   # cams 0, 3, 5, 6 at 960x720 (7cam_test, 2026-10-02)
-calibration_camera_names: {}   # camera_num -> name in the toml (default "cam{N}"); the 10-02 toml uses cam0/cam3/cam5/cam6
+calibration_toml: 'calibration/<session>/calibration.toml'
+calibration_camera_names: {}   # camera_num -> name in the toml (default "cam{N}")
 triangulation_min_cameras: 2          # cameras that must see a keypoint (2 is the geometric minimum)
 # "weighted_dlt": each camera's view of a keypoint counts in proportion to its confidence (DLC likelihood; MediaPipe
 #                 has only a per-hand score, so there it is close to equal weights) -- actors/triangulate.py.
@@ -160,10 +160,10 @@ triangulation_min_weight: 0.05        # weight floor for a kept view (2D-Kalman 
 hand_association: geometric
 geometric_association:
   tol_px: 12                # reprojection error to join a hand. 8 rejected the hand in 61% of the frames it was lost
-                            # although both cameras saw it (2026-10-01, 2 cameras); higher = more coverage, more jumps
+                            # although both cameras saw it; higher = more coverage, more jumps
   # Hysteresis: a camera that was in the hand last frame stays in while its MEDIAN keypoint error is below this.
-  # Without it the 4-camera hand changed camera set ~8.6x/s and each change moved the joint angles 4-5 deg (2026-10-02
-  # run 1620, replayed: hold 40 -> 1.1-2.1 changes/s, >10-deg jumps index 2.6% -> 0.8-1.2%, ring 4.7% -> 1.0-2.2%).
+  # Without it a 4-camera hand changed camera set ~8.6x/s and each change moved the joint angles 4-5 deg (hold 40:
+  # 1.1-2.1 changes/s, >10-deg jumps index 2.6% -> 0.8-1.2%, ring 4.7% -> 1.0-2.2%).
   hold_tol_px: 40
   hand_size_mm: [20, 200]   # plausible wrist -> middle MCP length
   dlc_min_keypoints: 8      # dlc: keypoints at or above `threshold` a right_*/left_* block needs to be a candidate
@@ -171,7 +171,7 @@ geometric_association:
   max_miss: 10              # frames a track survives unseen
   # One-Euro filter per keypoint (false = off). min_cutoff (Hz): smoothing at rest; beta: how quickly smoothing
   # relaxes with speed; hold_frames: frames the last hand is repeated when lost; reset_mm: palm jump that restarts it.
-  # Measured lag of the smoothed points behind the raw ones: ~50 ms median (2026-09-30 1 DOF run).
+  # Measured lag of the smoothed points behind the raw ones: ~50 ms median.
   smooth: {min_cutoff: 1.0, beta: 0.05, hold_frames: 5, reset_mm: 60}   # used only with smoothing_3d.method: one_euro
   reject_gloves: {}         # e.g. {teal: [85, 112, 60]}; no measurable effect with geometric association
 
@@ -203,7 +203,7 @@ smoothing_3d:
 
 # hand_association: region (dlc backend): 3D of ONE hand that stays in one place (the stimulated hand an
 # experimenter holds), from the two-hand DLC model (actors/held_hand3d.py). Its place is learned during the first
-# warmup_s seconds (no output then). Validated 2026-09-16 11:53: MCP angles within 1.1-1.5 deg of the offline analysis.
+# warmup_s seconds (no output then). Validated offline: MCP angles within 1.1-1.5 deg of the offline analysis.
 held_hand:
   likelihood: 0.3        # DLC keypoint likelihood to use a point
   max_px: 15             # a 3D point must reproject within this in every camera
@@ -225,8 +225,8 @@ cpu_affinity:
   enabled: true
   compute_slots: 4          # P-cores for ProcessorBatch3D (mediapipe: 31.7 ms on 4 cores vs 29.2 on 7, 4 cameras)
   avoid_cpus: [12, 13]      # handed out last: they carry the cameras' USB interrupt (scripts/setup_realtime.sh moves it)
-  # Never used by any actor: physical core 0 of this CPU is faulty (crashes / wrong results in 22/60 and 11/60 test
-  # runs, 2026-09-25). fes-run.sh launches everything off it too.
+  # Never used by any actor (physical core 0 is unstable on our rig; [] to use every core). fes-run.sh's FES_CPUS
+  # launches everything off it too.
   exclude_cpus: [0, 1]
   overrides: {}             # per-actor CPU lists keyed by log label, e.g. {"Processor cam3": [14, 15]}
 
@@ -243,11 +243,7 @@ bayes_opt:
   # Joints the GPs model and the target is scored on (the processor's joint names; region mode = left_*).
   joints: [left_INDEX_MCP, left_MIDDLE_MCP, left_RING_MCP, left_PINKY_MCP]
   # Analysed runs whose stim_joint_response.csv seed the GPs (joint columns get prior_joint_prefix). [] = from scratch.
-  prior_runs:
-    - analysis/stim_1153/walkthrough_out_0909_1352
-    - analysis/stim_1153/walkthrough_out
-    - analysis/stim_1153/walkthrough_out_1203
-    - analysis/stim_1153/walkthrough_out_1218
+  prior_runs: []
   prior_joint_prefix: left_
   refit_every: 10            # trials between hyper-parameter refits (background thread)
   space:                     # candidates = every electrode set x pulse width x frequency x current below

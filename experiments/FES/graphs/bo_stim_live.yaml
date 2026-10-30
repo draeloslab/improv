@@ -1,6 +1,6 @@
 # Closed-loop Bayesian optimisation of the stimulation, live cameras.
 #
-#   CameraReader1..6 ─┬─> ProcessorBatch3D ─┬─> SenderUDP.joints_in ──> BRAND :11115 (joint angles, as before)
+#   CameraReader1..6 ─┬─> ProcessorBatch3D ─┬─> SenderUDP.joints_in ──> BRAND :11115 (joint angles)
 #                     │   (dlc, held hand)  ├─> VideoScreen3D.preds_in
 #                     │                     └─> BayesOptStim.joints_in
 #                     ├─> VideoScreen3D.images{N}_in
@@ -12,10 +12,9 @@
 # drives the cerestim node, and reports stim_on/stim_off from cerestim_output plus the virtual hand's
 # target). Settings: config.yaml `bayes_opt` and `brand_link`.
 #
-# BEFORE RUNNING: set camera_nums to the cameras in the new layout, and calibration_toml to the calibration
-# made for it (the 09-16 file below only covers cams 1 and 2).
+# BEFORE RUNNING: set camera_nums to your cameras, and calibration_toml to the calibration made for them.
 #
-# Run: FES_CONDA_ENV=improvDLC3 fes-run bo_stim_live.yaml      (the dlc backend needs DLC 3.0.2)
+# Run: fes-run bo_stim_live.yaml      (the dlc backend needs DLC 3.0.2)
 
 actors:
   GUI:
@@ -46,7 +45,7 @@ actors:
     config_overrides:
       batch3d_backend: dlc
       hand_association: region
-      calibration_toml: 'analysis/stim_1153/walkthrough_out/calibration_corrected.toml'   # REPLACE with the new layout's
+      calibration_toml: 'calibration/<session>/calibration.toml'   # REPLACE with this camera layout's calibration
     method: spawn
 
   BayesOptStim:

@@ -1,30 +1,30 @@
 actors:
   GUI:
-    package: actors.video_screen
+    package: old_rig.video_screen
     class: Visual
     visual: VideoScreen
 
   # video screen: displaying the camera video frames
   VideoScreen:
-    package: actors.video_screen
+    package: old_rig.video_screen
     class: VideoScreen
     num_active_cameras: 2
   
   Processor0:
-    package: actors.processor
+    package: old_rig.processor
     class: Processor
     pred_active: True
     camera_num: 0
     method: spawn
 
   Processor1:
-    package: actors.processor
+    package: old_rig.processor
     class: Processor
     pred_active: True
     camera_num: 1
     method: spawn
 
-# Uncomment this to run psuedo cameras
+# Uncomment this to replay recorded video instead of live cameras
   # Generator0:
   #   package: actors.generator
   #   class: Generator
@@ -63,7 +63,7 @@ actors:
     method: spawn
 
   Sender:
-    package: actors.sender
+    package: old_rig.sender
     class: Sender
     method: spawn
 
@@ -73,9 +73,9 @@ connections:
   # CameraReader0.q_out: [VideoSaver0.q_in, Processor0.q_in]
   # CameraReader1.q_out: [VideoSaver1.q_in, Processor1.q_in]
   # CameraReader2.q_out: [VideoSaver2.q_in, Processor2.q_in]
-  Processor0.q_out: [VideoScreen.preds0_in, Sender.preds0_in] 
-  # Processor1.q_out: [VideoScreen.preds1_in]
-  Processor1.q_out: [VideoScreen.preds1_in, Sender.preds1_in]
+  # Sender reads the top camera on preds0_in and the side camera on preds2_in
+  Processor0.q_out: [VideoScreen.preds0_in, Sender.preds0_in]
+  Processor1.q_out: [VideoScreen.preds1_in, Sender.preds2_in]
 
 redis_config:
   port: 6379

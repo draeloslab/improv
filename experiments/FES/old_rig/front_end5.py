@@ -15,44 +15,25 @@ import pyqtgraph as pg
 from collections import deque
 
 import logging
-from .run_paths import get_logger
+from actors.run_paths import get_logger
 
 logger = get_logger(__name__, "video_screen.log")
 logging.getLogger('matplotlib.font_manager').setLevel(logging.WARNING)
 
-# Keypoint drawing schemes keyed by how many points the model returned this
-# frame -- see display_frame(). `skeleton` is pairs of *label* names to
-# connect (looked up to indices at draw time); None means "chain consecutive
-# points in list order" instead, which is what the two DLC schemes always did.
-# circle_d/font_pt are sized down for the 11-point JARVIS hand model
-# (actors/processor_jarvis.py, removed 2026-09-26; in git history), which packs far more keypoints into the same
-# frame area than the old single-finger DLC models (1 or 4 points) did -- the
-# original circle_d=50/font_pt=50 would heavily overlap between fingers.
+# Keypoint drawing schemes keyed by how many points the model returned this frame -- see display_frame().
+# `skeleton` is pairs of label names to connect; None chains consecutive points in list order.
 _KEYPOINT_SCHEMES = {
-    1: {  # DLC single-point model (camera_num == 2's old subsetting)
+    1: {  # DLC single-point model
         "labels": ["PIP"],
         "skeleton": None,
         "circle_d": 50,
         "font_pt": 50,
     },
-    4: {  # DLC single-finger model (processor.py, fatigueRhodesAll)
+    4: {  # DLC single-finger model
         "labels": ["DIP", "PIP", "MCP", "Wrist"],
         "skeleton": None,  # sequential chain: DIP-PIP-MCP-Wrist
         "circle_d": 50,
         "font_pt": 50,
-    },
-    11: {  # JARVIS whole-hand fine-tune (processor_jarvis.py, removed; fisk_freebie)
-        "labels": ["Wrist", "Thumb_Tip", "Thumb_IP", "Index_Tip", "Index_MCP",
-                   "Middle_Tip", "Middle_MCP", "Ring_Tip", "Ring_MCP", "Small_Tip", "Small_MCP"],
-        "skeleton": [
-            ("Wrist", "Thumb_IP"), ("Thumb_IP", "Thumb_Tip"),
-            ("Wrist", "Index_MCP"), ("Index_MCP", "Index_Tip"),
-            ("Wrist", "Middle_MCP"), ("Middle_MCP", "Middle_Tip"),
-            ("Wrist", "Ring_MCP"), ("Ring_MCP", "Ring_Tip"),
-            ("Wrist", "Small_MCP"), ("Small_MCP", "Small_Tip"),
-        ],
-        "circle_d": 16,
-        "font_pt": 14,
     },
 }
 
@@ -75,12 +56,8 @@ class CameraStreamWidget(QWidget):
             self.last_predictions = [None for _ in range(self.visual.num_cameras)]
             self.last_angles = [0.0 for _ in range(self.visual.num_cameras)]
 
-            # Angle plot state, keyed by real camera_num (not GUI slot index --
-            # see getLastFrame's camera_num return). Populated lazily the first
-            # time each camera_num is seen, so this handles 1..4 cameras with no
-            # hardcoded "camera 0" / "camera 2" special-casing. All cameras
-            # share one y-axis (see update_angle_plot) rather than the old
-            # two-viewbox hack, which does not generalize past 2 series.
+            # Angle plot state, keyed by real camera_num (not GUI slot index -- see getLastFrame's camera_num
+            # return), filled the first time each camera_num is seen. All cameras share one y-axis.
             self.angle_history = {}   # camera_num -> list of recent angles (capped at 100)
             self.angle_curves = {}    # camera_num -> pg.PlotDataItem
             self.angle_y_min = np.inf
@@ -126,10 +103,7 @@ class CameraStreamWidget(QWidget):
                 label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
                 layout.addWidget(label, i // n_cols, i % n_cols)
 
-            # Add a PyQtGraph PlotWidget for the angle plot. One shared y-axis
-            # for every active camera (up to 4), each camera as its own
-            # coloured curve with a legend -- generalizes cleanly to however
-            # many cameras this run has, unlike a per-camera secondary y-axis.
+            # Angle plot: one shared y-axis, one coloured curve per active camera (up to 4).
             self.angle_plot_widget = pg.PlotWidget()
             self.angle_plot_widget.setMinimumSize(320, 240)
             self.angle_plot_widget.setBackground('w')
@@ -189,18 +163,13 @@ class CameraStreamWidget(QWidget):
                 # Use cached angle if current one is None
                 display_angle = angle if angle is not None else self.last_angles[camera_id]
 
-                # Nothing new for this camera: the label already shows it. Re-scaling a
-                # 960x540 pixmap for every idle camera on every tick is what makes a
-                # many-camera GUI fall behind.
+                # Nothing new for this camera: the label already shows it, so skip the re-scale.
                 if frame is None and predictions is None and angle is None and self.last_frame[camera_id] is not None:
                     continue
 
                 self.display_frame(self.last_frame[camera_id], display_predictions, self.camera_labels[camera_id], display_angle, camera_id)
 
-                # Update the angle plot if an angle is provided. Keyed by real
-                # camera_num (not the GUI slot loop index camera_id), so this
-                # handles however many cameras are active -- 1 to 4 -- with no
-                # per-slot special-casing.
+                # Update the angle plot, keyed by real camera_num (not the GUI slot index camera_id).
                 if angle is not None and np.isfinite(angle):
                     if camera_num not in self.angle_curves:
                         self._new_angle_curve(camera_num)
@@ -237,11 +206,7 @@ class CameraStreamWidget(QWidget):
         if predictions is not None:
             painter.setBrush(QBrush(QColor(255, 0, 0)))
 
-            # Keypoint scheme is chosen from how many the model actually
-            # returned this frame, not from camera_id -- self-describing, and
-            # it doesn't break if a camera_num<->model mapping ever changes.
-            # See _KEYPOINT_SCHEMES: 1/4 are the original DLC single-finger
-            # models (unchanged look), 11 is the JARVIS whole-hand fine-tune.
+            # Keypoint scheme is chosen from how many keypoints the model returned (see _KEYPOINT_SCHEMES).
             scheme = _KEYPOINT_SCHEMES.get(len(predictions))
             if scheme is not None:
                 labels = scheme["labels"]
@@ -260,14 +225,9 @@ class CameraStreamWidget(QWidget):
             circle_d = max(4, int(round(circle_d * marker_scale)))
             font_pt = max(6, int(round(font_pt * marker_scale)))
 
-            # Pass 1: draw every keypoint the model returns, regardless of
-            # confidence. Only genuinely undrawable values (NaN from a failed
-            # PAF assembly, or the -1/-2 "no detection" sentinel both DLC and
-            # ProcessorJarvis use) are skipped -- there is no coordinate to
-            # draw in those cases. Low-confidence keypoints are drawn hollow
-            # and dimmer so they're still visibly distinguishable from
-            # confident ones. Points are cached in frame (post-resize) pixel
-            # coordinates for the skeleton pass below.
+            # Pass 1: draw every keypoint, whatever its confidence. Only NaN (failed PAF assembly) and DLC's
+            # -1/-2 "no detection" sentinels are skipped. Low-confidence keypoints are drawn hollow and dimmer.
+            # Points are cached in frame (post-resize) pixel coordinates for the skeleton pass below.
             points_px = [None] * len(predictions)
             for i, point in enumerate(predictions):
                 x, y, likelihood = point
@@ -289,13 +249,8 @@ class CameraStreamWidget(QWidget):
                 painter.setFont(QFont("Arial", font_pt))
                 painter.drawText(int(x) + circle_d // 3, int(y) + circle_d // 3, labels[i % len(labels)])
 
-            # Pass 2: skeleton lines. Schemes with an explicit `skeleton` (the
-            # 11-point hand) connect anatomically adjacent named joints --
-            # connecting *consecutive list indices* would zigzag across the
-            # whole hand for that scheme, since BODYPARTS groups Tip/IP/MCP
-            # pairs by finger, not as one walkable path. Schemes with
-            # `skeleton: None` (the two single-finger DLC models) keep the
-            # original behaviour of chaining consecutive points in order.
+            # Pass 2: skeleton lines. A scheme with an explicit `skeleton` connects the named joint pairs;
+            # `skeleton: None` chains consecutive points in order.
             painter.setPen(QPen(QColor(255, 255, 255), 2))
             if skeleton_idx is not None:
                 for a, b in skeleton_idx:
@@ -315,8 +270,7 @@ class CameraStreamWidget(QWidget):
         # Always draw angle text on every frame
         painter.setPen(QPen(QColor(0, 255, 0), 2))
         painter.setFont(QFont("Arial", 50))
-        # `angle is not None` alone let NaN through and rendered a literal "nan°";
-        # check for a real number instead.
+        # Skip NaN as well as None, so no literal "nan°" is drawn.
         angle_ok = angle is not None and np.isfinite(angle)
         angle_text = f"Angle: {angle:.2f}°" if angle_ok else "Angle: N/A"
         painter.drawText(10, 50, angle_text)

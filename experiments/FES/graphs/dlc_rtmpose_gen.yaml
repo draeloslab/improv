@@ -1,5 +1,5 @@
-# One-hand-per-crop DLC hand model (hand_training/: SSDLite detector + RTMPose-m, 21 keypoints per hand) on a recorded
-# session, no cameras.
+# One-hand-per-crop DLC hand model (SSDLite detector + RTMPose-m, 21 keypoints per hand) on a recorded session, no
+# cameras.
 #
 #   Generator{slot} -+-> ProcessorBatch3D --> SenderUDP.joints_in, VideoScreen3D.preds_in
 #                      +-> VideoScreen3D.images{slot}_in
@@ -9,23 +9,16 @@
 #   fes-run dlc_rtmpose_gen.yaml --cameras 0,3,6
 #
 # BEFORE THE FIRST RUN, export the trained model to ONNX (once per trained model, and once per frame size):
-#   python ~/improv/experiments/FES/scripts/trt/export_dlc_rtmpose_onnx.py --project ~/dlc_projects/FESHand21-jake-2026-10-09
-#   -> models/dlc_rtmpose/ (best pose + detector snapshots; meta.json says which)
-#
-# Run:  FES_CONDA_ENV=improvDLC3 fes-run dlc_rtmpose_gen.yaml        (improvDLC3 has onnxruntime-gpu; stock DLC is enough)
+#   python scripts/trt/export_dlc_rtmpose_onnx.py --project /path/to/dlc-project    -> models/dlc_rtmpose/
 #
 # What the overrides do:
-#   dlc_engine rtmpose_onnx       the ONNX hand model above instead of the old two-hand DLC model
+#   dlc_engine rtmpose_onnx       the ONNX hand model above instead of the two-hand DLC model
 #   dlc_rtmpose_det_score         detector confidence for a box to count as a hand (0.3; lower = more hands, more false boxes)
 #   dlc_rtmpose_max_hands         boxes kept per camera
 #   hand_side                     the model has no left/right: the hand further LEFT in camera `camera`'s image goes to the
 #                                 `leftmost` output block (right_* or left_*); flip `leftmost` if the blocks come out swapped
-#   calibration_toml              MUST be the calibration of that session's camera positions. Set for 10-07 below (the 10-07 board
-#                                 calibration refined with hand keypoints). NOTE this session is one the model was trained on
-#                                 (a few hundred frames of it), so it shows that the pipeline works, not how well it generalises.
-#                                 For the 10-13 sessions use cameras [0, 3, 5, 6] and calibration/2026-10-13_131500: tried on
-#                                 10-13/124900 it gave NO 3D hands (cameras probably moved between 12:49 and the 13:15 board
-#                                 recording) -- recalibrate right after a session before trusting it.
+#   calibration_toml              MUST be the calibration of that session's camera positions; recalibrate right after a
+#                                 session if the cameras may have moved.
 
 fes:
   source: replay
@@ -52,7 +45,7 @@ actors:
       dlc_rtmpose_det_score: 0.3
       dlc_rtmpose_max_hands: 2
       hand_association: geometric
-      triangulation_method: dlt            # equal-weight DLT: the likelihood-weighted one gave 2.7x more joint-angle jitter and no better held-out accuracy (2026-10-15)
+      triangulation_method: dlt            # equal-weight DLT: the likelihood-weighted one gave 2.7x more joint-angle jitter and no better held-out accuracy
       hand_side: {mode: position, camera: 3, leftmost: right}
       calibration_toml: 'calibration/2026-10-07_001400/refined/calibration_board_hands.toml'
     method: spawn

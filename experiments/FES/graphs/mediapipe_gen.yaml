@@ -8,7 +8,7 @@
 # (`session` = 'YYYY-MM-DD/HHMMSS' under ~/camera_video, applied to every Generator via fes.generator); add
 # `subfolder: raw` to play the session's raw/ copies instead.  fes-run mediapipe_gen.yaml --cameras 0,3,6
 #
-# Run: FES_CONDA_ENV=improvDLC3 fes-run mediapipe_gen.yaml
+# Run: fes-run mediapipe_gen.yaml
 
 fes:
   source: replay
@@ -30,8 +30,7 @@ actors:
       batch3d_backend: mediapipe
       # mediapipe_engine: mediapipe   # stock CPU MediaPipe instead of the ONNX/TensorRT default (config.yaml), to compare
       hand_association: geometric
-      # 10-07 00:14 board + 111100 hand keypoints (calibration/refine_calibration.py): hand in 3D 37% -> 43% of frames
-      # on held-out 111100 frames. cam0/cam6 seem to have moved since 00:14 -- use this for that day's sessions only.
+      # must be the calibration of the replayed session's camera positions
       calibration_toml: 'calibration/2026-10-07_001400/refined/calibration_board_hands.toml'
     method: spawn
 

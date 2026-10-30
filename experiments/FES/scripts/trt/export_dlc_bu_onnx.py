@@ -1,6 +1,6 @@
 """
 Export a bottom-up (single-stage, no detector) DLC model, e.g. the 1-keypoint per-camera models config.yaml model_path_N, to ONNX
-for actors/dlc_onnx.py DlcOnnxBottomUp, and check it against the PyTorch net on random frames. improvDLC3 env, run from ~:
+for actors/dlc_onnx.py DlcOnnxBottomUp, and check it against the PyTorch net on random frames. fes env, run from ~:
 
     python export_dlc_bu_onnx.py --camera 2 [--frame-size 960 720]      # model_path_2 / model_snapshot_2 from config.yaml
     python export_dlc_bu_onnx.py --train-dir <.../train> --snapshot snapshot-200.pt --out models/dlc_trt/dlc_bu_cam2.onnx

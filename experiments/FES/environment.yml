@@ -1,4 +1,4 @@
-# Conda environment for experiments/FES (the env the rig runs is improvDLC3; this reproduces it).
+# Conda environment for experiments/FES.
 #
 #   conda env create -f experiments/FES/environment.yml      # from the improv repo root
 #   conda activate fes

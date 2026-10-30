@@ -1,35 +1,33 @@
 # One camera -> DLC keypoint -> 1-DOF control signal over UDP.
 #
-#   CameraReader0 ─┬─> Processor0 ─┬─> SenderUDP.preds0_in  ──UDP──> brand-monkeyrig `vision` node
+#   CameraReader0 ─┬─> Processor0 ─┬─> SenderUDP.preds0_in  ──UDP──> BRAND `vision` node
 #                  │               └─> VideoScreen.preds0_in
 #                  ├─> VideoScreen.images0_in
 #                  └─> VideoSaver2.q_in
 #
-# Processor (actors/processor.py) runs the per-camera DLC model
+# Processor (old_rig/processor.py) runs the per-camera DLC model
 # (config.yaml: model_path_2 / model_snapshot_2, a PIP-only model) and emits ONE
 # scalar per frame: the Y pixel of the PIP keypoint (a 1-keypoint model falls
 # into processor.py's "<3 points" branch, which takes prediction[0][1] = y),
-# Kalman-filtered and divided by `resize` (full-resolution pixels; ~930-1020 on
-# 09-28). Before the first detection of a run it is sent as null.
+# Kalman-filtered and divided by `resize` (full-resolution pixels). Before the
+# first detection of a run it is sent as null.
 #
 # SenderUDP sends [packet_n, {"2": <that scalar>}] to SENDER_UDP_IP:SENDER_UDP_PORT
-# (env vars; defaults 192.168.137.201:11115, the port the brand `vision` node
-# listens on). The brand side therefore sees vision_data.angles == {"2": y_px}
-# and angles_vec == [y_px]. It is RAW PIXELS, not degrees -- vision_dofs's
-# angle_range is a pixel range [extended, flexed] (brand-monkeyrig
-# graphs/monkey/rhodes_1d_universal.yaml).
+# (env vars). The BRAND side therefore sees vision_data.angles == {"2": y_px}
+# and angles_vec == [y_px]. It is RAW PIXELS, not degrees -- the BRAND graph's
+# angle_range is a pixel range [extended, flexed].
 #
 # VideoSaver2 records camera 2's frames (camera_num indexes active_cameras in
 # camera_config.yaml, so it must match CameraReader0's camera_num).
 
 actors:
   GUI:
-    package: actors.video_screen
+    package: old_rig.video_screen
     class: Visual
     visual: VideoScreen
 
   VideoScreen:
-    package: actors.video_screen
+    package: old_rig.video_screen
     class: VideoScreen
     num_active_cameras: 1
 
@@ -42,10 +40,10 @@ actors:
   #   package: actors.generator
   #   class: Generator
   #   camera_num: 2
-  #   video_path: '/home/chesteklab/camera_video/2026-10-09/123100/camera_video_2_1009_1231.mp4'
+  #   video_path: '/path/to/camera_video_2.mp4'
 
   Processor0:
-    package: actors.processor
+    package: old_rig.processor
     class: Processor
     pred_active: True
     camera_num: 2

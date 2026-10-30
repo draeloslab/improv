@@ -2,13 +2,14 @@
 (/dev/ttyUSB0, 115200 baud) to the xPC, which reads it like the bend-sensor glove."""
 import time
 from pathlib import Path
+from queue import Empty
 
 import numpy as np
 import serial
 import yaml
 from improv.actor import Actor
 
-from .run_paths import get_logger, run_folder
+from actors.run_paths import get_logger, run_folder
 
 logger = get_logger(__name__, "sender.log")
 
@@ -24,9 +25,8 @@ class Sender(Actor):
         self.CHANS = [2]  # Sensor channels
         self.TIMER_INTERVAL = 0.001  # 1 ms interval
         try:
-        # Serial connection (for example, use COM port or /dev/ttyUSB0)
             self.ser = serial.Serial("/dev/ttyUSB0", 115200)
-        except:
+        except serial.SerialException:
             logger.info("Couldn't connect to serial")
 
         logger.info("Completed setup for Sender")
@@ -85,7 +85,7 @@ class Sender(Actor):
         The packet begins with a 2-byte header ('-' and '>'),
         followed by enough bytes to cover all sensor bits.
         """
-        total_sensors = len(adc_vals)  # This is NUM_SENSORS+1 (e.g. 7)
+        total_sensors = len(adc_vals)
         # Calculate how many bytes are needed to pack all 10-bit values.
         num_data_bytes = (total_sensors * 10 + 7) // 8  # Ceiling division
 
@@ -120,9 +120,8 @@ class Sender(Actor):
         frame_num_cam0 = getattr(self, 'last_frame_num_cam0', -1)
         frame_num_cam2 = getattr(self, 'last_frame_num_cam2', -1)
 
-        #Grab angle from processor
+        # Newest angle from each camera's Processor; keep the previous one if nothing new arrived.
         try:
-            #Processor 0
             element = self.links["preds0_in"].get(timeout=0.0001)
             # Support [pred, angle], [pred, angle, camera_start, frame_num], and
             # [pred, angle, camera_start, frame_num, camera_num] formats.
@@ -132,22 +131,13 @@ class Sender(Actor):
                 _, angle = element
                 camera_start_cam0 = None
                 frame_num_cam0 = -1
-            # self.last_angle = angle
-            self.last_angle = self.normalize_to_range(angle, 700, 330)  # Convert from 100-180 to 0-1023
-            # self.last_angle = (angle-100) * 10  # Store the angle for reuse # Roughly convert from 120 -180 to 200 to 800
+            self.last_angle = self.normalize_to_range(angle, 700, 330)
             self.last_frame_num_cam0 = frame_num_cam0
             got_fresh_cam0 = True
-        except Exception as e:
+        except (Empty, KeyError):
             pass
-            # # No new data available, use previous angle if it exists
-            # if not hasattr(self, 'last_angle'):
-            #     logger.debug(f"No element available yet and no previous value: {e}")
-            #     return  # No data to send
-            # angle = self.last_angle
-
 
         try:
-            #Processor 2
             element2 = self.links["preds2_in"].get(timeout=0.0001)
             # Support [pred, angle], [pred, angle, camera_start, frame_num], and
             # [pred, angle, camera_start, frame_num, camera_num] formats.
@@ -157,44 +147,26 @@ class Sender(Actor):
                 _, angle2 = element2
                 camera_start_cam2 = None
                 frame_num_cam2 = -1
-            # self.last_angle2 = angle2
-            self.last_angle2 = self.normalize_to_range(angle2, 1075, 400)  # Convert from 800-1200 to 0-1023
-            # self.last_angle2 = (angle2-800) * 2  # roughly convert from 800-1200 to 0-800
+            self.last_angle2 = self.normalize_to_range(angle2, 1075, 400)
             self.last_frame_num_cam2 = frame_num_cam2
             got_fresh_cam2 = True
-        except Exception as e:
-            pass
-            # logger.info(f'Error in sender 2: {repr(e)}')
-            # # No new data available, use previous angle if it exists
-            # if not hasattr(self, 'last_angle2'):
-            #     logger.debug(f"No element available yet and no previous value: {e}")
-            #     return  # No data to send
-            # angle2 = self.last_angle2
-
-        # --- Drain generator q_in (not needed for timing anymore since
-        #     processor now passes camera_start through) ---
-        try:
-            self.q_in.get(timeout=0.0001)
-        except Exception as e:
+        except (Empty, KeyError):
             pass
 
-
-        # Create message packet
-        if self.packet_n % 10000 == 0:  # Log every 10000 packets
+        if self.packet_n % 10000 == 0:
             logger.info(f'Sending angles: {self.last_angle} and {self.last_angle2}')
 
         # Collect angles for final min/max computation at stop()
         self.top_angle_history.append(self.last_angle)
         self.side_angle_history.append(self.last_angle2)
 
-
         valspack = self.pack_bytes([0, 0, self.last_angle, 0, self.last_angle2, 0])
 
-        # Send the message through UART
-        try:
-            self.ser.write(valspack)
-        except:
-            pass
+        if hasattr(self, 'ser'):
+            try:
+                self.ser.write(valspack)
+            except serial.SerialException:
+                pass
         send_time = time.time()
         self.packet_n += 1
 
@@ -219,12 +191,6 @@ class Sender(Actor):
             self.true_e2e_cam2_timestamps.append(send_time)
 
         self.step_latencies.append(time.perf_counter() - step_start)
-
-
-
-
-
-
 
     def stop(self):
         """Close the port and save the send logs (sender_*.npy, endtoendLatencies.npy, used by the xPC analysis)."""
@@ -268,7 +234,7 @@ class Sender(Actor):
         np.save(self.out_folder / "true_e2e_cam2_frame_nums.npy", self.true_e2e_cam2_frame_nums)
         np.save(self.out_folder / "true_e2e_cam2_timestamps.npy", self.true_e2e_cam2_timestamps)
 
-        # Legacy files for backward compatibility
+        # Same data under the file names older analysis scripts read
         np.save(self.out_folder / "endtoendLatencies.npy", self.true_e2e_cam0)
         np.save(self.out_folder / "senderStartTimes.npy", self.send_timestamps)
 

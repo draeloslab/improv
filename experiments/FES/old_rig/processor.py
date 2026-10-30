@@ -14,6 +14,7 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 import numpy as np
 import logging
 import yaml
+import queue
 import time
 import traceback
 import cv2
@@ -22,11 +23,11 @@ from pathlib import Path
 from improv.actor import Actor
 from deeplabcut.pose_estimation_pytorch.config import read_config_as_dict
 from deeplabcut.pose_estimation_pytorch.apis.utils import get_inference_runners
-from .kalmanfilter import KalmanFilterPredictor
-from . import cpu_affinity
+from actors.kalmanfilter import KalmanFilterPredictor
+from actors import cpu_affinity
 from improv.store import ObjectNotFoundError
 
-from .run_paths import get_logger, run_folder
+from actors.run_paths import get_logger, run_folder
 
 logger = get_logger(__name__, "processor.log")
 
@@ -48,12 +49,9 @@ class Processor(Actor):
 
     def setup(self):
         """Initializes all class variables."""
-        # Claim a dedicated physical P-core BEFORE anything else. Thread
-        # affinity is inherited only by threads created *after* this call, so
-        # this has to happen ahead of get_inference_runners() -- that is what
-        # spins up the CUDA driver's helper threads. Landing on an E-core costs
-        # 1.72x on the full inference call and is the entire reason the four
-        # cameras used to report different DLC times; see cpu_affinity.py.
+        # Claim a dedicated physical P-core before anything else: thread affinity is inherited only by threads
+        # created after this call, so it has to come before get_inference_runners() starts the CUDA helper
+        # threads. Inference on an E-core is ~1.7x slower; see cpu_affinity.py.
         cpu_affinity.pin_actor(cpu_affinity.COMPUTE, slot=self.camera_num,
                                label=f"Processor cam{self.camera_num}")
 
@@ -92,7 +90,7 @@ class Processor(Actor):
             if self.dlc_engine == 'onnx':
                 # Bottom-up net on onnxruntime (no torch / deeplabcut at run time). The heatmap decode matches the
                 # HeatmapPredictor override below, so no PAF dropouts either.
-                from .dlc_onnx import DlcOnnxBottomUp
+                from actors.dlc_onnx import DlcOnnxBottomUp
                 onnx_path = Path(self.onnx_model or source_folder / 'models' / 'dlc_trt' / f'dlc_bu_cam{self.camera_num}.onnx')
                 self.pose_runner = DlcOnnxBottomUp(onnx_path, providers=config.get('dlc_onnx_pose_providers'))
                 logger.info(f"Camera {self.camera_num}: ONNX engine {onnx_path}")
@@ -169,14 +167,9 @@ class Processor(Actor):
             logger.info(f'Kalman filter initialized for camera {self.camera_num}')
 
             self.resize = config['resize']
-            # TIS (real camera) now downscales in GStreamer before the frame ever
-            # reaches the store, so no further cv2.resize is needed here. The
-            # synthetic Generator actor still puts native-resolution frames, so
-            # this must stay False if you switch Generator0 back to the synthetic
-            # source. `self.resize` itself is still used below to un-scale the
-            # angle back to the calibration's reference coordinate space -- it
-            # reflects the scale factor applied to the frame regardless of
-            # whether GStreamer or cv2.resize is what applied it.
+            # Live TIS cameras downscale in GStreamer (camera_prescaled: true), so no cv2.resize is needed; the
+            # Generator puts native-resolution frames. `self.resize` is still used to scale the angle back to the
+            # coordinate space the Sender's normalisation was calibrated in.
             self.camera_prescaled = config.get('camera_prescaled', False)
             self.name = "Processor"
             self.frame = None
@@ -249,7 +242,7 @@ class Processor(Actor):
             # Queue drain tracking
             np.save(self.out_folder / f"proc_frames_dropped_cam{cam}.npy", self.frames_dropped)
 
-            # Legacy file names for backward compatibility
+            # Same data under the file names older analysis scripts read
             np.save(self.out_folder / f"latencies_cam{cam}.npy", self.total_latencies)
             np.save(self.out_folder / f"startLatencies_cam{cam}.npy", self.timestamps)
             np.save(self.out_folder / f"dlcLatencies_cam{cam}.npy", self.dlc_latencies)
@@ -270,22 +263,19 @@ class Processor(Actor):
             t_queue_wait = time.perf_counter()
             try:
                 msg = self.q_in.get(timeout=0.01)
-                # ----------------------------
-                # Drain any additional frames — keep only the newest
                 dropped = 0
                 while True:
                     try:
                         newer_msg = self.q_in.get_nowait()
                         dropped += 1
                         msg = newer_msg
-                    except Exception:
-                        break  # queue is empty, msg holds the newest frame
+                    except queue.Empty:
+                        break  # msg holds the newest frame
 
                 if dropped > 0:
                     logger.debug(f"Cam {self.camera_num}: Skipped {dropped} stale frame(s) to reduce latency")
-                #------------------------------
 
-                # Support both old [data_id, timestamp] and new [data_id, timestamp, frame_num] formats
+                # [data_id, timestamp] or [data_id, timestamp, frame_num]
                 if len(msg) >= 3:
                     frame_id, camera_start, gen_frame_num = msg[:3]
                 else:
@@ -294,8 +284,7 @@ class Processor(Actor):
                 t_got = time.perf_counter()
                 self.queue_wait_latencies.append(t_got - t_queue_wait)
                 self.frames_dropped.append(dropped)
-            except Exception as e:
-                # No frame available, nothing to process
+            except queue.Empty:
                 return
                 
             if frame_id is not None:
@@ -327,9 +316,7 @@ class Processor(Actor):
                         frame = cv2.resize(frame, (int(frame.shape[1] * self.resize), int(frame.shape[0] * self.resize)))
                     self.resize_latencies.append(time.perf_counter() - t0)
 
-                    # Colour-order check, first frame only. It used to run every 100th
-                    # frame inside the timed step: np.mean over a 960x540 frame is ~6 ms,
-                    # which was the +6.7 ms spike every 3.3 s in run 20260917-1557.
+                    # Colour-order check, first frame only (a full-frame mean costs ~6 ms, too much per step).
                     if self.frame_num == 1:
                         avg_channels = frame[::8, ::8].reshape(-1, frame.shape[2]).mean(0)
                         order = "BGR" if avg_channels[0] < avg_channels[2] else "RGB"
@@ -383,11 +370,8 @@ class Processor(Actor):
                     # --- Step 5: Kalman filter ---
                     t0 = time.perf_counter()
                     try:
-                        # assert False
                         smoothed_prediction = self.kalman_filter.process(self.prediction, frame_time=camera_start)
-                    except Exception as e:
-                        # logger.error(f"Kalman filter processing error: {e}")
-                        # logger.error(traceback.format_exc())
+                    except Exception:
                         smoothed_prediction = self.prediction  # fallback to raw prediction on error
                     self.kalman_latencies.append(time.perf_counter() - t0)
                     
@@ -403,8 +387,8 @@ class Processor(Actor):
                         logger.debug(f"Camera {self.camera_num}: Prediction shape insufficient for angle calculation: {smoothed_prediction.shape}")
                         angle = smoothed_prediction[0][1]  # the keypoint's y pixel (1-keypoint models), sent as the 'angle'
 
-                    # No angle smoothing here (a 15-frame moving average used to add ~0.5 s of lag); the Kalman filter
-                    # above is the only smoothing. -1/-2 are DLC's "assembly failed" sentinels, not coordinates.
+                    # No angle smoothing here (a moving average adds too much lag); the Kalman filter above is the
+                    # only smoothing. -1/-2 are DLC's "assembly failed" sentinels, not coordinates.
                     if np.isfinite(angle) and angle > -1.5:
                         smoothed_angle = angle
                     else:

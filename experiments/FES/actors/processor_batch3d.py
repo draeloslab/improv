@@ -1,9 +1,9 @@
 """Single batched processor: N cameras -> one pose-estimation step -> 3D -> joint angles.
 
-Replaces the one-Processor-per-camera design (actors/processor.py, still used by the 2D xPC graphs).
+Replaces the one-Processor-per-camera design (old_rig/processor.py, still used by the 2D xPC graphs).
 Four independent processes submitting to the same GPU queue each waited for the whole queue to drain,
-so the earliest submitter reported the *longest* time (corr(submission phase, inference time) = -0.999,
-run 20260804-1432). One process handling all N cameras has no cross-process queue to wait on.
+so the earliest submitter reported the *longest* time (corr(submission phase, inference time) = -0.999).
+One process handling all N cameras has no cross-process queue to wait on.
 
 The pipeline per step is:
 
@@ -152,11 +152,9 @@ def _auto_skeleton(bodyparts):
     return [(bodyparts[i], bodyparts[i + 1]) for i in range(len(bodyparts) - 1)]
 
 
-# MediaPipe HandLandmarker's fixed output order (indices 0-20). This is also
-# humanWristMP21's bodyparts list -- that DLC project's labels were bootstrapped
-# from this exact model (see hand-tracking-notebooks-jake-2026-08-17/mediapipe/
-# mediapipe_dlc_utils.py), so MP21_JOINTS/MP21_SKELETON above apply unchanged
-# to either backend.
+# MediaPipe HandLandmarker's fixed output order (indices 0-20). The DLC hand models
+# use the same 21 bodyparts (their labels were bootstrapped from MediaPipe), so
+# MP21_JOINTS/MP21_SKELETON above apply unchanged to either backend.
 MEDIAPIPE_LANDMARK_NAMES = [
     "WRIST",
     "THUMB_CMC", "THUMB_MCP", "THUMB_IP", "THUMB_TIP",
@@ -169,7 +167,7 @@ MEDIAPIPE_LANDMARK_NAMES = [
 
 def _prefixed_hand_names(prefix):
     """MP21 landmark name -> bodypart name for a lowercase `{prefix}_wrist`,
-    `{prefix}_index_mcp`... layout (the HandTrackingVideo1 two-hand models)."""
+    `{prefix}_index_mcp`... layout (the two-hand DLC models)."""
     out = {}
     for n in MEDIAPIPE_LANDMARK_NAMES:
         out[n] = prefix + "_" + n.lower().replace("_finger", "")
@@ -233,7 +231,7 @@ class ProcessorBatch3D(Actor):
         # (actors.generator); free-running cameras' counters are not comparable.
         self.align_frames = bool(kwargs.get('align_frames', False))
         # Live cameras: how long a step waits, after its first frame, for the other cameras' frames (ms). The
-        # cameras free-run up to a whole frame out of phase (2026-10-01: ~15 ms at 30 fps), so the wait must cover a
+        # cameras free-run up to a whole frame out of phase, so the wait must cover a
         # frame period: with 12 ms and the fast ONNX engine, steps alternated between one camera and the other (36-55%
         # of steps single-camera, so no 3D). A camera silent for 0.5 s is not waited for. 0 = take whatever arrived.
         self.gather_wait_ms = kwargs.get('gather_wait_ms')     # None = 1.1 frame periods at config `fps` (see setup)
@@ -338,7 +336,7 @@ class ProcessorBatch3D(Actor):
         if self.triangulate:
             if not _HAVE_3D_DEPS:
                 raise ImportError("aniposelib is not installed in this env "
-                                  "(use improvPytorchJarvis, or set triangulate: false)")
+                                  "(pip install aniposelib, or set triangulate: false)")
             self._setup_calibration(config, source_folder)
         else:
             self.cgroup = None
@@ -616,7 +614,7 @@ class ProcessorBatch3D(Actor):
         # time): 5.2 ms vs 25.9 ms per 2-camera step in scripts/trt/validate_dlc_onnx.py, keypoints within 0.03 px (median) of DLC's.
         # Needs models/dlc_trt/*.onnx from scripts/trt/export_dlc_onnx.py, exported for the live frame size (dlc_onnx_frame_size).
         self.dlc_engine = str(config.get('dlc_engine', 'pytorch')).lower()
-        # dlc_engine: "rtmpose_onnx" is the one-hand-per-crop model from hand_training/ (SSDLite + RTMPose-m, 21 keypoints per hand,
+        # dlc_engine: "rtmpose_onnx" is a one-hand-per-crop DLC model (SSDLite + RTMPose-m, 21 keypoints per hand,
         # chirality-free): up to dlc_rtmpose_max_hands boxes per camera, each a hand candidate for the geometric association (the
         # same route MediaPipe's hands take). Needs models/dlc_rtmpose from scripts/trt/export_dlc_rtmpose_onnx.py.
         if self.dlc_engine == 'rtmpose_onnx':
@@ -634,9 +632,8 @@ class ProcessorBatch3D(Actor):
                                     min_keypoints=int((config.get('geometric_association') or {}).get('dlc_min_keypoints', 8)),
                                     min_likelihood=float(config.get('dlc_rtmpose_keypoint_min_likelihood', 0.3)))
             self.rtm_min_lik = float(config.get('dlc_rtmpose_keypoint_min_likelihood', 0.3))
-            # Detector box score a hand needs to enter the geometric association. It used to be `threshold` (0.7, a per-hand
-            # score for MediaPipe), which cut hands this model reports at 0.35-0.54 on a new subject (10-13: 0% 3D hands);
-            # the geometry (reprojection agreement across cameras) is the real filter, so by default the box score only has to
+            # Detector box score a hand needs to enter the geometric association. Not `threshold` (0.7, a per-hand score
+            # for MediaPipe), which would cut hands this model reports at 0.35-0.54 on a new subject; the geometry (reprojection agreement across cameras) is the real filter, so by default the box score only has to
             # clear the detector gate dlc_rtmpose_det_score.
             self.hand_gate = float(config.get('dlc_rtmpose_hand_score') or self.rtm.det_score)
             self.bodyparts = ([_prefixed_hand_names("right")[n] for n in MEDIAPIPE_LANDMARK_NAMES]
@@ -754,9 +751,8 @@ class ProcessorBatch3D(Actor):
             return
 
         calib_names = list(self.cgroup.get_names())
-        # camera_num -> name in the toml. Defaults to "cam{N}", which is what
-        # calibration_20260903 writes, but is overridable because a calibration
-        # produced elsewhere may use the rig's own names (top, back_left, ...).
+        # camera_num -> name in the toml. Defaults to "cam{N}"; overridable for a
+        # calibration that uses other names (top, back_left, ...).
         name_map = config.get('calibration_camera_names') or {}
         for slot, cam_num in enumerate(self.camera_nums):
             name = str(name_map.get(cam_num, f"cam{cam_num}"))
@@ -883,7 +879,7 @@ class ProcessorBatch3D(Actor):
         # Drain every camera without waiting. If none had a frame, sleep once (5 ms) and look again. Then, so
         # one step holds ALL the cameras and not whichever arrived first (a 1-camera step cannot triangulate),
         # wait up to gather_wait_ms more for the cameras that were sending a moment ago. A camera silent for
-        # 0.5 s no longer holds the step up.
+        # 0.5 s does not hold the step up.
         wired = [(slot, self.links[f"frames{slot}_in"]) for slot in range(self.num_cameras)
                  if f"frames{slot}_in" in self.links]
         newest = {}

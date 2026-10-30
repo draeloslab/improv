@@ -16,9 +16,9 @@ on a real 960x540 frame, one process at a time, pinned:
     P-core cpu0  (5.7 GHz)    6.61 ms       E-core cpu20 (4.4 GHz)   11.36 ms
     P-core cpu8  (6.0 GHz)    6.32 ms       E-core cpu24 (4.4 GHz)   12.02 ms
 
-That is a 1.72x penalty purely for landing on an E-core. The live 4-camera run
-20260804-1432 -- identical weights on all four cameras -- showed a 1.79x spread
-(cam0 11.56 ms .. cam3 20.65 ms). Same number. Core placement, not the GPU, is
+That is a 1.72x penalty purely for landing on an E-core. A live 4-camera run
+with identical weights on all four cameras showed a 1.79x spread
+(cam0 11.56 ms .. cam3 20.65 ms). Core placement, not the GPU, is
 what makes the cameras unequal.
 
 GPU contention is real but it is *symmetric*, so it cannot produce an ordering:
@@ -179,18 +179,17 @@ def pin_actor(role, slot=0, config=None, label=None, n_slots=1):
     config  the parsed config.yaml dict, or None to use defaults
     label   name to use in the log line, e.g. "Processor cam2"
     n_slots for role=COMPUTE only: claim this many physical P-cores (starting
-            at `slot`) instead of one. Use this when one process now does the
-            work that used to be split across n_slots separate per-camera
-            processes -- e.g. ProcessorBatch3D's mediapipe backend runs
+            at `slot`) instead of one. Use this when one process does the
+            work of n_slots per-camera processes -- e.g. ProcessorBatch3D's mediapipe backend runs
             num_cameras HandLandmarker instances concurrently on a thread
             pool, and pinning that process to a single physical core (2
             logical CPUs) starves those threads: measured 57 ms for a
             4-camera step pinned to 1 core vs 32.6 ms unpinned. Default 1
-            preserves the original one-actor-one-core behaviour.
+            is one actor per core.
 
     Returns the list of CPUs pinned to, or None if pinning was disabled,
     unavailable, or failed. Never raises -- a pipeline that cannot set affinity
-    should still run, just with the old unequal timings.
+    should still run, just with unequal per-camera timings.
     """
     config = load_config() if config is None else config
     settings = config.get("cpu_affinity") or {}
@@ -247,7 +246,7 @@ def pin_actor(role, slot=0, config=None, label=None, n_slots=1):
             f"{label}: wants physical core #{index} but only {len(pool)} exist; "
             f"sharing core #{index % len(pool)}. Beyond {len(pool) - n_compute} "
             f"cameras, batch the crops into one process instead of adding "
-            f"processes -- see MULTICAM_3D_PLAN.md."
+            f"processes."
         )
     core = pool[index % len(pool)]
     return _apply(core, label, f"physical core #{index % len(pool)}")

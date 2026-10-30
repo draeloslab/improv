@@ -9,12 +9,12 @@ across cameras, and the held hand is partly hidden, so whole-hand matching fails
      position matters); cameras with neither hand there sit the frame out;
   2. triangulate that one assignment (keypoints must reproject within `max_px` in every camera that sees
      them) and keep it if its 3D centre is within `radius_mm` of the hand's place. One triangulation per
-     step, whatever the number of cameras (it used to try every combination: 2^cameras);
+     step, whatever the number of cameras;
   3. causal One-Euro filter per keypoint (missing keypoints keep their state; reset after `max_gap` frames).
 The place is learned from the first `warmup_s` seconds (both hands clustered, numbered left -> right in
 camera `order_camera`'s image, `hand` picks one) and then fixed. Nothing is output during warm-up.
 
-Validated offline (analysis/stim_1153/pseudo_live.py): 17.8 ms/step with DLC on 2 cameras, MCP angles
+Validated offline: 17.8 ms/step with DLC on 2 cameras, MCP angles
 within 1.1-1.5 deg of the whole-recording analysis.
 """
 import itertools
