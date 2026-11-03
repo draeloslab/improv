@@ -2,10 +2,10 @@
 Export a one-hand-per-crop DLC hand model (SSDLite detector + RTMPose-m pose net) to ONNX for
 actors/dlc_rtmpose_onnx.py. Run in the fes env (it has onnx + onnxruntime-gpu), from ~ (not from a folder with utils.py):
 
-    python <improv>/experiments/FES/scripts/trt/export_dlc_rtmpose_onnx.py \
+    python <improv>/experiments/Freebie/scripts/trt/export_dlc_rtmpose_onnx.py \
         --project /path/to/dlc-project [--frame-size 960 720] [--shuffle 1] [--snapshot best]
 
-Writes models/dlc_rtmpose/ (inside experiments/FES):
+Writes models/dlc_rtmpose/ (inside experiments/Freebie):
   dlc_rtmpose_detector_<W>x<H>.onnx   uint8 RGB frame (1, H, W, 3) -> boxes xyxy, scores   (NMS inside; export once per live frame size)
   dlc_rtmpose_detector_<W>x<H>_b<B>.onnx   only with --det-batch B: B frames (B, H, W, 3) in one call -> boxes xyxy, scores, image index
                                       (actors/dlc_rtmpose_onnx.py uses it for the cameras that need the detector in the same step; the

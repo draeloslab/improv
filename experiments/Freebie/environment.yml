@@ -1,6 +1,6 @@
-# Conda environment for experiments/FES.
+# Conda environment for experiments/Freebie.
 #
-#   conda env create -f experiments/FES/environment.yml      # from the improv repo root
+#   conda env create -f experiments/Freebie/environment.yml      # from the improv repo root
 #   conda activate fes
 #   export FES_CONDA_ENV=fes                                 # so scripts/fes-run.sh activates it
 #

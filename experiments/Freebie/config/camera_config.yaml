@@ -24,12 +24,12 @@ camera_params:
     lead_seconds: 2.0
 
 active_cameras:
-  - camera: {name: "top",          serial_id: "49320579-aravis"}
-  - camera: {name: "bottom_left",  serial_id: "45324224-aravis"}
-  - camera: {name: "front_left",   serial_id: "45324225-aravis"}
-  - camera: {name: "front_right",  serial_id: "14624029-aravis"}
-  - camera: {name: "back_left",    serial_id: "25625241-aravis"}
-  - camera: {name: "bottom_right", serial_id: "25625243-aravis"}
-  - camera: {name: "back_right",   serial_id: "25625242-aravis"}
+  - camera: {name: "top",          serial_id: "49320579-aravis"} #0
+  - camera: {name: "bottom_left",  serial_id: "45324224-aravis"} #1
+  - camera: {name: "front_left",   serial_id: "45324225-aravis"} #2
+  - camera: {name: "front_right",  serial_id: "14624029-aravis"} #3
+  - camera: {name: "back_left",    serial_id: "25625241-aravis"} #4
+  - camera: {name: "bottom_right", serial_id: "25625243-aravis"} #5
+  - camera: {name: "back_right",   serial_id: "25625242-aravis"} #6
 
 # Spare camera, not wired:  {name: "back_right", serial_id: "45324230-aravis"}

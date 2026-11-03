@@ -1,5 +1,5 @@
 # FES experiment config. Read by the actors at setup; a graph can override any key for ProcessorBatch3D only with
-# `config_overrides:` (see graphs/mediapipe_live.yaml). Paths are absolute or relative to experiments/FES/.
+# `config_overrides:` (see graphs/mediapipe_live.yaml). Paths are absolute or relative to experiments/Freebie/.
 # The README walks through what each block does to the live data.
 
 # ============================================================================

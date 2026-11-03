@@ -27,7 +27,7 @@ System packages (Ubuntu): [tiscamera](https://github.com/TheImagingSource/tiscam
 ```bash
 sudo apt install gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
                  gir1.2-gstreamer-1.0 libgirepository1.0-dev libcairo2-dev redis-server ffmpeg
-conda env create -f experiments/FES/environment.yml    # from the improv repo root; env "fes"
+conda env create -f experiments/Freebie/environment.yml    # from the improv repo root; env "fes"
 conda activate fes
 ```
 
@@ -47,7 +47,7 @@ python scripts/trt/export_dlc_rtmpose_onnx.py --project /path/to/dlc-project   #
 ## Run
 
 ```bash
-cd experiments/FES
+cd experiments/Freebie
 export FES_CONDA_ENV=fes
 scripts/fes-run.sh mediapipe_live.yaml --cameras 0,1,2   # live; opens improv's TUI (setup, run, stop, quit)
 scripts/fes-run.sh --auto mediapipe_gen.yaml             # replay a recording, headless

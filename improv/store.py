@@ -23,7 +23,7 @@ import time
 REDIS_GLOBAL_TOPIC = "global_topic"
 
 
-#: Seconds a put() object lives in Redis (env IMPROV_STORE_TTL_S; experiments/FES/scripts/fes-run.sh sets 15).
+#: Seconds a put() object lives in Redis (env IMPROV_STORE_TTL_S; experiments/Freebie/scripts/fes-run.sh sets 15).
 STORE_TTL_S = int(os.environ.get("IMPROV_STORE_TTL_S", "60"))
 
 logger = logging.getLogger(__name__)
