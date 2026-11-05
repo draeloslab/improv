@@ -1,0 +1,85 @@
+# Minimal camera -> shared memory -> ProcessorBatch3D benchmark.
+#
+# The GUI image path and VideoSaver actors are deliberately excluded because
+# they still expect Redis keys. For the Redis baseline, change every
+# frame_transport value below to redis and change nothing else.
+
+actors:
+
+  Generator0:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 0
+    frame_transport: shared_memory
+    ring_slots: 8
+
+  Generator1:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 1
+    frame_transport: shared_memory
+    ring_slots: 8
+
+  Generator2:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 2
+    frame_transport: shared_memory
+    ring_slots: 8
+
+  Generator3:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 3
+    frame_transport: shared_memory
+    ring_slots: 8
+
+  Generator4:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 4
+    frame_transport: shared_memory
+    ring_slots: 8
+
+  Generator5:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 5
+    frame_transport: shared_memory
+    ring_slots: 8
+
+  Generator6:
+    package: actors.camera_reader
+    class: CameraReader
+    camera_num: 6
+    frame_transport: shared_memory
+    ring_slots: 8
+
+  ProcessorBatch3D:
+    package: actors.processor_batch3d
+    class: ProcessorBatch3D
+    num_cameras: 7
+    camera_nums: [0, 1, 2, 3, 4, 5, 6]
+    frame_transport: shared_memory
+    ring_attach_timeout: 15.0
+    pred_active: true
+    triangulate: false
+    method: spawn
+
+  SenderUDP:
+    package: actors.sender_udp
+    class: SenderUDP
+    method: spawn
+
+connections:
+  Generator0.q_out: [ProcessorBatch3D.frames0_in]
+  Generator1.q_out: [ProcessorBatch3D.frames1_in]
+  Generator2.q_out: [ProcessorBatch3D.frames2_in]
+  Generator3.q_out: [ProcessorBatch3D.frames3_in]
+  Generator4.q_out: [ProcessorBatch3D.frames4_in]
+  Generator5.q_out: [ProcessorBatch3D.frames5_in]
+  Generator6.q_out: [ProcessorBatch3D.frames6_in]
+
+  ProcessorBatch3D.q_out: [SenderUDP.joints_in]
+redis_config:
+  port: 6379

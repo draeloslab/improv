@@ -73,7 +73,8 @@ from .kalmanfilter import KalmanHandSmoother
 from .hand_assoc3d import HandTracker3D, glove_mask
 from .held_hand3d import HeldHandTracker
 from .continuity import ContinuousPose
-from .run_paths import get_logger, run_folder
+from .run_paths import get_logger, run_folder, run_id
+from .shared_frame_ring import FrameRing, ring_name
 from .chunk_log import ChunkLog
 
 logger = get_logger(__name__, "processor_batch3d.log")
@@ -200,6 +201,20 @@ class ProcessorBatch3D(Actor):
         # this list is what maps a slot to the camera it actually carries, and
         # therefore to the right calibration entry.
         self.camera_nums = kwargs.get('camera_nums', list(range(self.num_cameras)))
+        self.frame_transport = str(
+            kwargs.get('frame_transport', 'redis')
+        ).lower()
+        self.ring_attach_timeout = float(
+            kwargs.get('ring_attach_timeout', 15.0)
+        )
+        self.frame_rings = {}
+        self.ring_frames_missed = 0
+        if self.frame_transport not in ('redis', 'shared_memory'):
+            raise ValueError(
+                "frame_transport must be 'redis' or 'shared_memory', got {!r}".format(
+                    self.frame_transport
+                )
+            )
         self.pred_active = kwargs.get('pred_active', True)
         # A camera whose frame was captured more than this many ms before the newest
         # frame in the step is left out of that step's triangulation (its 2D keypoints
@@ -263,11 +278,34 @@ class ProcessorBatch3D(Actor):
         cpu_affinity.pin_actor(cpu_affinity.COMPUTE, slot=0, label="ProcessorBatch3D",
                                n_slots=n_slots)
 
-        self._getStoreInterface()
 
         if not self.pred_active:
             logger.info("ProcessorBatch3D: pred_active=False, running as a no-op")
             return
+
+        if self.frame_transport == 'redis':
+            self._getStoreInterface()
+        else:
+            # CameraReader creates each ring before opening its camera, so the
+            # processor can attach while the camera pipelines initialize.
+            for slot, camera_num in enumerate(self.camera_nums):
+                if f"frames{slot}_in" not in self.links:
+                    continue
+                name = ring_name(run_id(), camera_num)
+                self.frame_rings[slot] = FrameRing.attach(
+                    name=name,
+                    timeout=self.ring_attach_timeout,
+                )
+                logger.info(
+                    "ProcessorBatch3D attached slot %d / camera %d to ring %s",
+                    slot,
+                    camera_num,
+                    name,
+                )
+        logger.info(
+            "ProcessorBatch3D frame transport: %s",
+            self.frame_transport,
+        )
 
         self.resize = config['resize']
         self.camera_prescaled = config.get('camera_prescaled', False)
@@ -779,25 +817,93 @@ class ProcessorBatch3D(Actor):
         # come back aligned with "present"; a missing camera is None and is
         # skipped on its own without dropping the rest of the batch.
         frames = {}
-        try:
-            fetched = self.client.get_many([frame_ids[slot] for slot in present])
-        except Exception as e:
-            logger.error(f"slots {present}: store get_many failed: {e}")
-            fetched = [None] * len(present)
-        for slot, frame in zip(present, fetched):
-            if frame is None:
-                logger.debug(f"slot {slot}: frame gone from store, skipping this camera")
-                continue
+        if self.frame_transport == 'shared_memory':
+            for slot in present:
+                try:
+                    frame_reference = frame_ids[slot]
+                    if not (
+                        isinstance(frame_reference, (tuple, list))
+                        and len(frame_reference) == 2
+                        and frame_reference[0] == 'shm'
+                    ):
+                        logger.error(
+                            "slot %d received a non-shared-memory frame reference: %r",
+                            slot,
+                            frame_reference,
+                        )
+                        continue
+                    sequence = int(frame_reference[1])
+                    ring = self.frame_rings.get(slot)
+                    if ring is None:
+                        logger.error("slot %d has no attached frame ring", slot)
+                        continue
+                    result = ring.read(sequence)
+                    if result is None:
+                        self.ring_frames_missed += 1
+                        logger.debug(
+                            "slot %d: frame sequence %d was overwritten",
+                            slot,
+                            sequence,
+                        )
+                        continue
+                    frame, ring_metadata = result
+                    (
+                        ring_frame_number,
+                        ring_capture_time,
+                        ring_camera_start,
+                        _ring_write_done,
+                    ) = ring_metadata
+                    fnums[slot] = ring_frame_number
+                    starts[slot] = ring_camera_start
+                    if np.isfinite(ring_capture_time):
+                        caps[slot] = ring_capture_time
+                    if not self.camera_prescaled:
+                        frame = cv2.resize(
+                            frame,
+                            (int(frame.shape[1] * self.resize),
+                             int(frame.shape[0] * self.resize)))
+                    frames[slot] = frame
+                except Exception as error:
+                    logger.error(
+                        "slot %d: shared-memory frame read failed: %s",
+                        slot,
+                        error,
+                    )
+        else:
+            # Preserve this branch's existing Redis MGET optimization.
             try:
-                if not (isinstance(frame, np.ndarray) and frame.ndim == 3):
-                    frame = cv2.imdecode(frame, cv2.IMREAD_COLOR)
-                if not self.camera_prescaled:
-                    frame = cv2.resize(
-                        frame,
-                        (int(frame.shape[1] * self.resize), int(frame.shape[0] * self.resize)))
-                frames[slot] = frame
-            except Exception as e:
-                logger.error(f"slot {slot}: frame decode/resize failed: {e}")
+                fetched = self.client.get_many(
+                    [frame_ids[slot] for slot in present]
+                )
+            except Exception as error:
+                logger.error(
+                    "slots %s: store get_many failed: %s",
+                    present,
+                    error,
+                )
+                fetched = [None] * len(present)
+            for slot, frame in zip(present, fetched):
+                if frame is None:
+                    logger.debug(
+                        "slot %d: frame gone from store, skipping this camera",
+                        slot,
+                    )
+                    continue
+                try:
+                    if not (isinstance(frame, np.ndarray) and frame.ndim == 3):
+                        frame = cv2.imdecode(frame, cv2.IMREAD_COLOR)
+                    if not self.camera_prescaled:
+                        frame = cv2.resize(
+                            frame,
+                            (int(frame.shape[1] * self.resize),
+                             int(frame.shape[0] * self.resize)))
+                    frames[slot] = frame
+                except Exception as error:
+                    logger.error(
+                        "slot %d: frame decode/resize failed: %s",
+                        slot,
+                        error,
+                    )
         self.store_get_latencies.append(time.perf_counter() - t0)
 
         if not frames:
@@ -1207,10 +1313,20 @@ class ProcessorBatch3D(Actor):
     # ------------------------------------------------------------------- stop
 
     def stop(self):
+        for slot, ring in list(self.frame_rings.items()):
+            try:
+                ring.close()
+            except Exception:
+                logger.exception(
+                    "error closing shared frame ring for slot %d",
+                    slot,
+                )
+        self.frame_rings.clear()
+
         if not self.pred_active:
             logger.info("ProcessorBatch3D stopped (inactive)")
             return
-
+        
         if getattr(self, 'backend', None) == 'mediapipe':
             try:
                 self.mp_executor.shutdown(wait=False, cancel_futures=True)

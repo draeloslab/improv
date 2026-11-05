@@ -5,7 +5,8 @@ import time
 from multiprocessing import Value, RawArray, Process
 
 import logging
-from .run_paths import get_logger
+from .run_paths import get_logger, run_id
+from .shared_frame_ring import FrameRing, ring_name
 
 logger = get_logger(__name__, "camera_reader.log")
 
@@ -19,7 +20,21 @@ class CameraReader(ManagedActor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
-        self.camera_num = kwargs['camera_num']
+        self.camera_num = int(kwargs['camera_num'])
+        self.frame_transport = str(
+            kwargs.get('frame_transport', 'redis')
+        ).lower()
+        self.ring_slots = int(kwargs.get('ring_slots', 8))
+        self.frame_ring = None
+
+        if self.frame_transport not in ('redis', 'shared_memory'):
+            raise ValueError(
+                "frame_transport must be 'redis' or 'shared_memory', got {!r}".format(
+                    self.frame_transport
+                )
+            )
+        if self.ring_slots < 2:
+            raise ValueError('ring_slots must be at least 2')
 
     def setup(self):
         """ Initializes the camera reading process """
@@ -38,8 +53,12 @@ class CameraReader(ManagedActor):
         cpu_affinity.pin_actor(cpu_affinity.CAPTURE, slot=slot,
                                label=f"CameraReader cam{self.camera_num}")
 
-        # store init
-        self._getStoreInterface()
+        # Redis is unnecessary on the camera -> processor frame path when the
+        # shared-memory transport is selected.
+        if self.frame_transport == 'redis':
+            self._getStoreInterface()
+        else:
+            self.client = None
 
         # load the configuration file
         source_folder = Path(__file__).resolve().parent.parent
@@ -57,6 +76,22 @@ class CameraReader(ManagedActor):
         self.stream_w = stream_res['width']
         self.stream_h = stream_res['height']
         self.fps = camera_params['fps'] # FPS
+
+        if self.frame_transport == 'shared_memory':
+            name = ring_name(run_id(), self.camera_num)
+            self.frame_ring = FrameRing.create(
+                name=name,
+                shape=(self.stream_h, self.stream_w, 3),
+                n_slots=self.ring_slots,
+                replace_stale=True,
+            )
+            logger.info(
+                'Camera %s created frame ring %s: shape=%s, slots=%d',
+                self.camera_num,
+                name,
+                self.frame_ring.shape,
+                self.frame_ring.n_slots,
+            )
         
         self.start_camera_read = False # flag to start the camera reading
         self.stop_program = Value('b', False) # flag to stop the program
@@ -76,7 +111,12 @@ class CameraReader(ManagedActor):
         # initializing each camera TIS interface and opening the device
         logger.info(f'Opening device: {camera_config}')
 
-        self.camera_interface = TIS(self.camera_name, self.client, self.q_out)
+        self.camera_interface = TIS(
+            camera_name=self.camera_name,
+            client=self.client,
+            q_out=self.q_out,
+            frame_ring=self.frame_ring,
+        )
         # appsink queue depth: 5 while recording (a stalled reader loses no frame), 1 for
         # live tracking (only the newest frame, same latency on every camera).
         max_buffers = int(camera_params.get('appsink_max_buffers', 5))
@@ -172,10 +212,31 @@ class CameraReader(ManagedActor):
             logger.info(f"[Camera {self.camera_name}] Run started at {start_time}")
 
     def stop(self):
-        """Trivial stop function for testing purposes."""
-        logger.info(f"[Camera {self.camera_name}] - CameraReader stopping")   
+        """Stop capture and release this camera's frame transport."""
+        logger.info(f"[Camera {self.camera_name}] - CameraReader stopping")
 
         self.stop_program.value = True
-        if self.camera_interface is not None:
-            self.camera_interface.stop_pipeline()
-        logger.info(f"[Camera {self.camera_name}] - CameraReader stopped")   
+        try:
+            if self.camera_interface is not None:
+                self.camera_interface.stop_pipeline()
+        finally:
+            if self.frame_ring is not None:
+                try:
+                    self.frame_ring.mark_closed()
+                except Exception:
+                    logger.exception(
+                        "[Camera %s] could not mark frame ring closed",
+                        self.camera_name,
+                    )
+                try:
+                    self.frame_ring.unlink()
+                except Exception:
+                    logger.exception(
+                        "[Camera %s] could not unlink frame ring",
+                        self.camera_name,
+                    )
+                finally:
+                    self.frame_ring.close()
+                    self.frame_ring = None
+
+        logger.info(f"[Camera {self.camera_name}] - CameraReader stopped")

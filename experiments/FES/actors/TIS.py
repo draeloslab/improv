@@ -31,7 +31,7 @@ class SinkFormats(Enum):
     RGB = "RGB"
 
 class TIS:
-    def __init__(self, camera_name, client, q_out):
+    def __init__(self, camera_name, client, q_out, frame_ring=None):
         try:
             if not Gst.is_initialized():
                 Gst.init(())  # Usually better to call in the main function.
@@ -64,6 +64,12 @@ class TIS:
         # buffer processing management
         self.client = client
         self.q_out = q_out
+        self.frame_ring = frame_ring
+        self.frame_transport = (
+            'shared_memory' if frame_ring is not None else 'redis'
+        )
+        if self.frame_ring is None and self.client is None:
+            raise ValueError('TIS requires either a Redis client or a FrameRing')
 
         self.camera_latencies = []
         self.camera_latenciesFull = []
@@ -332,31 +338,48 @@ class TIS:
             # tooling that expects the file to exist doesn't break.
 
             try:
-                # --- Step 3: Store put ---
+                # --- Step 3: Publish frame pixels ---
                 t0 = time.perf_counter()
-                data_id = self.client.put(frame)
+                if self.frame_ring is not None:
+                    sequence = self.frame_ring.write(
+                        frame=frame,
+                        frame_number=self.frame_num,
+                        capture_time=capture_time,
+                        camera_start=camera_start,
+                    )
+                    # The tag prevents a sequence number from being mistaken
+                    # for a Redis key if a graph is configured inconsistently.
+                    frame_reference = ('shm', sequence)
+                else:
+                    frame_reference = self.client.put(frame)
                 self.store_put_latencies.append(time.perf_counter() - t0)
 
-                # --- Step 4: Queue put (with frame_num for cross-actor correlation) ---
+                # --- Step 4: Queue only the small reference and metadata ---
                 t0 = time.perf_counter()
-                self.q_out.put([data_id, camera_start, self.frame_num, capture_time])
+                self.q_out.put([
+                    frame_reference,
+                    camera_start,
+                    self.frame_num,
+                    capture_time,
+                ])
                 self.queue_put_latencies.append(time.perf_counter() - t0)
 
-                self.camera_latencies.append(time.perf_counter() - frame_time)
-
                 delay = time.perf_counter() - frame_time
-
-                if delay > self.max_delay:
-                    self.max_delay = delay
-
+                self.camera_latencies.append(delay)
+                self.max_delay = max(self.max_delay, delay)
                 self.total_delay += delay
                 self.frame_count += 1
                 self.total_frame_count += 1
                 self.frame_num += 1
 
-            except Exception as e:
-                logger.warning(f"[Camera {self.camera_name}] Could not put frame in the store | {e}")
-                pass
+            except Exception as error:
+                logger.warning(
+                    "[Camera %s] could not publish frame %d through %s: %s",
+                    self.camera_name,
+                    self.frame_num,
+                    self.frame_transport,
+                    error,
+                )
 
             if self.frame_count % 600 == 0 and self.frame_count > 0:
                 total_time = time.perf_counter() - self.start_time
