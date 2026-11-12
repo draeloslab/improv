@@ -344,6 +344,9 @@ class ProcessorBatch3D(Actor):
         self.tri_min_weight = float(config.get('triangulation_min_weight', 0.05))
         self.tri = (triangulator(self.cgroup, self.tri_method, self.tri_min_weight)
                     if self.cgroup is not None else None)
+        # Reprojection check (geometric association): a keypoint's worst view is dropped while it is more than this many
+        # px off and >= 3 views remain; a keypoint still off with 2 views is not reported. null = off.
+        self.reproj_check_px = config.get('reprojection_check_px')
         if self.cgroup is not None:
             logger.info(f"triangulation: {self.tri_method}"
                         + (f", weights floored at {self.tri_min_weight}" if self.tri_method == 'weighted_dlt' else ""))
@@ -1142,7 +1145,28 @@ class ProcessorBatch3D(Actor):
                 raw_2d[slot, side * 21:side * 21 + 21, 2] = w
         self.assoc_errors.append(np.median(self.hand_tracker.last_errors)
                                  if self.hand_tracker.last_errors else np.nan)
+        if self.reproj_check_px and points_3d is not None and np.isfinite(raw_2d[..., 0]).any():
+            points_3d, raw_2d = self._reprojection_check(points_3d, raw_2d, frames)
         return points_3d, raw_2d
+
+    def _reprojection_check(self, points_3d, raw_2d, frames):
+        """Re-triangulate this step's keypoints from the views that went into them, without the views that disagree
+        (actors.triangulate.reprojection_refine, the offline analysis's check). Returns the checked points and raw_2d
+        with the dropped views removed."""
+        from .triangulate import reprojection_refine
+        slots = [s for s in range(self.num_cameras) if self.calib_row[s] is not None and s in frames]
+        a2 = np.full((1, len(slots), self.n_keypoints, 3), np.nan)
+        for i, slot in enumerate(slots):
+            fh, fw = frames[slot].shape[:2]
+            size = self.calib_sizes[self.calib_row[slot]]
+            sx, sy = (size[0] / fw, size[1] / fh) if size is not None else (1.0, 1.0)
+            a2[0, i] = raw_2d[slot] * [sx, sy, 1.0]
+        rows = [self.calib_row[s] for s in slots]
+        out, _, _, _, dropped = reprojection_refine(a2, self.cgroup, rows, self.tri, float(self.reproj_check_px))
+        raw_2d = raw_2d.copy()
+        for i, slot in enumerate(slots):
+            raw_2d[slot][dropped[0, :, rows[i]]] = np.nan
+        return out[0].astype(points_3d.dtype), raw_2d
 
     def _region_3d(self, raw_2d, frames, batch_slots, stale):
         """Steps 4-5 for hand_association: region (dlc backend): the one held hand.

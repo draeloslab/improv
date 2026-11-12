@@ -1,0 +1,55 @@
+# Dry run of the wrist-posture search (actors/bayes_opt_targets.py) on a RECORDED session, with a simulated BRAND:
+#   terminal 1:  python scripts/fake_brand.py          (answers stim requests on localhost)
+#   terminal 2:  SENDER_UDP_IP=127.0.0.1 fes-run bo_targets_replay.yaml
+# Same pipeline as live: iteration-9 RTMPose ONNX model (its 22nd output, the forearm marker, is dropped in
+# actors/dlc_rtmpose_onnx.py), geometric association, equal-weight DLT, 3D Kalman. The replayed hand does not respond to
+# the requests, so this checks the plumbing (angles arrive, requests go out, trials are logged), not the search itself:
+# tests/test_target_search.py does that against a simulated wrist.
+# Ran end to end on 2026-11-11 (run 20261111-1052). The generators here pair frames by frame number; for capture-time
+# pairing give each Generator `frame_map:` (hand_training/it9_pseudolive.sh does).
+actors:
+  GUI: {package: actors.video_screen_3d, class: Visual3D, visual: VideoScreen3D}
+  VideoScreen3D: {package: actors.video_screen_3d, class: VideoScreen3D, num_active_cameras: 4}
+
+  Generator0: {package: actors.generator, class: Generator, camera_num: 1, video_path: '/home/chesteklab/camera_video/2026-11-03/124100/camera_video_1_1103_1241.mp4'}
+  Generator1: {package: actors.generator, class: Generator, camera_num: 2, video_path: '/home/chesteklab/camera_video/2026-11-03/124100/camera_video_2_1103_1241.mp4'}
+  Generator2: {package: actors.generator, class: Generator, camera_num: 3, video_path: '/home/chesteklab/camera_video/2026-11-03/124100/camera_video_3_1103_1241.mp4'}
+  Generator3: {package: actors.generator, class: Generator, camera_num: 5, video_path: '/home/chesteklab/camera_video/2026-11-03/124100/camera_video_5_1103_1241.mp4'}
+
+  ProcessorBatch3D:
+    package: actors.processor_batch3d
+    class: ProcessorBatch3D
+    num_cameras: 4
+    camera_nums: [1, 2, 3, 5]
+    pred_active: True
+    triangulate: true
+    align_frames: true
+    compute_cores: 4
+    config_overrides:
+      batch3d_backend: dlc
+      dlc_engine: rtmpose_onnx
+      dlc_rtmpose_models_dir: /home/chesteklab/improv/experiments/Freebie/models/dlc_rtmpose
+      dlc_onnx_frame_size: [960, 720]
+      dlc_onnx_det_providers: [CUDAExecutionProvider, CPUExecutionProvider]
+      dlc_onnx_pose_providers: [CUDAExecutionProvider, CPUExecutionProvider]
+      dlc_rtmpose_det_score: 0.3
+      dlc_rtmpose_max_hands: 2
+      hand_association: geometric
+      geometric_association: {tol_px: 20, hold_tol_px: 40, hand_size_mm: [20, 200], dlc_min_keypoints: 8, gate_mm: 100, max_miss: 10}
+      triangulation_method: dlt
+      reprojection_check_px: 15
+      calibration_toml: '/home/chesteklab/dlc_projects/FESHand21SingleHand-jake-2026-10-21/analysis/selfcal_it9/1103/calibration.toml'
+    method: spawn
+
+  BayesOptTargets: {package: actors.bayes_opt_targets, class: BayesOptTargets, method: spawn, settings: bo_exp_A}
+  BrandReceiver: {package: actors.brand_link, class: BrandReceiver, method: spawn}
+  SenderUDP: {package: actors.sender_udp, class: SenderUDP, method: spawn}
+
+connections:
+  Generator0.q_out: [VideoScreen3D.images0_in, ProcessorBatch3D.frames0_in]
+  Generator1.q_out: [VideoScreen3D.images1_in, ProcessorBatch3D.frames1_in]
+  Generator2.q_out: [VideoScreen3D.images2_in, ProcessorBatch3D.frames2_in]
+  Generator3.q_out: [VideoScreen3D.images3_in, ProcessorBatch3D.frames3_in]
+  ProcessorBatch3D.q_out: [SenderUDP.joints_in, VideoScreen3D.preds_in, BayesOptTargets.joints_in]
+  BayesOptTargets.q_out: [SenderUDP.stim_in]
+  BrandReceiver.q_out: [BayesOptTargets.feedback_in]

@@ -21,8 +21,8 @@
 
 fes:
   source: live
-  cameras: [1, 2, 3, 4, 5, 6]
-  save_video: true
+  cameras: [0, 1, 2, 3, 4, 5, 6]
+  save_video: True
 
 actors:
   GUI: {package: actors.video_screen_3d, class: Visual3D, visual: VideoScreen3D}

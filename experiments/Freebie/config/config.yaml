@@ -271,3 +271,86 @@ bayes_opt:
     ring:   {joints: [left_RING_MCP],   straight: 0, flexed: 90}
     pinky:  {joints: [left_PINKY_MCP],  straight: 0, flexed: 90}
   max_trials: 0              # 0 = until stopped
+
+# --- Posture search with Code/BayesOptim (actors/bayes_opt_targets.py + actors/target_search.py) ---
+# The base block; a graph picks an experiment block (bo_exp_A, bo_exp_B, bo_exp_C1, bo_exp_C2) with BayesOptTargets'
+# `settings:`, which overrides it key by key. Markdown/BO_EXPERIMENTS.md explains every choice; the numbers come from
+# notebooks/bo_walkthrough.ipynb (fitted on the 10-21 .. 11-06 stim table, iteration-9 angles).
+bayes_opt_targets:
+  bayesoptim_path: ~/Code/BayesOptim
+  # Outputs (one GP each), live from the 3D keypoints: WRIST_EXT (+ = extension), WRIST_DEV (+ = ulnar),
+  # <FINGER>_MCP_FLEX (- = extension), FINGER_EXT (mean MCP extension of the four fingers, + = extension) and
+  # FINGER_SPLIT (index/middle extension minus ring/pinky extension). One target value per output.
+  outputs: [WRIST_EXT, WRIST_DEV]
+  targets: [[15, 0], [10, 12]]
+  target_names: null
+  target_kind: change        # change = targets are evoked changes; posture = absolute angles (0 = the warm-up posture)
+  mode: search               # search = each target until it converges; cycle = visit the targets in turn for ever
+  space:                     # candidates = every set of up to max_electrodes x widths x frequencies x currents (26244 here)
+    # inside the lab's FES envelope: <= 10 mA, <= 255 us, <= 2.55 uC/phase (10 mA x 250 us = 2.5 uC). Wasp's vision node
+    # must allow 10000 uA / 250 us / 100 Hz (it capped 5000 uA / 200 us on 2026-11-11).
+    electrodes: [2, 4, 6, 8, 10, 12, 14, 16]
+    max_electrodes: 4
+    pulse_widths: [50, 75, 100, 125, 150, 175, 200, 225, 250]    # us
+    frequencies: [20, 30, 40, 50, 60, 70, 80, 90, 100]           # Hz
+    currents: [5000, 10000]          # uA; the table is almost all 5000, so 10000 starts from a weak prior
+  optimizer:                 # fixed while running (Losanno); mean of the per-day maximum-likelihood fits
+    electrode_length: 1.46   # Matern 5/2 length scale shared by the eight electrode on/off inputs
+    param_length: [0.95, 0.55, 0.77]   # ... of width / 300 us, frequency / 100 Hz, amplitude / 6000 uA (ARD)
+    prior_sd: [10.5, 7.2]    # per output, deg (WRIST_EXT, WRIST_DEV); FINGER_EXT 25.9, FINGER_SPLIT 9.0
+    noise_sd: [3.7, 3.9]     # per output, deg, within a day;           FINGER_EXT 7.6,  FINGER_SPLIT 9.2
+    k: 0.5                   # exploration weight in Losanno's rule: -distance + k * SD (tuned: bo_walkthrough section 6)
+    converge_repeats: 5      # the same stimulation chosen this many times in a row finishes the target (all three papers)
+    max_tests: 40
+    init_random: 0           # 0 with a prior_table: start from the prior; else this many random trials first
+    seed: 0
+    window: 0                # > 0: the GPs only hold the latest `window` trials
+    fatigue: null            # null | charge (cumulative mC this session) | time (minutes): an extra GP input
+    fatigue_length: 20.0     # its Matern length scale (mC or minutes)
+    prior_scale: 0.75        # prior mean = this x the table GPs' prediction (Bonizzato's 0.75; best in section 6)
+  regularizer:
+    charge_weight: 0.0       # score -= this x (candidate's charge rate / the largest) x |target|
+    novelty_weight: 0.0      # score += this x (1 - correlation with the solutions found) x |target|
+    solutions_per_target: 1  # > 1: search the target again for a different stimulation after each solution
+    exclude_corr: 0.8        # candidates correlated above this with a found solution are not eligible
+    unique: null             # electrodes = a found solution's electrode set is not eligible again for that target
+    accept_deg: null         # a solution the GPs predict further than this from the target ends that target's search
+  timing: {stim_duration: 1.0, rest_duration: 2.0, settle: 0.5, baseline: 1.0, on_timeout: 1.0, off_grace: 0.5, eval_timeout: 1.0}
+  wrist: {side: left, warmup_s: 10.0}     # wrist point + zero posture from the first warmup_s seconds (forearm held)
+  prior_table: ~/dlc_projects/FESHand21SingleHand-jake-2026-10-21/analysis/stim_table_it9/stim_table.csv
+  prior_dates: null          # null = every day in the table
+  max_trials: 0              # 0 = no limit
+
+# A: hard multi-angle postures, from the GPs fitted on all data. Change targets; order easy -> stretch.
+bo_exp_A:
+  outputs: [WRIST_EXT, WRIST_DEV, FINGER_EXT, FINGER_SPLIT]
+  target_names: [open_hand, ulnar_wave, radial_wrist_up, reach_for_the_sky, tenodesis_fist, spock_split]
+  targets: [[5, 0, 45, 0], [10, 15, 40, 0], [20, -10, 0, 0], [25, 0, 40, 0], [25, 0, -12, 0], [5, 0, 40, 15]]
+  optimizer: {prior_sd: [10.5, 7.2, 25.9, 9.0], noise_sd: [3.7, 3.9, 7.6, 9.2]}
+
+# B: a few simple targets, as many different electrode sets as reach each one.
+bo_exp_B:
+  outputs: [WRIST_EXT, WRIST_DEV]
+  target_names: [extension, ulnar, extension_ulnar]
+  targets: [[15, 0], [0, 12], [15, 10]]
+  regularizer: {charge_weight: 0.2, novelty_weight: 0.3, solutions_per_target: 8, unique: electrodes, accept_deg: 5.0}
+  optimizer: {max_tests: 25}
+
+# C1: centre-out over posture targets; the hand is held, then released and droops. Time is a GP input so the GPs
+# weigh recent trials more and re-learn after the release (no flag is needed; note the release time in the log).
+bo_exp_C1:
+  outputs: [WRIST_EXT, WRIST_DEV]
+  target_kind: posture
+  mode: cycle
+  target_names: [neutral, extended, ulnar]
+  targets: [[0, 0], [20, 0], [5, 12]]
+  optimizer: {fatigue: time, fatigue_length: 5.0}
+
+# C2 (last): one high-charge target, visited for ever (never converges); cumulative charge is a GP input.
+bo_exp_C2:
+  outputs: [WRIST_EXT, WRIST_DEV, FINGER_EXT]
+  mode: cycle
+  target_names: [reach_for_the_sky_C2]
+  targets: [[20, 0, 35]]           # reachable fresh only with high charge (section 5: best ~8 deg off at 3 electrodes, 4 mA)
+  optimizer: {prior_sd: [10.5, 7.2, 25.9], noise_sd: [3.7, 3.9, 7.6], fatigue: charge, fatigue_length: 20.0}
+  timing: {stim_duration: 1.9, rest_duration: 2.0}     # ~ the 10-21 fatigue run's 2 s on / 2 s off; BRAND's vision node rejects trains of 2.0 s or more

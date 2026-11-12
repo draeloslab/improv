@@ -51,6 +51,10 @@ class Generator(Actor):
       video_path             any file
       camera_num             config.yaml video_paths[camera_num]
       (none)                 config.yaml video_path
+    frame_map + camera_num: npz from hand_training/sync_offsets.py (cams, map (T, n_cams)). Step t then plays this camera's
+      own frame map[t, camera] (the one captured at that instant) and announces it as frame_num t, so the processor's
+      align_frames pairs frames across cameras by capture time, not by each video's own count. A step with no frame for
+      this camera (-1) sends nothing; a repeated number sends the same frame again.
     """
 
     def __init__(self, *args, **kwargs):
@@ -59,6 +63,7 @@ class Generator(Actor):
         self.video_path_kw = kwargs.get('video_path')     # graph-level override of config.yaml's video_paths
         self.session = kwargs.get('session')               # 'YYYY-MM-DD/HHMMSS': path filled in from camera_num
         self.subfolder = kwargs.get('subfolder')
+        self.frame_map_path = kwargs.get('frame_map')
 
     def setup(self):
         """Pick the video, open it and set up the timing logs."""
@@ -91,6 +96,10 @@ class Generator(Actor):
         self.store_put_latencies = []  # client.put
         self.queue_put_latencies = []  # q_out.put
 
+        self.own_map, self.own_at, self.last_rgb = None, -1, None
+        if self.frame_map_path:
+            m = np.load(Path(self.frame_map_path).expanduser())
+            self.own_map = m['map'][:, list(m['cams']).index(self.camera_num)].astype(int)
         self.done = True    # stays True unless the video opens below
         self.out_folder = run_folder()
         self.cap = cv2.VideoCapture(self.video_path)
@@ -133,19 +142,55 @@ class Generator(Actor):
             frame_start = time.time()
             perf_start = time.perf_counter()
 
-            # 1. read
+            # 1. read (with a frame map: this camera's own frame for common frame self.frame_num)
             t0 = time.perf_counter()
-            ret, self.frame = self.cap.read()
-            if not ret:
-                logger.info("End of video")
-                self.done = True
-                return
-            self.read_latencies.append(time.perf_counter() - t0)
+            skip = False
+            if self.own_map is not None:
+                if self.frame_num >= len(self.own_map):
+                    logger.info("End of the frame map")
+                    self.done = True
+                    return
+                want = int(self.own_map[self.frame_num])
+                skip = want < 0
+                ret = True
+                while not skip and self.own_at < want:
+                    ret = self.cap.grab() if self.own_at < want - 1 else None
+                    if ret is None:
+                        ret, bgr = self.cap.read()
+                        if ret:
+                            self.last_rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+                    if not ret:
+                        break
+                    self.own_at += 1
+                if not ret:
+                    logger.info("End of video")
+                    self.done = True
+                    return
+                skip = skip or self.last_rgb is None
+                self.frame = self.last_rgb
+                self.read_latencies.append(time.perf_counter() - t0)
+                self.cvt_latencies.append(0.0)
+            else:
+                ret, self.frame = self.cap.read()
+                if not ret:
+                    logger.info("End of video")
+                    self.done = True
+                    return
+                self.read_latencies.append(time.perf_counter() - t0)
 
-            # 2. BGR -> RGB (the store holds RGB, like the cameras)
-            t0 = time.perf_counter()
-            self.frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
-            self.cvt_latencies.append(time.perf_counter() - t0)
+                # 2. BGR -> RGB (the store holds RGB, like the cameras)
+                t0 = time.perf_counter()
+                self.frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
+                self.cvt_latencies.append(time.perf_counter() - t0)
+            if skip:                                   # no frame of this camera at this instant: nothing is sent
+                self.frame_num += 1
+                now = time.perf_counter()
+                self.next_due = (now if self.next_due is None else self.next_due) + self.frame_interval
+                if self.next_due > now:
+                    time.sleep(self.next_due - now)
+                else:
+                    self.next_due = now
+                return
 
             # 3. store put
             t0 = time.perf_counter()

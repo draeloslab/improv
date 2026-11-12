@@ -188,8 +188,9 @@ class RTMPoseHands:
         if n < self.pad_batch:
             batch = np.concatenate([batch, np.repeat(batch[-1:], self.pad_batch - n, 0)])
         sx, sy = self.pose.run(None, {'x': batch})
-        return simcc_decode(sx[:n], sy[:n], self.simcc['split_ratio'], self.simcc['sigma'], self.simcc['decode_beta'],
-                            self.simcc['apply_softmax'])
+        xy, lik = simcc_decode(sx[:n], sy[:n], self.simcc['split_ratio'], self.simcc['sigma'], self.simcc['decode_beta'],
+                               self.simcc['apply_softmax'])
+        return xy[:, :21], lik[:, :21]          # the 21 hand keypoints; a model's extra outputs (forearm marker) are not used live
 
     def inference(self, frames, keys=None):
         """RGB frames -> per frame, a list of hand dicts (see the module docstring). keys: one hashable id per frame (the camera

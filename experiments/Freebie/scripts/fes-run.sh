@@ -37,7 +37,7 @@ export IMPROV_STORE_TTL_S="${IMPROV_STORE_TTL_S:-15}"
 
 FES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONDA_ENV="${FES_CONDA_ENV:-improvDLC3}"
-DEFAULT_YAML="graphs/mediapipe_live.yaml"
+DEFAULT_YAML="graphs/dlc_live.yaml"
 
 # Pin THIS script (and so everything it starts: the preflight checks, `improv cleanup`, improv) to FES_CPUS
 # before anything runs. The default leaves out cpu0/1 (unstable on our rig); cpu_affinity.exclude_cpus in
@@ -216,6 +216,10 @@ if [ "$DRY_RUN" -eq 1 ]; then
     rmdir "$LOG_DIR" "$RUN_DIR" "$(dirname "$RUN_DIR")" 2>/dev/null
     exit 0
 fi
+
+echo
+echo "[fes] setup_realtime on"
+sudo "$FES_DIR/scripts/setup_realtime.sh" on 2>&1 | sed 's/^/  /'
 
 echo
 echo "[fes] improv cleanup"

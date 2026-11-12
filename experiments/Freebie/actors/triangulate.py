@@ -53,3 +53,49 @@ def triangulator(cgroup, method='weighted_dlt', min_weight=0.0):
             w = np.where(np.isfinite(w), np.maximum(w, min_weight), w)
         return weighted_dlt(cgroup, p, w)
     return fn
+
+
+def reprojection_refine(a2, cg, rows, tri, reject_px, block=4000):
+    """Re-triangulate every keypoint from its associated views, dropping the worst view while it is more than reject_px
+    off and >= 3 views remain; a point still off with 2 views is rejected. Vectorised over frames.
+    Returns points (T, 42, 3), views used (T, 42), reprojection error of the kept views (T, 42, n_calib), rejected (T, 42)
+    and dropped (T, 42, n_calib): views that were offered but removed (a dropped view, or every view of a rejected point)."""
+    T, C = a2.shape[:2]
+    n_cal = len(cg.cameras)
+    out = np.full((T, 42, 3), np.nan)
+    nviews = np.zeros((T, 42), np.int8)
+    err_all = np.full((T, 42, n_cal), np.nan, np.float32)
+    rejected = np.zeros((T, 42), bool)
+    dropped = np.zeros((T, 42, n_cal), bool)
+    for b0 in range(0, T, block):
+        b1 = min(T, b0 + block)
+        n = (b1 - b0) * 42
+        pts = np.full((n_cal, n, 2), np.nan)
+        w = np.zeros((n_cal, n))
+        for s in range(C):
+            blk = a2[b0:b1, s].reshape(n, 3)
+            pts[rows[s]] = blk[:, :2]
+            w[rows[s]] = np.where(np.isfinite(blk[:, 0]), np.nan_to_num(blk[:, 2], nan=0.0), 0.0)
+        use = np.isfinite(pts[..., 0]) & (w > 0)
+        use0 = use.copy()
+        for it in range(n_cal + 1):                 # solve, check; drop each failing point's worst view; solve again
+            X = tri(np.where(use[..., None], pts, np.nan), np.where(use, w, 0.0))
+            solved = np.isfinite(X[:, 0])
+            proj = cg.project(np.where(solved[:, None], X, 0.0)).reshape(n_cal, n, 2)
+            e = np.where(use & solved[None], np.linalg.norm(proj - pts, axis=2), np.nan)
+            worst = np.max(np.where(np.isfinite(e), e, -1.0), axis=0)
+            k = use.sum(0)
+            drop = solved & (worst > reject_px) & (k >= 3)
+            if not drop.any() or it == n_cal:
+                break
+            idx = np.flatnonzero(drop)
+            use[np.argmax(np.where(np.isfinite(e[:, idx]), e[:, idx], -1.0), axis=0), idx] = False
+        bad = solved & (worst > reject_px)          # still off with only 2 views left: no trustworthy point
+        rejected[b0:b1] = bad.reshape(-1, 42)
+        X[bad] = np.nan
+        keep = solved & ~bad
+        dropped[b0:b1] = (use0 & ~(use & keep[None])).T.reshape(-1, 42, n_cal)
+        out[b0:b1] = X.reshape(-1, 42, 3)
+        nviews[b0:b1] = np.where(keep, k, 0).reshape(-1, 42)
+        err_all[b0:b1] = np.where(keep[None], e, np.nan).T.reshape(-1, 42, n_cal)
+    return out, nviews, err_all, rejected, dropped
