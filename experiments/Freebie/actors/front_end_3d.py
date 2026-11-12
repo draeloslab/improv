@@ -25,6 +25,7 @@ plain 2-D pyqtgraph plot -- no GL context, no fork hazard, identical visual
 result for a skeleton this size.
 """
 
+import json
 import os
 import traceback
 from pathlib import Path
@@ -41,12 +42,12 @@ import cv2
 # Must construct a QApplication before a QWidget". Pin it before importing.
 os.environ.setdefault('PYQTGRAPH_QT_LIB', 'PyQt5')
 import pyqtgraph as pg
-from PyQt5.QtWidgets import QLabel, QWidget, QGridLayout, QSizePolicy
-from PyQt5.QtCore import QTimer, Qt
+from PyQt5.QtWidgets import QLabel, QWidget, QGridLayout, QSizePolicy, QVBoxLayout
+from PyQt5.QtCore import QTimer, Qt, QRectF
 from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen, QColor, QBrush, QFont
 
 import logging
-from .run_paths import get_logger
+from .run_paths import get_logger, run_folder
 
 logger = get_logger(__name__, "video_screen.log")
 logging.getLogger('matplotlib.font_manager').setLevel(logging.WARNING)
@@ -188,6 +189,38 @@ class Camera3DWidget(QWidget):
             self.bone_items = []
             layout.addWidget(self.plot3d_widget, angle_span, cam_cols, cam_rows - angle_span, 1)
 
+            # --- BO panel, right column: BayesOptTargets' <run folder>/bo_status.json (status text, predicted miss over
+            # pulse width x frequency, miss per trial). Hidden until a run writes it, so other graphs look as before. ---
+            self.bo_path, self.bo_mtime, self.bo_cells = run_folder() / 'bo_status.json', None, []
+            self.bo_panel = QWidget()
+            self.bo_panel.setFixedWidth(440)
+            self.bo_panel.hide()
+            box = QVBoxLayout(self.bo_panel)
+            self.bo_text = QLabel()
+            self.bo_text.setFont(QFont('DejaVu Sans Mono', 9))
+            self.bo_text.setTextFormat(Qt.PlainText)
+            box.addWidget(self.bo_text)
+            self.bo_heat = pg.PlotWidget()
+            self.bo_heat.setBackground('w')
+            self.bo_heat.setMinimumHeight(330)
+            self.bo_heat.getPlotItem().setMouseEnabled(x=False, y=False)
+            self.bo_heat.setLabel('bottom', 'Pulse width (us)', color='k')
+            self.bo_heat.setLabel('left', 'Rate (Hz)', color='k')
+            self.bo_img = pg.ImageItem()
+            self.bo_img.setLookupTable(pg.colormap.get('viridis').getLookupTable(0.0, 1.0, 256)[::-1])   # dark = far, bright = close
+            self.bo_heat.addItem(self.bo_img)
+            self.bo_mark = pg.ScatterPlotItem(symbol='o', size=16, pen=pg.mkPen('r', width=3), brush=None)
+            self.bo_heat.addItem(self.bo_mark)
+            box.addWidget(self.bo_heat)
+            self.bo_miss = pg.PlotWidget()
+            self.bo_miss.setBackground('w')
+            self.bo_miss.setFixedHeight(130)
+            self.bo_miss.setTitle('Miss per trial (deg)', color='k')
+            self.bo_miss.getPlotItem().setMouseEnabled(x=False, y=False)
+            self.bo_miss_curve = self.bo_miss.plot(pen=pg.mkPen('#d95926', width=2), symbol='o', symbolSize=4)
+            box.addWidget(self.bo_miss)
+            layout.addWidget(self.bo_panel, 0, cam_cols + 1, cam_rows, 1)
+
             self.setLayout(layout)
 
             fps = getattr(self.visual, 'frame_rate_update', 30)
@@ -203,8 +236,58 @@ class Camera3DWidget(QWidget):
 
     # ------------------------------------------------------------------ update
 
+    def update_bo_panel(self):
+        """Redraw the BO panel when bo_status.json changed (written atomically by BayesOptTargets after every request and trial)."""
+        if not self.bo_path.exists():
+            return
+        m = self.bo_path.stat().st_mtime_ns
+        if m == self.bo_mtime:
+            return
+        self.bo_mtime = m
+        st = json.loads(self.bo_path.read_text())
+        self.bo_panel.show()
+
+        def row(v, w=7):
+            return ' ' * (w - 1) + '-' if v is None else f'{v:+{w}.1f}'
+        lines = [f"{st['settings']}   trial {st['trial']}   {st['state']}",
+                 f"target {st['target']}   booked {st['booked']}/{st['n_targets']}   charge {st['charge_mc']:.1f} mC"]
+        r = st['request']
+        if r:
+            lines.append(f"last {r['electrodes']} {r['amplitude'] / 1000:g} mA {r['pulse_width']} us {r['frequency']} Hz ({st['mode']})")
+        lines.append('')
+        lines.append(f"{'':16s}{'now':>7s}{'target':>7s}{'wanted':>7s}{'last':>7s}")
+        for k, j in enumerate(st['outputs']):
+            last = (st['last_change'] or {}).get(j)
+            lines.append(f"{j:16s}{row(None if st['resting'] is None else st['resting'][k])}"
+                         f"{row(None if st['target_pose'] is None else st['target_pose'][k])}"
+                         f"{row(None if st['wanted'] is None else st['wanted'][k])}{row(last)}")
+        if st['last_status'] not in (None, 'ok'):
+            lines.append(f"last trial: {st['last_status']}")
+        self.bo_text.setText('\n'.join(lines))
+
+        for item in self.bo_cells:
+            self.bo_heat.removeItem(item)
+        self.bo_cells = []
+        h = st['heat']
+        if h:
+            Z = np.array(h['miss'], float)
+            self.bo_img.setImage(Z, levels=(float(Z.min()), max(float(Z.max()), float(Z.min()) + 1.0)))
+            self.bo_img.setRect(QRectF(-0.5, -0.5, Z.shape[0], Z.shape[1]))
+            self.bo_heat.getAxis('bottom').setTicks([[(i, str(v)) for i, v in enumerate(h['pw'])]])
+            self.bo_heat.getAxis('left').setTicks([[(i, str(v)) for i, v in enumerate(h['fq'])]])
+            self.bo_heat.setTitle(f"Predicted miss (deg), electrodes {h['electrodes']}, {h['amplitude'] / 1000:g} mA", color='k')
+            lo = float(Z.min())
+            for (i, j), v in np.ndenumerate(Z):
+                txt = pg.TextItem(f'{v:.0f}', color='k' if v < 0.5 * (lo + Z.max()) else 'w', anchor=(0.5, 0.5))
+                txt.setPos(i, j)
+                self.bo_heat.addItem(txt)
+                self.bo_cells.append(txt)
+            self.bo_mark.setData([h['pw'].index(h['pulse_width'])], [h['fq'].index(h['frequency'])])
+        self.bo_miss_curve.setData(np.arange(len(st['miss'])), np.array(st['miss'], float))
+
     def update_frames(self):
         """QTimer tick: draw the newest frame per camera, then the newest prediction (2D overlay, angles, 3D)."""
+        self.update_bo_panel()
         # Camera images first -- these arrive on their own per-camera links and
         # are independent of whether a prediction landed this tick.
         # All cameras come out of the store in one MGET (getLastFrames).

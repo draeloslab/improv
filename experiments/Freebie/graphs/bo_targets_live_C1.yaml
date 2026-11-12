@@ -43,7 +43,7 @@ actors:
       geometric_association: {tol_px: 20, hold_tol_px: 40, hand_size_mm: [20, 200], dlc_min_keypoints: 8, gate_mm: 100, max_miss: 10}
       triangulation_method: dlt
       reprojection_check_px: 15
-      calibration_toml: 'calibration/<today>/calibration.toml'      # REPLACE with today's calibration
+      calibration_toml: '/home/chesteklab/improv/experiments/Freebie/calibration/2026-11-12_124100/calibration.toml'   # REPLACE with today's calibration
     method: spawn
 
   BayesOptTargets: {package: actors.bayes_opt_targets, class: BayesOptTargets, method: spawn, settings: bo_exp_C1}

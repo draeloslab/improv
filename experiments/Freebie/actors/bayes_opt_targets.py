@@ -113,6 +113,32 @@ class BayesOptTargets(BayesOptStim):
                 a = derived({**a, **{k: v[0] for k, v in self.ha.ray_angles(Q, side).items()}})
             self.buf.append((t, np.array([a[j] for j in self.joints], float)))
 
+    def _write_status(self, now):
+        """<run folder>/bo_status.json for the GUI panel (actors/front_end_3d.py): where the experiment is, the last request,
+        the miss per trial and the predicted miss over pulse width x frequency for the last request's electrodes and current."""
+        s, base = self.search, self._resting(now)
+        t = s.current_target()
+        wanted = None if t is None or (s.posture and base is None) else s.wanted_change(t, base)
+        done = self.trials[-1] if self.trials else None
+        cur = self.trial or done
+        miss = [float(np.linalg.norm(np.array([k['change'][j] for j in self.joints]) - s.wanted_change(k['target_index'], k['resting'])))
+                for k in self.trials if k.get('change') and None not in k['change'].values() and k.get('target_index') is not None
+                and (k.get('resting') is not None or not s.posture)]
+        heat = None
+        if cur is not None and wanted is not None:
+            r = cur['request']
+            heat = dict(pw=s.pws, fq=s.fqs, electrodes=r['electrodes'], amplitude=r['amplitude'], pulse_width=r['pulse_width'],
+                        frequency=r['frequency'], miss=s.miss_slice(r['electrodes'], r['amplitude'], wanted).tolist())
+        st = dict(t=now, settings=self.settings, state=self.state, trial=self.n_trials, outputs=self.joints, posture=s.posture,
+                  target=None if t is None else s.names[t], target_pose=None if t is None else s.targets[t].tolist(),
+                  resting=None if base is None else base.tolist(), wanted=None if wanted is None else wanted.tolist(),
+                  request=None if cur is None else cur['request'], mode=None if cur is None else cur['acquisition'].get('mode'),
+                  last_change=None if done is None else done.get('change'), last_status=None if done is None else done.get('status'),
+                  charge_mc=self.q_mc, booked=len(s.dictionary), n_targets=len(s.targets), miss=miss[-60:], heat=heat)
+        tmp = self.out_folder / 'bo_status.json.tmp'
+        tmp.write_text(json.dumps(st, default=float))
+        tmp.replace(self.out_folder / 'bo_status.json')           # atomic: the GUI never reads half a file
+
     def _resting(self, now):
         """Mean of each output over the last `baseline` seconds (the posture a posture target starts from)."""
         if not self.buf:
@@ -157,6 +183,7 @@ class BayesOptTargets(BayesOptStim):
         self.state = 'waiting_on'
         logger.info(f"trial {self.n_trials + 1}: request {self.req_id} electrodes {req['electrodes']} {req['amplitude']} uA / "
                     f"{req['pulse_width']} us / {req['frequency']} Hz (target {why.get('name')}, {why['mode']})")
+        self._write_status(now)
 
     def _evaluate(self, now):
         tr = self.trial
@@ -180,6 +207,7 @@ class BayesOptTargets(BayesOptStim):
             logger.info(f"target finished ({done}): {self.search.dictionary[-1]}")
             (self.out_folder / 'bo_dictionary.json').write_text(json.dumps(self.search.dictionary, indent=1))
         self._close('ok' if measured else 'angles not measured', now)
+        self._write_status(now)
 
     def stop(self):
         logger.info(f"BayesOptTargets stopping after {self.n_trials} trials, {self.q_mc:.1f} mC; {len(self.search.dictionary)} dictionary entries")

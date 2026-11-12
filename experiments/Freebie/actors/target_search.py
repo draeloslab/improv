@@ -193,7 +193,8 @@ class TargetSearch:
         self._Optimizer, self._kernel = _bayesoptim(cfg['bayesoptim_path'])
         sp, self.o, self.reg = cfg['space'], cfg['optimizer'], cfg['regularizer']
         sets = [c for n in range(1, int(sp['max_electrodes']) + 1) for c in itertools.combinations(sp['electrodes'], n)]
-        self.grid = [(c, pw, fq, cu) for c in sets for pw in sp['pulse_widths'] for fq in sp['frequencies'] for cu in sp['currents']]
+        self.pws, self.fqs = list(sp['pulse_widths']), list(sp['frequencies'])
+        self.grid = [(c, pw, fq, cu) for c in sets for pw in self.pws for fq in self.fqs for cu in sp['currents']]
         self.X = np.array([encode(*g) for g in self.grid])
         self.outputs = list(cfg['outputs'])
         self.targets = [np.array(t, float) for t in cfg['targets']]
@@ -282,6 +283,13 @@ class TargetSearch:
             self._direct_posterior()
         f, var = self._fp
         return self.prior_mean + f, np.sqrt(np.maximum(var, 0.0))
+
+    def miss_slice(self, electrodes, current, wanted):
+        """Predicted distance (deg) to the wanted change over pulse width x frequency, for one electrode set and current
+        (the live GUI's heatmap). Returns an array of shape (len(pws), len(fqs))."""
+        m = self.posterior()[0] if self.optims is not None else self.prior_mean
+        sel = [i for i, g in enumerate(self.grid) if g[0] == tuple(electrodes) and g[3] == current]      # pulse width, then frequency
+        return np.linalg.norm(m[sel] - np.asarray(wanted, float), axis=1).reshape(len(self.pws), len(self.fqs))
 
     # -- next stimulation
     def current_target(self):
