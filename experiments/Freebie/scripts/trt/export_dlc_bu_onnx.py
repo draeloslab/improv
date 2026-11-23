@@ -37,6 +37,11 @@ out.parent.mkdir(parents=True, exist_ok=True)
 W, H = a.frame_size
 
 mc = read_config_as_dict(train / 'pytorch_config.yaml')
+# this DLC version's PoseConfig forbids these augmentation keys (the snapshot's config has them as None); unused at inference
+for split in ('train', 'inference'):
+    for k in ('perspective', 'color_jitter', 'gamma'):
+        if mc['data'].get(split, {}).get(k, 0) is None:
+            del mc['data'][split][k]
 pose, _ = get_inference_runners(model_config=mc, snapshot_path=train / snap, max_individuals=1, batch_size=1,
                                 detector_batch_size=1, detector_path=None)
 

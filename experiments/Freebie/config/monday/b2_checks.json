@@ -1,0 +1,902 @@
+[
+{
+"electrodes": [
+4
+],
+"amplitude": [
+1000
+],
+"pulse_width": [
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "equiv e4 0.2uC 1000uA x 200us",
+"block": "b2"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+10000
+],
+"pulse_width": [
+75
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "equiv e16 0.75uC 10000uA x 75us",
+"block": "b2"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "freq e4 1uC 50Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+1000
+],
+"pulse_width": [
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "equiv e4 0.2uC 1000uA x 200us",
+"block": "b2"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+10000
+],
+"pulse_width": [
+75
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "equiv e4 0.75uC 10000uA x 75us",
+"block": "b2"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "freq e4 0.6uC 50Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 40,
+"duration": 1.0,
+"label": "freq e4 0.6uC 40Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+6
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "freq e6 1uC 50Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "freq e16 0.6uC 50Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+200
+],
+"frequency": 40,
+"duration": 1.0,
+"label": "freq e4 1uC 40Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+200
+],
+"frequency": 30,
+"duration": 1.0,
+"label": "freq e4 1uC 30Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+6
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+200
+],
+"frequency": 30,
+"duration": 1.0,
+"label": "freq e6 1uC 30Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 30,
+"duration": 1.0,
+"label": "freq e4 0.6uC 30Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+2000
+],
+"pulse_width": [
+100
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "equiv e16 0.2uC 2000uA x 100us",
+"block": "b2"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+4500
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "equiv e16 0.2uC 4500uA x 44us",
+"block": "b2"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+3000
+],
+"pulse_width": [
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "equiv e4 0.75uC 3000uA x 250us",
+"block": "b2"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 30,
+"duration": 1.0,
+"label": "freq e16 0.6uC 30Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+6
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 30,
+"duration": 1.0,
+"label": "freq e6 0.6uC 30Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "freq e16 1uC 50Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "equiv e16 0.75uC 5000uA x 150us",
+"block": "b2"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+200
+],
+"frequency": 30,
+"duration": 1.0,
+"label": "freq e16 1uC 30Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "equiv e4 0.75uC 5000uA x 150us",
+"block": "b2"
+},
+{
+"electrodes": [
+6
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 40,
+"duration": 1.0,
+"label": "freq e6 0.6uC 40Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 40,
+"duration": 1.0,
+"label": "freq e4 0.6uC 40Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+3000
+],
+"pulse_width": [
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "equiv e4 0.75uC 3000uA x 250us",
+"block": "b2"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 40,
+"duration": 1.0,
+"label": "freq e16 0.6uC 40Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+6
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+200
+],
+"frequency": 40,
+"duration": 1.0,
+"label": "freq e6 1uC 40Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+3000
+],
+"pulse_width": [
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "equiv e16 0.75uC 3000uA x 250us",
+"block": "b2"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+200
+],
+"frequency": 30,
+"duration": 1.0,
+"label": "freq e4 1uC 30Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+6
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "freq e6 1uC 50Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 30,
+"duration": 1.0,
+"label": "freq e16 0.6uC 30Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+4500
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "equiv e4 0.2uC 4500uA x 44us",
+"block": "b2"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+10000
+],
+"pulse_width": [
+75
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "equiv e4 0.75uC 10000uA x 75us",
+"block": "b2"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+1000
+],
+"pulse_width": [
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "equiv e16 0.2uC 1000uA x 200us",
+"block": "b2"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "freq e16 0.6uC 50Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+2000
+],
+"pulse_width": [
+100
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "equiv e4 0.2uC 2000uA x 100us",
+"block": "b2"
+},
+{
+"electrodes": [
+6
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+200
+],
+"frequency": 30,
+"duration": 1.0,
+"label": "freq e6 1uC 30Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+4500
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "equiv e4 0.2uC 4500uA x 44us",
+"block": "b2"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+200
+],
+"frequency": 40,
+"duration": 1.0,
+"label": "freq e4 1uC 40Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+6
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 30,
+"duration": 1.0,
+"label": "freq e6 0.6uC 30Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+6
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 40,
+"duration": 1.0,
+"label": "freq e6 0.6uC 40Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+4500
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "equiv e16 0.2uC 4500uA x 44us",
+"block": "b2"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "equiv e4 0.75uC 5000uA x 150us",
+"block": "b2"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+10000
+],
+"pulse_width": [
+75
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "equiv e16 0.75uC 10000uA x 75us",
+"block": "b2"
+},
+{
+"electrodes": [
+6
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+200
+],
+"frequency": 40,
+"duration": 1.0,
+"label": "freq e6 1uC 40Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "freq e16 1uC 50Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+2000
+],
+"pulse_width": [
+100
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "equiv e4 0.2uC 2000uA x 100us",
+"block": "b2"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+200
+],
+"frequency": 40,
+"duration": 1.0,
+"label": "freq e16 1uC 40Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+2000
+],
+"pulse_width": [
+100
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "equiv e16 0.2uC 2000uA x 100us",
+"block": "b2"
+},
+{
+"electrodes": [
+6
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "freq e6 0.6uC 50Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "equiv e16 0.75uC 5000uA x 150us",
+"block": "b2"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "freq e4 0.6uC 50Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+200
+],
+"frequency": 40,
+"duration": 1.0,
+"label": "freq e16 1uC 40Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+3000
+],
+"pulse_width": [
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "equiv e16 0.75uC 3000uA x 250us",
+"block": "b2"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "freq e4 1uC 50Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+200
+],
+"frequency": 30,
+"duration": 1.0,
+"label": "freq e16 1uC 30Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+6
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "freq e6 0.6uC 50Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 30,
+"duration": 1.0,
+"label": "freq e4 0.6uC 30Hz",
+"block": "b2"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+1000
+],
+"pulse_width": [
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "equiv e16 0.2uC 1000uA x 200us",
+"block": "b2"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 40,
+"duration": 1.0,
+"label": "freq e16 0.6uC 40Hz",
+"block": "b2"
+}
+]

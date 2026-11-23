@@ -354,3 +354,24 @@ bo_exp_C2:
   targets: [[20, 0, 35]]           # reachable fresh only with high charge (section 5: best ~8 deg off at 3 electrodes, 4 mA)
   optimizer: {prior_sd: [10.5, 7.2, 25.9], noise_sd: [3.7, 3.9, 7.6], fatigue: charge, fatigue_length: 20.0}
   timing: {stim_duration: 1.9, rest_duration: 2.0}     # ~ the 10-21 fatigue run's 2 s on / 2 s off; BRAND's vision node rejects trains of 2.0 s or more
+
+# Monday 2026-11-16, War Machine's last session (scripts/monday.py writes the per-block settings files and graphs;
+# Markdown/MONDAY_RUN_SHEET.md is the procedure). Charge mode: each electrode its own charge per phase, one fixed
+# frequency, at most 4 electrodes. A charge is played at 5 mA (pulse width = charge / 5 mA, 0.25-1.25 uC) or, below
+# 0.22 uC, at 44 us with 1.4-4.5 mA: the implant mapping's first, selective movements were near 0.08 uC (5 mA x 15 us),
+# and in the table every electrode recruits by 0.15-0.6 uC and saturates by ~1 uC. GP input per electrode:
+# log(1 + charge / 0.05 uC). No table prior: a same-day map seeds the GPs (40 same-day trains predicted the rest of a
+# day better than the other days plus those 40). Starting hyper-parameters: prior / noise SD from the per-day fits of
+# this encoding on the table; the length (1.5 on the log axis) is not identifiable from the table (almost no trains below
+# 0.2 uC), so `monday.py targets` refits all of them on the day's map before the live search.
+bo_monday:
+  outputs: [WRIST_EXT, WRIST_DEV, FINGER_EXT]
+  targets: []
+  target_kind: change
+  prior_table: null
+  space: {mode: charge, electrodes: [2, 4, 6, 8, 10, 12, 14, 16], max_electrodes: 4, amplitude: 5000, min_pulse_width: 44,
+          frequency: 50, charge_warp: 0.05, n_random: 40000, seed: 0,
+          charges: [0.06, 0.08, 0.1, 0.13, 0.16, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15, 1.2, 1.25]}
+  optimizer: {electrode_length: 1.5, param_length: 1.0, prior_sd: [19.1, 11.9, 36.7], noise_sd: [5.3, 5.0, 8.9],
+              k: 0.5, init_random: 0, converge_repeats: 1000, max_tests: 1000, fatigue: null, prior_scale: 1.0, seed: 0}
+  timing: {stim_duration: 1.0, rest_duration: 2.0}

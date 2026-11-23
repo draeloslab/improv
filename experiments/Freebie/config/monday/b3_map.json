@@ -1,0 +1,7028 @@
+[
+{
+"electrodes": [
+4,
+12,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+140,
+100,
+230
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 107",
+"block": "b3"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+50
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e16 0.25uC",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+8,
+10,
+14
+],
+"amplitude": [
+5000,
+2300,
+5000,
+1400
+],
+"pulse_width": [
+230,
+44,
+50,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 174",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+6
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+200,
+100,
+90
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 113",
+"block": "b3"
+},
+{
+"electrodes": [
+6
+],
+"amplitude": [
+3600
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e6 0.16uC",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+6,
+8
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+230,
+220,
+230,
+230
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 80",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+6,
+8,
+12
+],
+"amplitude": [
+5000,
+3000,
+5000,
+1800
+],
+"pulse_width": [
+230,
+44,
+150,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 206",
+"block": "b3"
+},
+{
+"electrodes": [
+6
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+170
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e6 0.85uC",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+6,
+10,
+14
+],
+"amplitude": [
+5000,
+5000,
+4500,
+5000
+],
+"pulse_width": [
+230,
+110,
+44,
+240
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 189",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+8,
+10,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+150,
+220,
+200,
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 42",
+"block": "b3"
+},
+{
+"electrodes": [
+6
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+80
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e6 0.4uC",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+14,
+16
+],
+"amplitude": [
+5000,
+1400,
+5000,
+2300
+],
+"pulse_width": [
+130,
+44,
+60,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 176 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+6
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e6 1.25uC",
+"block": "b3"
+},
+{
+"electrodes": [
+8,
+10,
+12,
+14
+],
+"amplitude": [
+1400,
+5000,
+5000,
+4500
+],
+"pulse_width": [
+44,
+120,
+60,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 137",
+"block": "b3"
+},
+{
+"electrodes": [
+10
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e10 0.6uC",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+16
+],
+"amplitude": [
+5000,
+5000
+],
+"pulse_width": [
+150,
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "reference",
+"block": "b3"
+},
+{
+"electrodes": [
+6
+],
+"amplitude": [
+2300
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e6 0.1uC",
+"block": "b3"
+},
+{
+"electrodes": [
+8,
+12,
+14
+],
+"amplitude": [
+5000,
+5000,
+4500
+],
+"pulse_width": [
+220,
+220,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 86",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+10,
+14,
+16
+],
+"amplitude": [
+3600,
+5000,
+5000,
+4500
+],
+"pulse_width": [
+44,
+220,
+60,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 167",
+"block": "b3"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+2300
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e4 0.1uC",
+"block": "b3"
+},
+{
+"electrodes": [
+8
+],
+"amplitude": [
+2300
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e8 0.1uC",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+8,
+14
+],
+"amplitude": [
+5000,
+5000,
+4500
+],
+"pulse_width": [
+200,
+190,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 83",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+8,
+16
+],
+"amplitude": [
+4500,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+44,
+220,
+50,
+230
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 111",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+10,
+14,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+240,
+230,
+190,
+240
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 20",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+6,
+8,
+12
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+60,
+70,
+110,
+210
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 65",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+10,
+12,
+14
+],
+"amplitude": [
+1800,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+44,
+250,
+170,
+220
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 187",
+"block": "b3"
+},
+{
+"electrodes": [
+8,
+10,
+14,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+250,
+180,
+210,
+190
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 30",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+10,
+12,
+14
+],
+"amplitude": [
+5000,
+3000,
+5000,
+3600
+],
+"pulse_width": [
+60,
+44,
+60,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 205",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+8,
+14,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+250,
+240,
+190,
+230
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 4",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+12,
+14,
+16
+],
+"amplitude": [
+1400,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+44,
+80,
+240,
+70
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 121",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+8,
+10,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+230,
+200,
+170,
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 39",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+16
+],
+"amplitude": [
+5000,
+5000
+],
+"pulse_width": [
+150,
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "reference",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+8,
+14,
+16
+],
+"amplitude": [
+5000,
+4500,
+2300,
+5000
+],
+"pulse_width": [
+210,
+44,
+44,
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 172",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+10
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+190,
+70,
+90
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 119",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+8,
+10,
+12
+],
+"amplitude": [
+5000,
+5000,
+3600,
+4500
+],
+"pulse_width": [
+70,
+210,
+44,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 114",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+8,
+12,
+14
+],
+"amplitude": [
+5000,
+3600,
+5000,
+2300
+],
+"pulse_width": [
+90,
+44,
+100,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 116",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+8,
+14,
+16
+],
+"amplitude": [
+5000,
+3600,
+5000,
+2300
+],
+"pulse_width": [
+240,
+44,
+60,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 123",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+14,
+16
+],
+"amplitude": [
+3600,
+5000,
+5000
+],
+"pulse_width": [
+44,
+220,
+220
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 71 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e16 0.6uC",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+12,
+14,
+16
+],
+"amplitude": [
+1800,
+1800,
+5000,
+5000
+],
+"pulse_width": [
+44,
+44,
+60,
+50
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 188",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+14,
+16
+],
+"amplitude": [
+2300,
+3600,
+5000,
+5000
+],
+"pulse_width": [
+44,
+44,
+220,
+190
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 181 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+12,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+140,
+110,
+250,
+130
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 52",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+12,
+14,
+16
+],
+"amplitude": [
+5000,
+4500,
+4500,
+5000
+],
+"pulse_width": [
+50,
+44,
+44,
+80
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 157 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+12,
+14
+],
+"amplitude": [
+3600,
+3600,
+5000,
+5000
+],
+"pulse_width": [
+44,
+44,
+100,
+90
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 140",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+8,
+12,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+250,
+190,
+250,
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 2",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+8,
+12,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+210,
+250,
+160,
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 35",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+8,
+10,
+14
+],
+"amplitude": [
+5000,
+5000,
+2300,
+2300
+],
+"pulse_width": [
+200,
+210,
+44,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 210",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+16
+],
+"amplitude": [
+5000,
+5000
+],
+"pulse_width": [
+150,
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "reference",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+10,
+12,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+2300
+],
+"pulse_width": [
+60,
+190,
+50,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 128",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+10,
+14,
+16
+],
+"amplitude": [
+5000,
+3000,
+5000,
+5000
+],
+"pulse_width": [
+70,
+44,
+140,
+50
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 153",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+6,
+10,
+14
+],
+"amplitude": [
+2300,
+1800,
+4500,
+5000
+],
+"pulse_width": [
+44,
+44,
+44,
+90
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 213",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+10,
+12
+],
+"amplitude": [
+1400,
+5000,
+1800,
+5000
+],
+"pulse_width": [
+44,
+250,
+44,
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 93",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+14,
+16
+],
+"amplitude": [
+5000,
+3600,
+5000
+],
+"pulse_width": [
+200,
+44,
+180
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 88",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+8,
+12,
+14
+],
+"amplitude": [
+5000,
+4500,
+5000,
+5000
+],
+"pulse_width": [
+50,
+44,
+60,
+180
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 195",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+6,
+12,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+220,
+200,
+240,
+170
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 10",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+8,
+16
+],
+"amplitude": [
+5000,
+5000,
+3600
+],
+"pulse_width": [
+190,
+230,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 89",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+6,
+8,
+10
+],
+"amplitude": [
+5000,
+5000,
+5000,
+2300
+],
+"pulse_width": [
+250,
+240,
+250,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 13",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+10,
+16
+],
+"amplitude": [
+5000,
+4500,
+5000
+],
+"pulse_width": [
+50,
+44,
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 154",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+8,
+16
+],
+"amplitude": [
+5000,
+5000,
+3600
+],
+"pulse_width": [
+190,
+230,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 89 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+8
+],
+"amplitude": [
+5000,
+5000,
+3600
+],
+"pulse_width": [
+50,
+210,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 164",
+"block": "b3"
+},
+{
+"electrodes": [
+10,
+12,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+100,
+100,
+240
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 115",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+10,
+12,
+14
+],
+"amplitude": [
+5000,
+1400,
+1800,
+5000
+],
+"pulse_width": [
+250,
+44,
+44,
+240
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 94",
+"block": "b3"
+},
+{
+"electrodes": [
+2
+],
+"amplitude": [
+3600
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e2 0.16uC",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+16
+],
+"amplitude": [
+5000,
+5000
+],
+"pulse_width": [
+150,
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "reference",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+10,
+14
+],
+"amplitude": [
+3600,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+44,
+90,
+70,
+240
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 215",
+"block": "b3"
+},
+{
+"electrodes": [
+8
+],
+"amplitude": [
+1400
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e8 0.06uC",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+10,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+250,
+130,
+230,
+140
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 54",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+8,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+230,
+70,
+230,
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 158",
+"block": "b3"
+},
+{
+"electrodes": [
+8
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+50
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e8 0.25uC",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+8,
+10
+],
+"amplitude": [
+5000,
+5000,
+3000
+],
+"pulse_width": [
+250,
+230,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 70",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+8,
+12
+],
+"amplitude": [
+3000,
+1800,
+5000,
+5000
+],
+"pulse_width": [
+44,
+44,
+160,
+170
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 197",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+8,
+10,
+14
+],
+"amplitude": [
+5000,
+3600,
+5000,
+1800
+],
+"pulse_width": [
+110,
+44,
+160,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 127",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+10,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+140,
+120,
+120
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 99",
+"block": "b3"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+3600
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e4 0.16uC",
+"block": "b3"
+},
+{
+"electrodes": [
+8,
+14,
+16
+],
+"amplitude": [
+5000,
+5000,
+3000
+],
+"pulse_width": [
+240,
+220,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 73",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+10,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+240,
+230,
+170,
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 7",
+"block": "b3"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+80
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e16 0.4uC",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+8,
+12
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+240,
+210,
+230
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 146",
+"block": "b3"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+1400
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e4 0.06uC",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+16
+],
+"amplitude": [
+5000,
+5000
+],
+"pulse_width": [
+150,
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "reference",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+12,
+14
+],
+"amplitude": [
+5000,
+5000,
+4500
+],
+"pulse_width": [
+220,
+200,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 97 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+8,
+12,
+16
+],
+"amplitude": [
+5000,
+5000,
+4500,
+4500
+],
+"pulse_width": [
+70,
+240,
+44,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 198",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+50,
+70,
+50
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 133",
+"block": "b3"
+},
+{
+"electrodes": [
+14
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e14 0.6uC",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+12
+],
+"amplitude": [
+5000,
+5000,
+1400
+],
+"pulse_width": [
+240,
+220,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 92",
+"block": "b3"
+},
+{
+"electrodes": [
+14
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+80
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e14 0.4uC",
+"block": "b3"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+170
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e4 0.85uC",
+"block": "b3"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+2300
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e16 0.1uC",
+"block": "b3"
+},
+{
+"electrodes": [
+8
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+80
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e8 0.4uC",
+"block": "b3"
+},
+{
+"electrodes": [
+8
+],
+"amplitude": [
+3600
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e8 0.16uC",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+12
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+70,
+80,
+110
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 106",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+10,
+12
+],
+"amplitude": [
+5000,
+3600,
+3600,
+5000
+],
+"pulse_width": [
+130,
+44,
+44,
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 134",
+"block": "b3"
+},
+{
+"electrodes": [
+2
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e2 1.25uC",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+8,
+12,
+14
+],
+"amplitude": [
+5000,
+1800,
+5000,
+5000
+],
+"pulse_width": [
+60,
+44,
+230,
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 193",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+8,
+14,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+220,
+180,
+190,
+190
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 44",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+16
+],
+"amplitude": [
+5000,
+5000
+],
+"pulse_width": [
+150,
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "reference",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+12,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+130,
+120,
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 101",
+"block": "b3"
+},
+{
+"electrodes": [
+10
+],
+"amplitude": [
+3600
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e10 0.16uC",
+"block": "b3"
+},
+{
+"electrodes": [
+2
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+170
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e2 0.85uC",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+6,
+16
+],
+"amplitude": [
+3600,
+3000,
+5000,
+1800
+],
+"pulse_width": [
+44,
+44,
+180,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 203",
+"block": "b3"
+},
+{
+"electrodes": [
+8,
+10,
+12,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+170,
+220,
+250,
+210
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 38",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+10,
+12
+],
+"amplitude": [
+5000,
+4500,
+5000
+],
+"pulse_width": [
+230,
+44,
+230
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 75",
+"block": "b3"
+},
+{
+"electrodes": [
+14
+],
+"amplitude": [
+2300
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e14 0.1uC",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+8,
+12,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+200,
+190,
+230,
+180
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 59",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+8,
+10
+],
+"amplitude": [
+5000,
+2300,
+5000
+],
+"pulse_width": [
+60,
+44,
+140
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 199",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+10,
+12,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+150,
+230,
+200,
+160
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 61 (repeat)",
+"block": "b3"
+},
+{
+"pause": 60,
+"label": "rest after 100 trials",
+"block": "b3"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e4 1.25uC",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+14,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+220,
+190,
+250,
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 24",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+10,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+100,
+110,
+160
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 102",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+8,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+150,
+70,
+50,
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 60 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+10
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e10 1.25uC",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+16
+],
+"amplitude": [
+5000,
+5000
+],
+"pulse_width": [
+150,
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "reference",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+8,
+10
+],
+"amplitude": [
+5000,
+4500,
+5000,
+5000
+],
+"pulse_width": [
+230,
+44,
+110,
+210
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 67",
+"block": "b3"
+},
+{
+"electrodes": [
+12
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e12 0.6uC",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+8,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+4500
+],
+"pulse_width": [
+110,
+50,
+50,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 175",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+8,
+10,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+1400
+],
+"pulse_width": [
+60,
+200,
+230,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 147",
+"block": "b3"
+},
+{
+"electrodes": [
+8,
+10,
+12,
+16
+],
+"amplitude": [
+3600,
+5000,
+5000,
+4500
+],
+"pulse_width": [
+44,
+230,
+50,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 166",
+"block": "b3"
+},
+{
+"electrodes": [
+6
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+50
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e6 0.25uC",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+8,
+10,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+2300
+],
+"pulse_width": [
+50,
+90,
+210,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 148",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+8,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+1800
+],
+"pulse_width": [
+250,
+240,
+220,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 15",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+10,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+220,
+60,
+50
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 138",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+8,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+60,
+60,
+130,
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 62",
+"block": "b3"
+},
+{
+"electrodes": [
+6
+],
+"amplitude": [
+1400
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e6 0.06uC",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+12,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+210,
+220,
+250,
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 22",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+14,
+16
+],
+"amplitude": [
+5000,
+3600,
+5000
+],
+"pulse_width": [
+200,
+44,
+180
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 88 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+12,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+210,
+220,
+240
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 202",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+8,
+10,
+16
+],
+"amplitude": [
+1800,
+5000,
+5000,
+1800
+],
+"pulse_width": [
+44,
+60,
+210,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 211",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+16
+],
+"amplitude": [
+5000,
+5000
+],
+"pulse_width": [
+150,
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "reference",
+"block": "b3"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+80
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e4 0.4uC",
+"block": "b3"
+},
+{
+"electrodes": [
+8,
+10,
+12
+],
+"amplitude": [
+5000,
+5000,
+3000
+],
+"pulse_width": [
+250,
+250,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 68",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+8,
+12,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+220,
+210,
+180,
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 40",
+"block": "b3"
+},
+{
+"electrodes": [
+10,
+14,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+100,
+250,
+120
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 105",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+6,
+12,
+14
+],
+"amplitude": [
+2300,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+44,
+60,
+230,
+50
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 118",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+14,
+16
+],
+"amplitude": [
+5000,
+1400,
+5000,
+2300
+],
+"pulse_width": [
+130,
+44,
+60,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 176",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+10,
+12,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+210,
+230,
+230,
+190
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 28",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+10,
+12,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+250,
+140,
+190,
+220
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 41",
+"block": "b3"
+},
+{
+"electrodes": [
+10
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+80
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e10 0.4uC",
+"block": "b3"
+},
+{
+"electrodes": [
+12
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+80
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e12 0.4uC",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+8,
+10,
+12
+],
+"amplitude": [
+5000,
+5000,
+3600,
+3000
+],
+"pulse_width": [
+70,
+250,
+44,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 135",
+"block": "b3"
+},
+{
+"electrodes": [
+10,
+12,
+14,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+50,
+130,
+50,
+70
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 183",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+10,
+16
+],
+"amplitude": [
+5000,
+5000,
+4500
+],
+"pulse_width": [
+220,
+170,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 87",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+8,
+12,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+250,
+190,
+220,
+140
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 32",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+8,
+14,
+16
+],
+"amplitude": [
+5000,
+4500,
+5000,
+4500
+],
+"pulse_width": [
+240,
+44,
+220,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 171 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+16
+],
+"amplitude": [
+5000,
+5000
+],
+"pulse_width": [
+150,
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "reference",
+"block": "b3"
+},
+{
+"electrodes": [
+6
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e6 0.6uC",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+8,
+12
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+250,
+90,
+140,
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 77",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+12,
+16
+],
+"amplitude": [
+5000,
+5000,
+3000,
+5000
+],
+"pulse_width": [
+50,
+160,
+44,
+80
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 169",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+10,
+12
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+210,
+240,
+240,
+240
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 18",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+8,
+10,
+14
+],
+"amplitude": [
+1400,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+44,
+240,
+120,
+60
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 129",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+8,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+1800
+],
+"pulse_width": [
+240,
+240,
+250,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 14",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+8,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+240,
+250,
+80
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 132",
+"block": "b3"
+},
+{
+"electrodes": [
+8,
+10,
+14
+],
+"amplitude": [
+2300,
+5000,
+5000
+],
+"pulse_width": [
+44,
+220,
+220
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 79",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+6,
+10
+],
+"amplitude": [
+5000,
+4500,
+5000
+],
+"pulse_width": [
+250,
+44,
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 91",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+10,
+12,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+150,
+230,
+200,
+160
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 61",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+50,
+150,
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 96",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+8,
+10,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+240,
+200,
+220,
+230
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 5",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+6,
+10,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+1800
+],
+"pulse_width": [
+50,
+170,
+210,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 201",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+8,
+10,
+12
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+230,
+210,
+250,
+220
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 25",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+6,
+10,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+60,
+240,
+250,
+240
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 11",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+16
+],
+"amplitude": [
+5000,
+5000
+],
+"pulse_width": [
+150,
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "reference",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+10
+],
+"amplitude": [
+5000,
+5000,
+3000
+],
+"pulse_width": [
+250,
+200,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 90",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+8,
+10,
+12
+],
+"amplitude": [
+5000,
+5000,
+5000,
+4500
+],
+"pulse_width": [
+110,
+50,
+180,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 204",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+6,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+170,
+200,
+230,
+120
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 57",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+8,
+16
+],
+"amplitude": [
+2300,
+5000,
+5000
+],
+"pulse_width": [
+44,
+110,
+80
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 190",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+8,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+50,
+250,
+60
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 136",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+8,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+150,
+70,
+50,
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 60",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+6,
+14
+],
+"amplitude": [
+5000,
+1400,
+5000,
+5000
+],
+"pulse_width": [
+90,
+44,
+90,
+70
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 108",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+10,
+12,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+250,
+210,
+160,
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 29",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+8,
+10,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+1400
+],
+"pulse_width": [
+60,
+200,
+230,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 147 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+14,
+16
+],
+"amplitude": [
+5000,
+5000,
+4500,
+3000
+],
+"pulse_width": [
+140,
+90,
+44,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 143",
+"block": "b3"
+},
+{
+"electrodes": [
+10
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+50
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e10 0.25uC",
+"block": "b3"
+},
+{
+"electrodes": [
+10
+],
+"amplitude": [
+1400
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e10 0.06uC",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+8,
+10
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+50,
+190,
+80,
+220
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 63",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+6,
+12,
+16
+],
+"amplitude": [
+2300,
+5000,
+5000,
+1800
+],
+"pulse_width": [
+44,
+80,
+100,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 191",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+6,
+14,
+16
+],
+"amplitude": [
+5000,
+2300,
+5000,
+5000
+],
+"pulse_width": [
+240,
+44,
+50,
+230
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 149",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+16
+],
+"amplitude": [
+5000,
+5000
+],
+"pulse_width": [
+150,
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "reference",
+"block": "b3"
+},
+{
+"electrodes": [
+14
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+170
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e14 0.85uC",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+8,
+12,
+16
+],
+"amplitude": [
+3600,
+3000,
+5000,
+5000
+],
+"pulse_width": [
+44,
+44,
+130,
+210
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 214",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+8,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+70,
+80,
+200,
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 109",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+8,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+1800
+],
+"pulse_width": [
+250,
+240,
+220,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 15 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+10,
+12,
+14,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+250,
+250,
+200,
+210
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 3",
+"block": "b3"
+},
+{
+"electrodes": [
+8,
+12,
+14,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+160,
+220,
+240,
+160
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 27",
+"block": "b3"
+},
+{
+"electrodes": [
+12,
+14,
+16
+],
+"amplitude": [
+5000,
+2300,
+5000
+],
+"pulse_width": [
+250,
+44,
+230
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 78",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+10,
+12,
+16
+],
+"amplitude": [
+1400,
+5000,
+5000,
+1800
+],
+"pulse_width": [
+44,
+240,
+250,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 72",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+12,
+14
+],
+"amplitude": [
+5000,
+3000,
+5000
+],
+"pulse_width": [
+220,
+44,
+240
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 74",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+6,
+12,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+250,
+200,
+210,
+180
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 50",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+12,
+14,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+4500
+],
+"pulse_width": [
+140,
+50,
+50,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 170",
+"block": "b3"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e4 0.6uC",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+10,
+12
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+200,
+210,
+230,
+230
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 6",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+10
+],
+"amplitude": [
+3600,
+5000,
+5000
+],
+"pulse_width": [
+44,
+250,
+210
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 212 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+6,
+8,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+150,
+150,
+90,
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 64",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+16
+],
+"amplitude": [
+5000,
+5000
+],
+"pulse_width": [
+150,
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "reference",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+6,
+12
+],
+"amplitude": [
+5000,
+5000,
+3600
+],
+"pulse_width": [
+230,
+250,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 81",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+8,
+12,
+14
+],
+"amplitude": [
+2300,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+44,
+50,
+110,
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 155",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+8,
+10,
+12
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+230,
+230,
+250,
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 0",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+6,
+10,
+12
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+210,
+230,
+190,
+160
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 45",
+"block": "b3"
+},
+{
+"electrodes": [
+10
+],
+"amplitude": [
+2300
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e10 0.1uC",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+10,
+12,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+2300
+],
+"pulse_width": [
+60,
+190,
+50,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 128 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+8,
+12,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+170,
+50,
+230
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 95",
+"block": "b3"
+},
+{
+"electrodes": [
+8
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+170
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e8 0.85uC",
+"block": "b3"
+},
+{
+"electrodes": [
+12
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+170
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e12 0.85uC",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+8,
+10,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+200,
+170,
+180,
+210
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 19 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+8,
+12,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+2300
+],
+"pulse_width": [
+60,
+60,
+50,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 103",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+8,
+10,
+12
+],
+"amplitude": [
+5000,
+5000,
+4500,
+5000
+],
+"pulse_width": [
+50,
+250,
+44,
+80
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 152",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+10,
+16
+],
+"amplitude": [
+3600,
+5000,
+5000
+],
+"pulse_width": [
+44,
+220,
+240
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 69",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+8
+],
+"amplitude": [
+3600,
+5000,
+5000
+],
+"pulse_width": [
+44,
+240,
+60
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 151",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+10,
+12,
+16
+],
+"amplitude": [
+4500,
+5000,
+5000,
+3600
+],
+"pulse_width": [
+44,
+60,
+200,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 173",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+16
+],
+"amplitude": [
+5000,
+5000
+],
+"pulse_width": [
+150,
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "reference",
+"block": "b3"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+3600
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e16 0.16uC",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+10,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+250,
+130,
+230,
+140
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 54 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+6,
+8,
+16
+],
+"amplitude": [
+1400,
+3600,
+5000,
+5000
+],
+"pulse_width": [
+44,
+44,
+170,
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 145",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+12,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+90,
+240,
+50
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 130",
+"block": "b3"
+},
+{
+"electrodes": [
+2
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e2 0.6uC",
+"block": "b3"
+},
+{
+"pause": 60,
+"label": "rest after 200 trials",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+14,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+220,
+150,
+220
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 98",
+"block": "b3"
+},
+{
+"electrodes": [
+12
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e12 1.25uC",
+"block": "b3"
+},
+{
+"electrodes": [
+8,
+10,
+12,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+160,
+220,
+190,
+210
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 37",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+8,
+12,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+160,
+250,
+240,
+210
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 9",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+10,
+12
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+230,
+190,
+50
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 82",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+8,
+14,
+16
+],
+"amplitude": [
+5000,
+4500,
+5000,
+4500
+],
+"pulse_width": [
+240,
+44,
+220,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 171",
+"block": "b3"
+},
+{
+"electrodes": [
+8,
+10,
+12
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+70,
+60,
+240
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 125",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+8,
+10,
+14
+],
+"amplitude": [
+5000,
+3000,
+5000,
+5000
+],
+"pulse_width": [
+250,
+44,
+120,
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 184",
+"block": "b3"
+},
+{
+"electrodes": [
+8,
+12,
+14
+],
+"amplitude": [
+5000,
+2300,
+5000
+],
+"pulse_width": [
+110,
+44,
+70
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 207",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+8,
+10,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+250,
+190,
+190,
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 8",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+16
+],
+"amplitude": [
+5000,
+5000
+],
+"pulse_width": [
+150,
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "reference",
+"block": "b3"
+},
+{
+"electrodes": [
+2
+],
+"amplitude": [
+2300
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e2 0.1uC",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+8,
+10,
+14
+],
+"amplitude": [
+3600,
+5000,
+3000,
+5000
+],
+"pulse_width": [
+44,
+60,
+44,
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 192",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+10,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+220,
+220,
+160,
+220
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 31",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+8,
+12,
+14
+],
+"amplitude": [
+5000,
+1800,
+5000,
+5000
+],
+"pulse_width": [
+60,
+44,
+230,
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 193 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+6,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+110,
+110,
+80
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 117",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+12,
+14,
+16
+],
+"amplitude": [
+5000,
+4500,
+4500,
+5000
+],
+"pulse_width": [
+50,
+44,
+44,
+80
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 157",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+6,
+12
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+250,
+250,
+220,
+190
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 21",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+8,
+14,
+16
+],
+"amplitude": [
+5000,
+4500,
+2300,
+5000
+],
+"pulse_width": [
+80,
+44,
+44,
+70
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 120",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+10,
+12
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+160,
+230,
+60
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 131",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+6,
+12
+],
+"amplitude": [
+1800,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+44,
+240,
+220,
+210
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 162",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+8,
+12,
+14
+],
+"amplitude": [
+5000,
+5000,
+3000,
+5000
+],
+"pulse_width": [
+50,
+120,
+44,
+240
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 139",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+6,
+8,
+10
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+60,
+220,
+60,
+180
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 124",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+8,
+14
+],
+"amplitude": [
+3600,
+3000,
+4500,
+5000
+],
+"pulse_width": [
+44,
+44,
+44,
+60
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 178",
+"block": "b3"
+},
+{
+"electrodes": [
+14
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+50
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e14 0.25uC",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+6,
+8
+],
+"amplitude": [
+5000,
+3600,
+3000,
+5000
+],
+"pulse_width": [
+60,
+44,
+44,
+110
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 112",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+16
+],
+"amplitude": [
+5000,
+5000
+],
+"pulse_width": [
+150,
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "reference",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+8,
+10,
+12
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+180,
+250,
+180,
+210
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 23",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+10
+],
+"amplitude": [
+3600,
+5000,
+5000
+],
+"pulse_width": [
+44,
+250,
+210
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 212",
+"block": "b3"
+},
+{
+"electrodes": [
+10,
+12,
+14
+],
+"amplitude": [
+2300,
+5000,
+5000
+],
+"pulse_width": [
+44,
+210,
+210
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 84",
+"block": "b3"
+},
+{
+"electrodes": [
+12
+],
+"amplitude": [
+2300
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e12 0.1uC",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+12,
+14,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+240,
+210,
+150,
+240
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 49",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+10,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+240,
+230,
+170,
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 7 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e16 1.25uC",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+8,
+10
+],
+"amplitude": [
+5000,
+1800,
+5000,
+5000
+],
+"pulse_width": [
+120,
+44,
+240,
+230
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 182",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+10,
+12,
+14
+],
+"amplitude": [
+5000,
+3000,
+5000,
+5000
+],
+"pulse_width": [
+80,
+44,
+70,
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 163",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+12,
+16
+],
+"amplitude": [
+5000,
+5000,
+1800,
+5000
+],
+"pulse_width": [
+250,
+90,
+44,
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 196",
+"block": "b3"
+},
+{
+"electrodes": [
+2
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+80
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e2 0.4uC",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+6,
+10,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+210,
+250,
+150,
+210
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 43",
+"block": "b3"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+50
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e4 0.25uC",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+8,
+10,
+12
+],
+"amplitude": [
+5000,
+3600,
+5000,
+5000
+],
+"pulse_width": [
+60,
+44,
+120,
+240
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 200",
+"block": "b3"
+},
+{
+"electrodes": [
+2
+],
+"amplitude": [
+1400
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e2 0.06uC",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+16
+],
+"amplitude": [
+5000,
+5000
+],
+"pulse_width": [
+150,
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "reference",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+12,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+70,
+120,
+250,
+230
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 16",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+12
+],
+"amplitude": [
+5000,
+5000,
+1400
+],
+"pulse_width": [
+240,
+220,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 92 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+6,
+8,
+12
+],
+"amplitude": [
+5000,
+3000,
+5000,
+1800
+],
+"pulse_width": [
+230,
+44,
+150,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 206 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+12,
+14
+],
+"amplitude": [
+5000,
+5000,
+2300,
+5000
+],
+"pulse_width": [
+230,
+230,
+44,
+220
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 144",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+10,
+14,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+250,
+190,
+220,
+240
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 26 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+14
+],
+"amplitude": [
+3600,
+5000,
+5000
+],
+"pulse_width": [
+44,
+60,
+220
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 177",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+8,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+60,
+60,
+130,
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 62 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+170
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e16 0.85uC",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+12,
+14
+],
+"amplitude": [
+5000,
+5000,
+3600,
+5000
+],
+"pulse_width": [
+220,
+180,
+44,
+50
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 186",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+10,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+120,
+100,
+220
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 104",
+"block": "b3"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+1400
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e16 0.06uC",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+8,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+60,
+60,
+70
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 110",
+"block": "b3"
+},
+{
+"electrodes": [
+12
+],
+"amplitude": [
+1400
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e12 0.06uC",
+"block": "b3"
+},
+{
+"electrodes": [
+12,
+14,
+16
+],
+"amplitude": [
+5000,
+2300,
+5000
+],
+"pulse_width": [
+250,
+44,
+230
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 78 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+8,
+12
+],
+"amplitude": [
+5000,
+4500,
+5000,
+3000
+],
+"pulse_width": [
+230,
+44,
+90,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 208",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+16
+],
+"amplitude": [
+5000,
+5000
+],
+"pulse_width": [
+150,
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "reference",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+10,
+14,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+140,
+220,
+150,
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 56",
+"block": "b3"
+},
+{
+"electrodes": [
+8
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+120
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e8 0.6uC",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+8,
+12
+],
+"amplitude": [
+5000,
+3600,
+5000,
+3000
+],
+"pulse_width": [
+230,
+44,
+220,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 160",
+"block": "b3"
+},
+{
+"electrodes": [
+14
+],
+"amplitude": [
+3600
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e14 0.16uC",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+6,
+10
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+220,
+190,
+220,
+240
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 17",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+6,
+14,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+160,
+210,
+200,
+160
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 33",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+12,
+14,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+180,
+190,
+210,
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 53",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+6,
+12
+],
+"amplitude": [
+5000,
+1800,
+4500,
+5000
+],
+"pulse_width": [
+220,
+44,
+44,
+220
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 150",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+16
+],
+"amplitude": [
+5000,
+3600,
+5000
+],
+"pulse_width": [
+210,
+44,
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 76",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+10,
+12,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+220,
+210,
+180,
+210
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 46",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+8,
+12
+],
+"amplitude": [
+1400,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+44,
+250,
+80,
+140
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 142",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+6,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+210,
+250,
+230,
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 1",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+8,
+14,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+210,
+190,
+250,
+210
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 34",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+8,
+10,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+100,
+250,
+70,
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 51",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+10,
+12,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+190,
+220,
+230,
+190
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 47",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+16
+],
+"amplitude": [
+5000,
+5000
+],
+"pulse_width": [
+150,
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "reference",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+8,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+230,
+220,
+50,
+50
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 168",
+"block": "b3"
+},
+{
+"electrodes": [
+14
+],
+"amplitude": [
+1400
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e14 0.06uC",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+12,
+14
+],
+"amplitude": [
+5000,
+5000,
+4500
+],
+"pulse_width": [
+220,
+200,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 97",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+6,
+8,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+200,
+150,
+100,
+240
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 66",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+10,
+12,
+14
+],
+"amplitude": [
+5000,
+3000,
+5000,
+5000
+],
+"pulse_width": [
+80,
+44,
+70,
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 163 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+14,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+230,
+180,
+60,
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 12",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+12,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+250,
+170,
+250,
+200
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 48",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+12,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+210,
+220,
+240
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 202 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+8,
+12
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+180,
+70,
+60,
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 58",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+14,
+16
+],
+"amplitude": [
+3600,
+5000,
+5000
+],
+"pulse_width": [
+44,
+220,
+220
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 71",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+10,
+16
+],
+"amplitude": [
+5000,
+5000,
+4500
+],
+"pulse_width": [
+220,
+170,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 87 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+8,
+10,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+140,
+90,
+130
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 100",
+"block": "b3"
+},
+{
+"electrodes": [
+8,
+10,
+14,
+16
+],
+"amplitude": [
+2300,
+5000,
+3600,
+5000
+],
+"pulse_width": [
+44,
+60,
+44,
+190
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 185",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+8,
+10
+],
+"amplitude": [
+5000,
+2300,
+5000
+],
+"pulse_width": [
+60,
+44,
+140
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 199 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+6,
+8,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+2300
+],
+"pulse_width": [
+80,
+120,
+80,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 179",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+16
+],
+"amplitude": [
+5000,
+5000
+],
+"pulse_width": [
+150,
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "reference",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+8,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+240,
+250,
+140
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 159",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+10,
+12
+],
+"amplitude": [
+5000,
+4500,
+5000,
+3000
+],
+"pulse_width": [
+110,
+44,
+90,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 194",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+14,
+16
+],
+"amplitude": [
+2300,
+3600,
+5000,
+5000
+],
+"pulse_width": [
+44,
+44,
+220,
+190
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 181",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+6,
+10
+],
+"amplitude": [
+5000,
+1800,
+5000,
+4500
+],
+"pulse_width": [
+120,
+44,
+190,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 161",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+10,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+140,
+250,
+240,
+120
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 55",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+8,
+12,
+16
+],
+"amplitude": [
+2300,
+5000,
+5000,
+2300
+],
+"pulse_width": [
+44,
+240,
+130,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 165",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+12,
+14
+],
+"amplitude": [
+5000,
+2300,
+2300,
+5000
+],
+"pulse_width": [
+210,
+44,
+44,
+50
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 209",
+"block": "b3"
+},
+{
+"electrodes": [
+12
+],
+"amplitude": [
+3600
+],
+"pulse_width": [
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e12 0.16uC",
+"block": "b3"
+},
+{
+"electrodes": [
+10
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+170
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e10 0.85uC",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+6,
+10,
+16
+],
+"amplitude": [
+3600,
+3600,
+5000,
+3600
+],
+"pulse_width": [
+44,
+44,
+70,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 180",
+"block": "b3"
+},
+{
+"electrodes": [
+2
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+50
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e2 0.25uC",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+14,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+220,
+150,
+220
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 98 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+12,
+16
+],
+"amplitude": [
+5000,
+2300,
+5000
+],
+"pulse_width": [
+210,
+44,
+230
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 85",
+"block": "b3"
+},
+{
+"electrodes": [
+6,
+10,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+70,
+240,
+50
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 122",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+12,
+14,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+250,
+250,
+190,
+180
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 36",
+"block": "b3"
+},
+{
+"pause": 60,
+"label": "rest after 300 trials",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+16
+],
+"amplitude": [
+5000,
+5000
+],
+"pulse_width": [
+150,
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "reference",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+8,
+12
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+230,
+220,
+240
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 156",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+10,
+14,
+16
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+250,
+190,
+220,
+240
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 26",
+"block": "b3"
+},
+{
+"electrodes": [
+4,
+8,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000
+],
+"pulse_width": [
+50,
+250,
+60
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 136 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+8,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+70,
+80,
+200,
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 109 (repeat)",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+8,
+10,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+200,
+170,
+180,
+210
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 19",
+"block": "b3"
+},
+{
+"electrodes": [
+8
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e8 1.25uC",
+"block": "b3"
+},
+{
+"electrodes": [
+14
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+250
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e14 1.25uC",
+"block": "b3"
+},
+{
+"electrodes": [
+2,
+4,
+10,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+1800
+],
+"pulse_width": [
+80,
+140,
+240,
+44
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 141",
+"block": "b3"
+},
+{
+"electrodes": [
+8,
+12,
+14,
+16
+],
+"amplitude": [
+5000,
+1800,
+5000,
+5000
+],
+"pulse_width": [
+50,
+44,
+80,
+190
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "combo 126",
+"block": "b3"
+},
+{
+"electrodes": [
+12
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+50
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "e12 0.25uC",
+"block": "b3"
+}
+]

@@ -1,0 +1,68 @@
+# Monday 2026-11-16, block 5 (written by scripts/monday.py graphs; procedure: Markdown/MONDAY_RUN_SHEET.md).
+#
+#   CameraReader x4 ─┬─> ProcessorBatch3D ─┬─> SenderUDP.joints_in ──> BRAND :11115
+#                    │   (it9 RTMPose ONNX,├─> VideoScreen3D.preds_in
+#                    │    DLT, 15 px check)└─> BayesOptTargets.joints_in
+#                    ├─> VideoScreen3D.images{N}_in
+#                    └─> VideoSaver{N}.q_in
+#   BayesOptTargets.q_out ──> SenderUDP.stim_in ──> BRAND :11116 (stim requests)
+#   BRAND :11117 ──> BrandReceiver ──> BayesOptTargets.feedback_in (stim_on / stim_off)
+#
+# The four experiment graphs bo_targets_live_{A,B,C1,C2}.yaml differ ONLY in BayesOptTargets' `settings:` (a block of
+# config/config.yaml). BEFORE RUNNING: set calibration_toml to today's calibration, and camera_nums / CameraReader
+# camera_num to today's cameras (or fes-run --cameras).
+#
+# Run: scripts/fes-run.sh bo_targets_live_A.yaml
+actors:
+  GUI: {package: actors.video_screen_3d, class: Visual3D, visual: VideoScreen3D}
+  VideoScreen3D: {package: actors.video_screen_3d, class: VideoScreen3D, num_active_cameras: 4}
+
+  Generator0: {package: actors.camera_reader, class: CameraReader, camera_num: 1}
+  Generator1: {package: actors.camera_reader, class: CameraReader, camera_num: 2}
+  Generator2: {package: actors.camera_reader, class: CameraReader, camera_num: 3}
+  Generator3: {package: actors.camera_reader, class: CameraReader, camera_num: 5}
+
+  ProcessorBatch3D:
+    package: actors.processor_batch3d
+    class: ProcessorBatch3D
+    num_cameras: 4
+    camera_nums: [1, 2, 3, 5]
+    pred_active: True
+    triangulate: true
+    compute_cores: 4
+    config_overrides:
+      batch3d_backend: dlc
+      dlc_engine: rtmpose_onnx
+      dlc_rtmpose_models_dir: /home/chesteklab/improv/experiments/Freebie/models/dlc_rtmpose
+      dlc_onnx_frame_size: [960, 720]
+      dlc_onnx_det_providers: [CUDAExecutionProvider, CPUExecutionProvider]
+      dlc_onnx_pose_providers: [CUDAExecutionProvider, CPUExecutionProvider]
+      dlc_rtmpose_det_score: 0.3
+      dlc_rtmpose_max_hands: 2
+      hand_association: geometric
+      geometric_association: {tol_px: 20, hold_tol_px: 40, hand_size_mm: [20, 200], dlc_min_keypoints: 8, gate_mm: 100, max_miss: 10}
+      triangulation_method: dlt
+      reprojection_check_px: 15
+      calibration_toml: '/home/chesteklab/improv/experiments/Freebie/calibration/2026-11-12_124100/calibration.toml'
+    method: spawn
+
+  BayesOptTargets: {package: actors.bayes_opt_targets, class: BayesOptTargets, method: spawn, settings: bo_monday, settings_file: '/home/chesteklab/improv/experiments/Freebie/config/monday/b5.yaml'}
+  BrandReceiver: {package: actors.brand_link, class: BrandReceiver, method: spawn}
+  SenderUDP: {package: actors.sender_udp, class: SenderUDP, method: spawn}
+
+  VideoSaver0: {package: actors.video_saver, class: VideoSaver, camera_num: 1, method: spawn}
+  VideoSaver1: {package: actors.video_saver, class: VideoSaver, camera_num: 2, method: spawn}
+  VideoSaver2: {package: actors.video_saver, class: VideoSaver, camera_num: 3, method: spawn}
+  VideoSaver3: {package: actors.video_saver, class: VideoSaver, camera_num: 5, method: spawn}
+
+connections:
+  Generator0.q_out: [VideoScreen3D.images0_in, ProcessorBatch3D.frames0_in, VideoSaver0.q_in]
+  Generator1.q_out: [VideoScreen3D.images1_in, ProcessorBatch3D.frames1_in, VideoSaver1.q_in]
+  Generator2.q_out: [VideoScreen3D.images2_in, ProcessorBatch3D.frames2_in, VideoSaver2.q_in]
+  Generator3.q_out: [VideoScreen3D.images3_in, ProcessorBatch3D.frames3_in, VideoSaver3.q_in]
+  ProcessorBatch3D.q_out: [SenderUDP.joints_in, VideoScreen3D.preds_in, BayesOptTargets.joints_in]
+  BayesOptTargets.q_out: [SenderUDP.stim_in]
+  BrandReceiver.q_out: [BayesOptTargets.feedback_in]
+
+redis_config:
+  port: 6379

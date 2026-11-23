@@ -1,0 +1,647 @@
+[
+{
+"electrodes": [
+12,
+16
+],
+"amplitude": [
+10000,
+10000
+],
+"pulse_width": [
+175,
+175
+],
+"frequency": 20,
+"duration": 1.0,
+"label": "11-12 A open_hand",
+"block": "b1"
+},
+{
+"electrodes": [
+2
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "anchor e2",
+"block": "b1"
+},
+{
+"electrodes": [
+12
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "anchor e12",
+"block": "b1"
+},
+{
+"electrodes": [
+12,
+16
+],
+"amplitude": [
+10000,
+10000
+],
+"pulse_width": [
+175,
+175
+],
+"frequency": 20,
+"duration": 1.0,
+"label": "11-12 A open_hand",
+"block": "b1"
+},
+{
+"electrodes": [
+2
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "anchor e2",
+"block": "b1"
+},
+{
+"electrodes": [
+6
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "anchor e6",
+"block": "b1"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "anchor e4",
+"block": "b1"
+},
+{
+"electrodes": [
+6
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "anchor e6",
+"block": "b1"
+},
+{
+"electrodes": [
+2,
+6,
+8,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+50,
+50,
+50,
+50
+],
+"frequency": 40,
+"duration": 1.0,
+"label": "11-12 A ulnar_wave",
+"block": "b1"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+150
+],
+"frequency": 70,
+"duration": 1.0,
+"label": "11-12 C1 neutral",
+"block": "b1"
+},
+{
+"electrodes": [
+2,
+4,
+8,
+12
+],
+"amplitude": [
+10000,
+10000,
+10000,
+10000
+],
+"pulse_width": [
+200,
+200,
+200,
+200
+],
+"frequency": 20,
+"duration": 1.0,
+"label": "11-12 B extension",
+"block": "b1"
+},
+{
+"electrodes": [
+12
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "anchor e12",
+"block": "b1"
+},
+{
+"electrodes": [
+2,
+6,
+8,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+50,
+50,
+50,
+50
+],
+"frequency": 40,
+"duration": 1.0,
+"label": "11-12 A ulnar_wave",
+"block": "b1"
+},
+{
+"electrodes": [
+14
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "anchor e14",
+"block": "b1"
+},
+{
+"electrodes": [
+12,
+16
+],
+"amplitude": [
+10000,
+10000
+],
+"pulse_width": [
+175,
+175
+],
+"frequency": 20,
+"duration": 1.0,
+"label": "11-12 A open_hand",
+"block": "b1"
+},
+{
+"electrodes": [
+2,
+4,
+8,
+12
+],
+"amplitude": [
+10000,
+10000,
+10000,
+10000
+],
+"pulse_width": [
+200,
+200,
+200,
+200
+],
+"frequency": 20,
+"duration": 1.0,
+"label": "11-12 B extension",
+"block": "b1"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "anchor e4",
+"block": "b1"
+},
+{
+"electrodes": [
+2,
+6,
+8,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+50,
+50,
+50,
+50
+],
+"frequency": 40,
+"duration": 1.0,
+"label": "11-12 A ulnar_wave",
+"block": "b1"
+},
+{
+"electrodes": [
+2,
+4,
+8,
+12
+],
+"amplitude": [
+10000,
+10000,
+10000,
+10000
+],
+"pulse_width": [
+200,
+200,
+200,
+200
+],
+"frequency": 20,
+"duration": 1.0,
+"label": "11-12 B extension",
+"block": "b1"
+},
+{
+"electrodes": [
+2,
+6,
+8,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+50,
+50,
+50,
+50
+],
+"frequency": 40,
+"duration": 1.0,
+"label": "11-12 A ulnar_wave",
+"block": "b1"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+150
+],
+"frequency": 70,
+"duration": 1.0,
+"label": "11-12 C1 neutral",
+"block": "b1"
+},
+{
+"electrodes": [
+14
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "anchor e14",
+"block": "b1"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+150
+],
+"frequency": 70,
+"duration": 1.0,
+"label": "11-12 C1 neutral",
+"block": "b1"
+},
+{
+"electrodes": [
+8
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "anchor e8",
+"block": "b1"
+},
+{
+"electrodes": [
+2,
+4,
+8,
+12
+],
+"amplitude": [
+10000,
+10000,
+10000,
+10000
+],
+"pulse_width": [
+200,
+200,
+200,
+200
+],
+"frequency": 20,
+"duration": 1.0,
+"label": "11-12 B extension",
+"block": "b1"
+},
+{
+"electrodes": [
+12,
+16
+],
+"amplitude": [
+10000,
+10000
+],
+"pulse_width": [
+175,
+175
+],
+"frequency": 20,
+"duration": 1.0,
+"label": "11-12 A open_hand",
+"block": "b1"
+},
+{
+"electrodes": [
+10
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "anchor e10",
+"block": "b1"
+},
+{
+"electrodes": [
+2,
+4,
+8,
+12
+],
+"amplitude": [
+10000,
+10000,
+10000,
+10000
+],
+"pulse_width": [
+200,
+200,
+200,
+200
+],
+"frequency": 20,
+"duration": 1.0,
+"label": "11-12 B extension",
+"block": "b1"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+150
+],
+"frequency": 70,
+"duration": 1.0,
+"label": "11-12 C1 neutral",
+"block": "b1"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "anchor e16",
+"block": "b1"
+},
+{
+"electrodes": [
+10
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "anchor e10",
+"block": "b1"
+},
+{
+"electrodes": [
+8
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "anchor e8",
+"block": "b1"
+},
+{
+"electrodes": [
+2,
+6,
+8,
+14
+],
+"amplitude": [
+5000,
+5000,
+5000,
+5000
+],
+"pulse_width": [
+50,
+50,
+50,
+50
+],
+"frequency": 40,
+"duration": 1.0,
+"label": "11-12 A ulnar_wave",
+"block": "b1"
+},
+{
+"electrodes": [
+4
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+150
+],
+"frequency": 70,
+"duration": 1.0,
+"label": "11-12 C1 neutral",
+"block": "b1"
+},
+{
+"electrodes": [
+12,
+16
+],
+"amplitude": [
+10000,
+10000
+],
+"pulse_width": [
+175,
+175
+],
+"frequency": 20,
+"duration": 1.0,
+"label": "11-12 A open_hand",
+"block": "b1"
+},
+{
+"electrodes": [
+16
+],
+"amplitude": [
+5000
+],
+"pulse_width": [
+150
+],
+"frequency": 50,
+"duration": 1.0,
+"label": "anchor e16",
+"block": "b1"
+}
+]

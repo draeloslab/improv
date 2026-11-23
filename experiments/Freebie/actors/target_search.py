@@ -56,7 +56,8 @@ DEFAULTS = dict(
     target_names=None,
     target_kind='change',                                     # 'change' | 'posture'
     mode='search',                                            # 'search' | 'cycle'
-    space=dict(electrodes=ELECTRODES, max_electrodes=3, pulse_widths=[100, 150, 200], frequencies=[30, 50], currents=[3000, 5000]),
+    space=dict(mode='grid', electrodes=ELECTRODES, max_electrodes=3, pulse_widths=[100, 150, 200], frequencies=[30, 50], currents=[3000, 5000],
+               charges=None, charge_warp=None, amplitude=5000, min_pulse_width=44, frequency=50, n_random=40000, seed=0),
     optimizer=dict(electrode_length=1.5, param_length=0.6, prior_sd=[15.0, 10.0], noise_sd=[4.0, 3.5],
                    k=1.0, converge_repeats=5, max_tests=40, init_random=6, seed=0, window=0,
                    fatigue=None, fatigue_length=20.0, prior_scale=1.0),
@@ -81,6 +82,43 @@ def encode(electrodes, pulse_width, frequency, amplitude):
     """One stimulation -> the 11 stimulation inputs of the GP."""
     on = np.isin(ELECTRODES, list(electrodes)).astype(float)
     return np.r_[on, np.array([pulse_width, frequency, amplitude], float) / SCALE]
+
+
+def encode_charge(electrodes, pulse_width, amplitude, warp=None):
+    """Charge mode: one stimulation -> the 11 GP inputs: each electrode's charge per phase q (uC; 0 = off), as
+    log(1 + q / warp) when warp (uC) is given (recruitment runs from ~0.08 to ~1 uC, so equal steps on this axis are equal
+    ratios of charge), then three constant inputs (their kernel factors are 1). pulse_width / amplitude: one value or one
+    per electrode."""
+    els = list(electrodes)
+    pw, amp = np.broadcast_to(np.asarray(pulse_width, float), (len(els),)), np.broadcast_to(np.asarray(amplitude, float), (len(els),))
+    q = np.zeros(len(ELECTRODES))
+    for e, p, a in zip(els, pw, amp):
+        q[ELECTRODES.index(int(e))] = a * p * 1e-6
+    return np.r_[np.log1p(q / float(warp)) if warp else q, 0.0, 0.0, 0.0]
+
+
+def charge_setting(q, amplitude=5000, min_pulse_width=44):
+    """Charge per phase (uC) -> (amplitude uA, pulse width us): `amplitude` with pulse width q / amplitude, or, when that
+    width would be under min_pulse_width (CereStim: 44 us), min_pulse_width with the amplitude q / width in 100 uA steps."""
+    pw = int(round(q * 1e6 / amplitude))
+    if pw >= min_pulse_width:
+        return int(amplitude), pw
+    return int(round(q * 1e6 / min_pulse_width / 100.0) * 100), int(min_pulse_width)
+
+
+def charge_candidates(sp):
+    """Charge mode: [(electrodes, pulse widths (us), frequency, amplitudes (uA)), one width and amplitude per electrode]:
+    every single electrode and every pair at every charge level, plus n_random random sets of 3..max_electrodes with
+    independent levels. Each level is played as charge_setting(level) at one fixed frequency."""
+    els, fq = list(sp['electrodes']), int(sp['frequency'])
+    lv = sorted({charge_setting(float(q), int(sp['amplitude']), int(sp.get('min_pulse_width', 44))) for q in sp['charges']})   # (amp, pw)
+    out = {(c, s) for n in (1, 2) for c in itertools.combinations(els, n) for s in itertools.product(lv, repeat=n)}
+    rng, k_max = np.random.default_rng(int(sp.get('seed', 0))), int(sp['max_electrodes'])
+    goal = len(out) + (int(sp['n_random']) if k_max >= 3 else 0)
+    while len(out) < goal:
+        c = tuple(sorted(rng.choice(els, int(rng.integers(3, k_max + 1)), replace=False).tolist()))
+        out.add((c, tuple(lv[int(rng.integers(len(lv)))] for _ in c)))
+    return [(c, tuple(p for _, p in s), fq, tuple(a for a, _ in s)) for c, s in sorted(out)]
 
 
 def train_charge_mc(n_electrodes, pulse_width, frequency, amplitude, duration):
@@ -192,10 +230,16 @@ class TargetSearch:
         cfg = merged(cfg)
         self._Optimizer, self._kernel = _bayesoptim(cfg['bayesoptim_path'])
         sp, self.o, self.reg = cfg['space'], cfg['optimizer'], cfg['regularizer']
-        sets = [c for n in range(1, int(sp['max_electrodes']) + 1) for c in itertools.combinations(sp['electrodes'], n)]
-        self.pws, self.fqs = list(sp['pulse_widths']), list(sp['frequencies'])
-        self.grid = [(c, pw, fq, cu) for c in sets for pw in self.pws for fq in self.fqs for cu in sp['currents']]
-        self.X = np.array([encode(*g) for g in self.grid])
+        self.charge_mode = sp.get('mode', 'grid') == 'charge'
+        self.charge_warp = sp.get('charge_warp')
+        if self.charge_mode:                                   # each electrode its own charge (pulse width), one amplitude and frequency
+            self.pws, self.fqs = [], []
+            self.grid = charge_candidates(sp)
+        else:
+            sets = [c for n in range(1, int(sp['max_electrodes']) + 1) for c in itertools.combinations(sp['electrodes'], n)]
+            self.pws, self.fqs = list(sp['pulse_widths']), list(sp['frequencies'])
+            self.grid = [(c, pw, fq, cu) for c in sets for pw in self.pws for fq in self.fqs for cu in sp['currents']]
+        self.X = np.array([self.encode_stim(*g) for g in self.grid])
         self.outputs = list(cfg['outputs'])
         self.targets = [np.array(t, float) for t in cfg['targets']]
         self.names = cfg.get('target_names') or [str(t) for t in cfg['targets']]
@@ -207,7 +251,7 @@ class TargetSearch:
         self.gamma = gamma_of(self.o, bool(self.fatigue))
         self.q_now = 0.0                                       # fatigue input of "now" (cumulative mC or minutes)
         self.prior_mean = np.zeros((len(self.grid), len(self.outputs))) if prior_mean is None else np.asarray(prior_mean, float)
-        charge = np.array([len(c) * pw * fq * cu for c, pw, fq, cu in self.grid], float)
+        charge = np.array([(np.dot(pw, np.broadcast_to(cu, len(pw))) if isinstance(pw, tuple) else len(c) * pw * cu) * fq for c, pw, fq, cu in self.grid], float)
         self.charge = charge / charge.max()
         self.optims, self.q_fit = None, None
         self._ks_grid, self._c_stim = [], types.SimpleNamespace(gamma=self.gamma[:11], var=1.0, matern_nu=2.5)
@@ -215,6 +259,12 @@ class TargetSearch:
         self.active, self.tests, self.streak, self.last_choice, self.tried = 0, 0, 0, None, set()
         self.found = {}                                        # target index -> candidate indices accepted as solutions
         self.dictionary, self.visit = [], 0
+
+    def encode_stim(self, electrodes, pulse_width, frequency, amplitude):
+        """The GP inputs of a stimulation in this search's encoding (pulse_width / amplitude: one value or one per electrode)."""
+        if self.charge_mode:
+            return encode_charge(electrodes, pulse_width, amplitude, self.charge_warp)
+        return encode(electrodes, int(np.atleast_1d(pulse_width)[0]), frequency, int(np.atleast_1d(amplitude)[0]))
 
     def _cs(self):
         xs = np.c_[self.X, np.full(len(self.X), self.q_now)] if self.fatigue else self.X
@@ -286,7 +336,9 @@ class TargetSearch:
 
     def miss_slice(self, electrodes, current, wanted):
         """Predicted distance (deg) to the wanted change over pulse width x frequency, for one electrode set and current
-        (the live GUI's heatmap). Returns an array of shape (len(pws), len(fqs))."""
+        (the live GUI's heatmap). Returns an array of shape (len(pws), len(fqs)); None in charge mode (no such slice)."""
+        if self.charge_mode:
+            return None
         m = self.posterior()[0] if self.optims is not None else self.prior_mean
         sel = [i for i, g in enumerate(self.grid) if g[0] == tuple(electrodes) and g[3] == current]      # pulse width, then frequency
         return np.linalg.norm(m[sel] - np.asarray(wanted, float), axis=1).reshape(len(self.pws), len(self.fqs))
@@ -388,7 +440,8 @@ class TargetSearch:
         c, pw, fq, cu = self.grid[j]
         self.dictionary.append(dict(target=tau.tolist(), name=self.names[t], outputs=self.outputs, kind='posture' if self.posture else 'change',
                                     solution=len(self.found.get(t, [])) + 1, finished=why, accepted=accepted,
-                                    trials=self.tests, electrodes=[int(e) for e in c], pulse_width=int(pw), frequency=int(fq), amplitude=int(cu),
+                                    trials=self.tests, electrodes=[int(e) for e in c], pulse_width=[int(p) for p in pw] if isinstance(pw, tuple) else int(pw),
+                                    frequency=int(fq), amplitude=[int(a) for a in cu] if isinstance(cu, tuple) else int(cu),
                                     charge=float(self.charge[j]), predicted=m[j].tolist(), predicted_sd=sd[j].tolist(),
                                     measured=meas.tolist(), repeats=len(same), distance_deg=dist, predicted_distance_deg=pred_dist))
         self.found.setdefault(t, []).append(j)
